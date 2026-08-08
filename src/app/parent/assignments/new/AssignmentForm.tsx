@@ -24,6 +24,7 @@ const END_OPTIONS = [
 export function AssignmentForm({ students, subjects }: { students: Student[]; subjects: Subject[] }) {
   const [repeat, setRepeat] = useState("none");
   const [endCondition, setEndCondition] = useState("never");
+  const [studentId, setStudentId] = useState(students[0]?.id ?? "");
   const showDaysOfWeek = repeat === "weekly" || repeat === "biweekly";
 
   return (
@@ -41,23 +42,31 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
       <div>
         <span className="block text-sm font-medium">Student</span>
         <div className="mt-1 flex gap-2">
-          {students.map((student, index) => (
-            <label
-              key={student.id}
-              className="flex-1 cursor-pointer rounded border border-[#DDD6CB] px-3 py-2 text-center text-sm has-[:checked]:border-[#1A1A1A] has-[:checked]:bg-[#1A1A1A] has-[:checked]:text-white"
-              style={{ borderTopColor: student.accentColor, borderTopWidth: 3 }}
-            >
-              <input
-                type="radio"
-                name="studentId"
-                value={student.id}
-                required
-                defaultChecked={index === 0}
-                className="sr-only"
-              />
-              {student.name}
-            </label>
-          ))}
+          {students.map((student) => {
+            const selected = student.id === studentId;
+            return (
+              <label
+                key={student.id}
+                className={`flex-1 cursor-pointer rounded border px-3 py-2 text-center text-sm transition-colors ${
+                  selected
+                    ? "border-[#1A1A1A] bg-[#1A1A1A] text-white"
+                    : "border-[#DDD6CB] text-[#1A1A1A] hover:border-[#B8AF9F]"
+                }`}
+                style={{ borderTopColor: student.accentColor, borderTopWidth: 3 }}
+              >
+                <input
+                  type="radio"
+                  name="studentId"
+                  value={student.id}
+                  required
+                  checked={selected}
+                  onChange={() => setStudentId(student.id)}
+                  className="sr-only"
+                />
+                {student.name}
+              </label>
+            );
+          })}
         </div>
       </div>
 

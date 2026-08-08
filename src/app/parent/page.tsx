@@ -9,8 +9,8 @@ export default async function ParentPage({
 }) {
   const { week } = await searchParams;
   const monday = week ? parseISODate(week) : mondayOf(new Date());
-  const days = Array.from({ length: 5 }, (_, index) => addDays(monday, index));
-  const weekEnd = addDays(monday, 5);
+  const days = Array.from({ length: 6 }, (_, index) => addDays(monday, index));
+  const weekEnd = addDays(monday, 6);
 
   const [students, instances] = await Promise.all([
     prisma.student.findMany({ orderBy: { name: "asc" } }),
@@ -28,11 +28,11 @@ export default async function ParentPage({
     <main className="min-h-screen bg-[#FAF7F2] px-10 py-12 text-[#1A1A1A]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-medium">Parent Mode</h1>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href="/parent/students" className="text-[#6B6B6B] hover:underline">
+        <nav className="flex items-center gap-8 text-sm">
+          <Link href="/parent/students" className="px-1 text-[#6B6B6B] hover:underline">
             Students
           </Link>
-          <Link href="/parent/subjects" className="text-[#6B6B6B] hover:underline">
+          <Link href="/parent/subjects" className="px-1 text-[#6B6B6B] hover:underline">
             Subjects
           </Link>
           <Link
@@ -44,12 +44,12 @@ export default async function ParentPage({
         </nav>
       </div>
 
-      <div className="mt-8 flex items-center gap-4 text-sm">
-        <Link href={`/parent?week=${prevWeek}`} className="text-[#6B6B6B] hover:underline">
+      <div className="mt-8 flex items-center gap-6 text-sm">
+        <Link href={`/parent?week=${prevWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
           ← Prev week
         </Link>
         <span className="font-medium">Week of {formatWeekLabel(days[0])}</span>
-        <Link href={`/parent?week=${nextWeek}`} className="text-[#6B6B6B] hover:underline">
+        <Link href={`/parent?week=${nextWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
           Next week →
         </Link>
       </div>
@@ -72,7 +72,7 @@ export default async function ParentPage({
           >
             {student.name}
           </h2>
-          <div className="mt-3 grid grid-cols-5 gap-4">
+          <div className="mt-3 grid grid-cols-6 gap-4">
             {days.map((day) => {
               const dateStr = toISODate(day);
               const dayInstances = instances.filter(

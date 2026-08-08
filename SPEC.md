@@ -97,7 +97,7 @@ New Assignment sheet, one screen:
 
 ## 6. Student experience — the TeuxDeux view
 
-**Layout.** Five columns, Monday–Friday of the current week, today's column highlighted with a hairline border and slightly larger day label. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line of text: a small subject tick (2px vertical bar in the subject color) + title. Click anywhere on the line to complete. No checkbox chrome until hover.
+**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line of text: a small subject tick (2px vertical bar in the subject color) + title. Click anywhere on the line to complete. No checkbox chrome until hover.
 
 **The completion moment (the signature — build this with care):**
 1. On click, a strikethrough line draws left-to-right across the text over ~280ms with an ease-out curve
@@ -173,7 +173,7 @@ Grades/scoring, file attachments, curriculum links, time tracking, mobile/tablet
 "Implement §3's materialization rule and §4's edit semantics (this only / this and following / all). Write tests covering: weekdays series skipping an offDay, weekly Tue/Thu series omitting a field-trip Tuesday, per-instance edits surviving series regeneration, and end conditions."
 
 **Phase 3 — Student week view + completion animation.**
-"Build §6 exactly: the five-column week view with the item-state ordering, Coming Up panel, the 60-second background refresh, and the full completion sequence in §6 steps 1–7 including the day-complete confetti and prefers-reduced-motion fallback, using Framer Motion. Follow the visual design brief in §9 strictly — near-monochrome, one typeface, no extra chrome. Test in Safari."
+"Build §6 exactly: the six-column week view with the item-state ordering, Coming Up panel, the 60-second background refresh, and the full completion sequence in §6 steps 1–7 including the day-complete confetti and prefers-reduced-motion fallback, using Framer Motion. Follow the visual design brief in §9 strictly — near-monochrome, one typeface, no extra chrome. Test in Safari."
 
 **Phase 4 — Rolling, review, and rescheduling.**
 "Implement §5: the daily auto-roll with rolledCount marks and skip-over of non-school days, the pendingReview 'Show Mom' flow including the half-strike animation, the parent approve/return actions (from Parent Mode and via the passcode popover on the student machine) with the full completion animation firing on approval, the Reschedule Helper, and the day-type-change flow. Write tests for: roll skipping a weekend, pendingReview holding its day, an approved item's reviewedAt feeding the attendance log, and a returned item reopening with its note."
