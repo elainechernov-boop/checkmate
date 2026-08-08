@@ -1,0 +1,204 @@
+// Shared model definitions for both the sqlite (dev) and postgresql (prod) schemas.
+// See prisma/sqlite and prisma/postgresql for the datasource each is paired with,
+// and prisma.config.ts for how the active one is selected via DATABASE_URL.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+// ---- Enums ----
+
+enum WorkSampleCategory {
+  math
+  languageArts
+  science
+  socialStudies
+  none
+}
+
+enum ProjectStatus {
+  active
+  completed
+  archived
+}
+
+enum CreatedBy {
+  parent
+  student
+}
+
+enum Frequency {
+  daily
+  weekdays
+  weekly
+  biweekly
+  monthly
+}
+
+enum EndCondition {
+  never
+  onDate
+  afterNCount
+}
+
+enum InstanceStatus {
+  open
+  pendingReview
+  done
+  excused
+}
+
+enum SchoolDayType {
+  schoolDay
+  offDay
+  fieldTrip
+  sick
+  holiday
+}
+
+// ---- Models (SPEC.md §3) ----
+
+model Student {
+  id          String @id @default(cuid())
+  name        String @unique
+  gradeLevel  String
+  accentColor String
+
+  projects            Project[]
+  assignmentSeries    AssignmentSeries[]
+  assignmentInstances AssignmentInstance[]
+}
+
+model Subject {
+  id                 String             @id @default(cuid())
+  name               String             @unique
+  workSampleCategory WorkSampleCategory @default(none)
+  isFaithIntegrated  Boolean            @default(false)
+
+  projects            Project[]
+  assignmentSeries    AssignmentSeries[]
+  assignmentInstances AssignmentInstance[]
+}
+
+model Project {
+  id         String        @id @default(cuid())
+  studentId  String
+  student    Student       @relation(fields: [studentId], references: [id])
+  name       String
+  targetDate DateTime?
+  subjectId  String?
+  subject    Subject?      @relation(fields: [subjectId], references: [id])
+  status     ProjectStatus @default(active)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  series    AssignmentSeries[]
+  instances AssignmentInstance[]
+
+  @@index([studentId])
+}
+
+// The template a day's instances are materialized from (§3 materialization rule).
+model AssignmentSeries {
+  id        String  @id @default(cuid())
+  title     String
+  details   String?
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  // nil for a student project series
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id])
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  createdBy CreatedBy
+
+  recurrence RecurrenceRule?
+
+  startDate    DateTime
+  endCondition EndCondition @default(never)
+  // used when endCondition = onDate
+  endDate      DateTime?
+  // used when endCondition = afterNCount
+  endCount     Int?
+
+  estimatedMinutes Int?
+  // "Show me the work" — a completed instance needs parent sign-off (§5)
+  requiresReview   Boolean @default(false)
+
+  instances AssignmentInstance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+}
+
+model RecurrenceRule {
+  id       String           @id @default(cuid())
+  seriesId String           @unique
+  series   AssignmentSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  frequency Frequency
+  // Comma-separated Weekday codes (e.g. "tue,thu") for weekly/biweekly frequencies.
+  // Stored as a CSV string, not a scalar list, so this field works identically on
+  // sqlite (no native scalar-list support) and postgresql.
+  daysOfWeek String?
+  // every N weeks/months
+  interval   Int    @default(1)
+}
+
+// What actually appears on a day — materialized from a series, or standalone (§3).
+model AssignmentInstance {
+  id        String            @id @default(cuid())
+  seriesId  String?
+  series    AssignmentSeries? @relation(fields: [seriesId], references: [id])
+  title     String
+  details   String?
+  studentId String
+  student   Student           @relation(fields: [studentId], references: [id])
+  subjectId String?
+  subject   Subject?          @relation(fields: [subjectId], references: [id])
+  projectId String?
+  project   Project?          @relation(fields: [projectId], references: [id])
+  createdBy CreatedBy
+
+  // nil dueDate is a project backlog item (student-created project tasks only)
+  dueDate         DateTime?
+  // set on scheduling; diverges from dueDate once the item rolls
+  originalDueDate DateTime?
+  rolledCount     Int            @default(0)
+  status          InstanceStatus @default(open)
+  // copied from series; settable per one-off
+  requiresReview  Boolean        @default(false)
+  completedAt     DateTime?
+  // the later of completedAt/reviewedAt feeds the attendance log
+  reviewedAt      DateTime?
+  isWorkSample    Boolean        @default(false)
+  workSampleNote  String?
+  // a per-instance edit detaches it from the series for this occurrence only
+  isOverride      Boolean        @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId, dueDate])
+  @@index([seriesId])
+}
+
+// The school calendar (§3, §8)
+model SchoolDay {
+  id                String        @id @default(cuid())
+  date              DateTime      @unique
+  type              SchoolDayType @default(schoolDay)
+  attendanceClaimed Boolean       @default(false)
+  activityNote      String?
+}
+
+model LearningPeriod {
+  id             String    @id @default(cuid())
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  hstMeetingDate DateTime?
+}
