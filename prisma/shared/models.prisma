@@ -84,11 +84,11 @@ model Subject {
 model Project {
   id         String        @id @default(cuid())
   studentId  String
-  student    Student       @relation(fields: [studentId], references: [id])
+  student    Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
   name       String
   targetDate DateTime?
   subjectId  String?
-  subject    Subject?      @relation(fields: [subjectId], references: [id])
+  subject    Subject?      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   status     ProjectStatus @default(active)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
@@ -105,12 +105,12 @@ model AssignmentSeries {
   title     String
   details   String?
   studentId String
-  student   Student @relation(fields: [studentId], references: [id])
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
   // nil for a student project series
   subjectId String?
-  subject   Subject? @relation(fields: [subjectId], references: [id])
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   projectId String?
-  project   Project? @relation(fields: [projectId], references: [id])
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdBy CreatedBy
 
   recurrence RecurrenceRule?
@@ -156,11 +156,11 @@ model AssignmentInstance {
   title     String
   details   String?
   studentId String
-  student   Student           @relation(fields: [studentId], references: [id])
+  student   Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
   subjectId String?
-  subject   Subject?          @relation(fields: [subjectId], references: [id])
+  subject   Subject?          @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   projectId String?
-  project   Project?          @relation(fields: [projectId], references: [id])
+  project   Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdBy CreatedBy
 
   // nil dueDate is a project backlog item (student-created project tasks only)

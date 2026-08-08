@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
 
-// TODO: replace with your students' real names, grade levels, and accent colors,
-// then re-run `npm run db:seed`.
 const STUDENTS = [
-  { name: "Student One", gradeLevel: "TBD", accentColor: "#C97B4A" },
-  { name: "Student Two", gradeLevel: "TBD", accentColor: "#5B7FA6" },
+  { name: "Miles", gradeLevel: "7th Grade", accentColor: "#C97B4A" },
+  { name: "Violet", gradeLevel: "5th Grade", accentColor: "#5B7FA6" },
 ];
 
 // The fixed subject list from SPEC.md §3, mapped to Blue Ridge's four
