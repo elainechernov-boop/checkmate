@@ -106,7 +106,7 @@ New Assignment sheet, one screen:
 1. Clicking the title draws a strikethrough line left-to-right across it over ~280ms with an ease-out curve
 2. Simultaneously the text color fades to muted gray with a single, small spring scale pulse
 3. A soft, short completion sound (subtle "tick," toggleable via the header sound icon)
-4. A one-time reward: a fun critter (an emoji, freshly randomized every time — no two completions look the same) flies clean across the whole screen, gone in just over a second. Skipped for pendingReview and for undo; the reward lands only when the work is actually, genuinely done.
+4. A one-time reward: a fun critter (an emoji, freshly randomized every time — no two completions look the same) launches from the checked item itself and rises up and off the top of the screen — clear of the day columns rather than sweeping back across them — over about 1.7s, unhurried enough to actually enjoy. Skipped for pendingReview and for undo; the reward lands only when the work is actually, genuinely done.
 5. Completed items sink below open items in the column with an animated reorder
 6. **Day-complete moment:** when the last open item in today's column is checked, the whole screen takes it over — confetti rains across the full viewport and a big "[Student] finished the day!" message pops in, ~2.3s, then gone. Once per day, today only.
 7. Undo: clicking a completed item today reverses the animation; clicking a pendingReview item withdraws it back to open. Yesterday and earlier are locked for students.
