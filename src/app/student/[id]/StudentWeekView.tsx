@@ -70,6 +70,12 @@ export function StudentWeekView({
 
   const days = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(monday, i)), [monday]);
   const weekHasAnyItems = localInstances.length > 0;
+  // The week view is Mon-Sat (§6) — on a Sunday there's no column that
+  // equals "today" at all, so nothing is interactive. Say so plainly
+  // (this is a fact about the real today, not about whichever week is
+  // currently being browsed) instead of leaving a silent grid that reads
+  // as broken.
+  const todayIsSunday = today.getUTCDay() === 0;
 
   function handleCelebrate() {
     setCelebratedToday(true);
@@ -162,6 +168,12 @@ export function StudentWeekView({
           Next week →
         </Link>
       </div>
+
+      {todayIsSunday && (
+        <p className="mt-3 text-sm" style={{ color: COLORS.mutedFaint }}>
+          No school today — nothing here is checkable until Monday.
+        </p>
+      )}
 
       {weekHasAnyItems && (
         <div className="mt-8 grid grid-cols-6 gap-6">

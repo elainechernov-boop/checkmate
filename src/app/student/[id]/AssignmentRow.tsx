@@ -109,53 +109,59 @@ export function AssignmentRow({
         onClick={handleTitleClick}
         disabled={!interactive}
         aria-label={isDone ? "Mark as not done" : isPendingReview ? "Withdraw from Show Mom" : "Mark as done"}
-        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
         style={{ cursor: interactive ? "pointer" : "default" }}
       >
-        <span
-          aria-hidden
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ background: isPendingReview ? COLORS.amber : subjectColor }}
-        />
+        <span className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ background: isPendingReview ? COLORS.amber : subjectColor }}
+          />
 
-        <motion.span
-          className="relative inline-block"
-          animate={
-            pulsing
-              ? prefersReducedMotion
-                ? { opacity: [1, 0.6, 1] }
-                : { scale: [1, 1.03, 1] }
-              : { scale: 1, opacity: 1 }
-          }
-          transition={{ duration: prefersReducedMotion ? 0.15 : 0.22, ease: "easeOut" }}
-          style={{ transformOrigin: "left center" }}
-        >
           <motion.span
-            initial={false}
-            animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
-            transition={{ duration: prefersReducedMotion ? 0.15 : duration }}
+            className="relative inline-block"
+            animate={
+              pulsing
+                ? prefersReducedMotion
+                  ? { opacity: [1, 0.6, 1] }
+                  : { scale: [1, 1.03, 1] }
+                : { scale: 1, opacity: 1 }
+            }
+            transition={{ duration: prefersReducedMotion ? 0.15 : 0.22, ease: "easeOut" }}
+            style={{ transformOrigin: "left center" }}
           >
-            {instance.title}
+            <motion.span
+              initial={false}
+              animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
+              transition={{ duration: prefersReducedMotion ? 0.15 : duration }}
+            >
+              {instance.title}
+            </motion.span>
+
+            {(currentWidth > 0 || targetWidth > 0) && (
+              <motion.span
+                aria-hidden
+                initial={false}
+                animate={{ width: `${showWidth}%` }}
+                transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
+                style={{ position: "absolute", left: 0, top: "50%", height: 1, background: COLORS.text }}
+              />
+            )}
           </motion.span>
 
-          {(currentWidth > 0 || targetWidth > 0) && (
-            <motion.span
-              aria-hidden
-              initial={false}
-              animate={{ width: `${showWidth}%` }}
-              transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
-              style={{ position: "absolute", left: 0, top: "50%", height: 1, background: COLORS.text }}
-            />
+          {rollMark && (
+            <span style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
+              {rollMark}
+            </span>
           )}
-        </motion.span>
+        </span>
 
-        {rollMark && (
-          <span style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
-            {rollMark}
+        {isPendingReview && (
+          <span className="whitespace-nowrap" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+            ✋ Show Mom
           </span>
         )}
-
-        {isPendingReview && <span style={{ color: COLORS.amber, fontSize: "0.75rem" }}>✋ Show Mom</span>}
       </button>
 
       <button
@@ -165,10 +171,10 @@ export function AssignmentRow({
           onOpenDetails();
         }}
         aria-label="View assignment details"
-        className="shrink-0 rounded px-1.5 py-0.5 text-base leading-none"
-        style={{ color: COLORS.mutedFaint }}
+        className="flex shrink-0 items-center rounded px-2 py-1 text-lg leading-none"
+        style={{ color: COLORS.muted }}
       >
-        ›
+        →
       </button>
     </div>
   );
