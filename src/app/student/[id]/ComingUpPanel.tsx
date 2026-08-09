@@ -2,15 +2,11 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { AssignmentInstance } from "@/generated/prisma/client";
-import { toISODate } from "@/lib/dates";
+import { formatComingUpDate, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { getSubjectColor } from "@/lib/subjectColors";
 
 type InstanceWithSubject = AssignmentInstance & { subject: { id: string; name: string } | null };
-
-function formatComingUpDate(date: Date): string {
-  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
-}
 
 /** §2/§5: the next 14 days of due dates, kept minimal and read-only — grayed,
  * never interactive. "The week view is the teacher." */

@@ -38,10 +38,37 @@ export function mondayOf(date: Date): Date {
   return addDays(date, diffToMonday);
 }
 
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_LONG = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Hand-rolled instead of Intl.DateTimeFormat: `toLocaleDateString` can format
+// the same options differently between Node's ICU and a browser's (observed
+// for weekday+day with no month — "17 Mon" server-side vs "Mon 17"
+// client-side), which is a real hydration mismatch for any client component
+// that renders one of these. Deterministic formatting can't disagree with itself.
+
 export function formatDayLabel(date: Date): string {
-  return date.toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" });
+  return `${WEEKDAY_SHORT[date.getUTCDay()]} ${date.getUTCDate()}`;
 }
 
 export function formatWeekLabel(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  return `${MONTH_LONG[date.getUTCMonth()]} ${date.getUTCDate()}`;
+}
+
+export function formatComingUpDate(date: Date): string {
+  return `${WEEKDAY_SHORT[date.getUTCDay()]}, ${MONTH_SHORT[date.getUTCMonth()]} ${date.getUTCDate()}`;
 }
