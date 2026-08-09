@@ -1,7 +1,14 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, Frequency } from "@/generated/prisma/enums";
-import { editAllInSeries, editInstanceOnly, editSeriesThisAndFollowing } from "./assignmentEdits";
+import {
+  editAllInSeries,
+  editInstanceOnly,
+  editSeriesThisAndFollowing,
+  promoteInstanceToSeries,
+  quickCreateInstance,
+  rescheduleInstance,
+} from "./assignmentEdits";
 import { parseISODate, toISODate } from "./dates";
 import { materializeSeries } from "./materialize";
 import { makeStudent, makeSubject } from "./test/fixtures";
@@ -158,5 +165,148 @@ describe("editSeriesThisAndFollowing (§4 'this and following')", () => {
 
     const newInstances = await prisma.assignmentInstance.findMany({ where: { seriesId: newSeriesId } });
     expect(newInstances).toHaveLength(3);
+  });
+});
+
+describe("quickCreateInstance (Parent Mode click-a-date quick-add)", () => {
+  it("creates a one-off open instance on the given date", async () => {
+    const student = await makeStudent(prisma);
+
+    await quickCreateInstance(prisma, student.id, parseISODate("2026-08-10"), "Piano practice");
+
+    const created = await prisma.assignmentInstance.findFirstOrThrow({ where: { title: "Piano practice" } });
+    expect(created.seriesId).toBeNull();
+    expect(created.subjectId).toBeNull();
+    expect(created.status).toBe("open");
+    expect(toISODate(created.dueDate!)).toBe("2026-08-10");
+    expect(toISODate(created.originalDueDate!)).toBe("2026-08-10");
+  });
+
+  it("does nothing for a blank title", async () => {
+    const student = await makeStudent(prisma);
+
+    await quickCreateInstance(prisma, student.id, parseISODate("2026-08-10"), "   ");
+
+    const count = await prisma.assignmentInstance.count();
+    expect(count).toBe(0);
+  });
+});
+
+describe("rescheduleInstance (Parent Mode drag-to-reschedule)", () => {
+  it("moves a standalone instance directly", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    const instance = await prisma.assignmentInstance.create({
+      data: {
+        title: "Art project",
+        studentId: student.id,
+        subjectId: subject.id,
+        createdBy: "parent",
+        dueDate: parseISODate("2026-08-13"), // Thursday
+        originalDueDate: parseISODate("2026-08-13"),
+        status: "open",
+      },
+    });
+
+    await rescheduleInstance(prisma, instance.id, parseISODate("2026-08-12")); // to Wednesday
+
+    const updated = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instance.id } });
+    expect(toISODate(updated.dueDate!)).toBe("2026-08-12");
+    expect(toISODate(updated.originalDueDate!)).toBe("2026-08-12");
+    expect(updated.isOverride).toBe(false);
+  });
+
+  it("moves only the dragged occurrence of a repeating series, leaving the rest alone", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const thursday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-06") },
+    });
+
+    await rescheduleInstance(prisma, thursday.id, parseISODate("2026-08-08")); // Saturday
+
+    const moved = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: thursday.id } });
+    expect(toISODate(moved.dueDate!)).toBe("2026-08-08");
+    expect(moved.isOverride).toBe(true);
+    expect(moved.seriesId).toBe(series.id);
+
+    // The rest of the series (that first week, at least) is untouched.
+    const siblings = await prisma.assignmentInstance.findMany({
+      where: {
+        seriesId: series.id,
+        id: { not: thursday.id },
+        dueDate: { lte: parseISODate("2026-08-07") },
+      },
+    });
+    expect(siblings.map((i) => toISODate(i.dueDate!)).sort()).toEqual([
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+      "2026-08-07",
+    ]);
+    expect(siblings.every((i) => !i.isOverride)).toBe(true);
+  });
+});
+
+describe("promoteInstanceToSeries (adding repetition to a one-off item)", () => {
+  it("creates a series starting at the instance's due date and removes the standalone row", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    const instance = await prisma.assignmentInstance.create({
+      data: {
+        title: "Reading log",
+        studentId: student.id,
+        createdBy: "parent",
+        dueDate: parseISODate("2026-08-10"),
+        originalDueDate: parseISODate("2026-08-10"),
+        status: "open",
+      },
+    });
+
+    const { seriesId } = await promoteInstanceToSeries(prisma, instance.id, {
+      title: "Reading log",
+      details: null,
+      subjectId: subject.id,
+      requiresReview: false,
+      estimatedMinutes: 20,
+      recurrence: { frequency: Frequency.weekdays, daysOfWeek: null, interval: 1 },
+      endCondition: EndCondition.never,
+      endDate: null,
+      endCount: null,
+    });
+
+    const oldInstance = await prisma.assignmentInstance.findUnique({ where: { id: instance.id } });
+    expect(oldInstance).toBeNull();
+
+    const series = await prisma.assignmentSeries.findUniqueOrThrow({
+      where: { id: seriesId },
+      include: { recurrence: true },
+    });
+    expect(toISODate(series.startDate)).toBe("2026-08-10");
+    expect(series.recurrence?.frequency).toBe(Frequency.weekdays);
+
+    const instances = await prisma.assignmentInstance.findMany({ where: { seriesId } });
+    expect(instances.length).toBeGreaterThan(1); // materialized beyond the single original date
+    expect(instances.every((i) => i.title === "Reading log" && i.subjectId === subject.id)).toBe(true);
+  });
+
+  it("refuses to promote an instance that already belongs to a series", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const monday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-03") },
+    });
+
+    await expect(
+      promoteInstanceToSeries(prisma, monday.id, {
+        title: "x",
+        details: null,
+        subjectId: null,
+        requiresReview: false,
+        estimatedMinutes: null,
+        recurrence: { frequency: Frequency.weekdays, daysOfWeek: null, interval: 1 },
+        endCondition: EndCondition.never,
+        endDate: null,
+        endCount: null,
+      })
+    ).rejects.toThrow();
   });
 });

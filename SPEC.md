@@ -74,7 +74,10 @@ New Assignment sheet, one screen:
 - Repeat: **Does not repeat / Every school day / Weekly on… / Every 2 weeks on… / Monthly** — mirroring the Google Calendar menu exactly, because it's the mental model the parent already has
 - Ends: Never / On date / After N times
 - **"Show me the work" toggle** (sets requiresReview for the whole series or the one-off)
-- Editing an instance from the week view prompts: **"This assignment only" / "This and following" / "All in series"** — again the Google Calendar pattern.
+
+**Quick-add.** Clicking empty space in a day's column reveals an inline title-only field — Enter creates a bare one-off assignment for that student and date, no dialog. Clicking the resulting item opens the full edit sheet (same fields as New Assignment, minus the student picker) to fill in subject, details, or repetition.
+
+**Editing.** Clicking any assignment in the week view opens the edit sheet, prefilled. If it belongs to a series, a scope choice appears — **"This assignment only" / "This and following" / "All in series"**, the Google Calendar pattern — and the repeat controls only apply to "and following"/"all" (a single occurrence has no recurrence of its own). Adding a repeat pattern to a previously one-off item promotes it into a new series starting on its due date.
 
 ## 5. Scheduling behavior: rolling, deadlines, and "show me"
 
@@ -89,7 +92,7 @@ New Assignment sheet, one screen:
 4. The parent can instead send it back ("not your best work") with an optional one-line note; the item returns to open with the note beneath the title.
 5. pendingReview items do NOT roll — they hold their day until approved or returned. Day-complete confetti requires every item truly done, not merely pending.
 
-**Parent controls (Parent Mode only).** The parent can drag any item to another day, edit it, excuse it, or delete it (with the series-scope prompt from §4). Students have no move or delete — their only verbs are check and uncheck.
+**Parent controls (Parent Mode only).** The parent can drag any item to another day — as a slim single-line row, not a card (§9) — to reschedule it; a dragged occurrence always moves just that one instance, detaching it from its series the same way "this assignment only" does (§4), so moving one day of an "every school day" series never disturbs the rest. Editing or excusing goes through the edit sheet's series-scope prompt from §4; deleting isn't built yet. Students have no move or delete — their only verbs are check and uncheck.
 
 **Field trips and off days.** Marking a day offDay/fieldTrip/sick removes it from the roll path (items skip over it) and triggers the Reschedule Helper for anything already scheduled that day: shift to next school day / a chosen date / distribute across the week.
 

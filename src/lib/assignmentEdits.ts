@@ -24,6 +24,22 @@ export interface SeriesEditableFields {
   };
 }
 
+export interface PromoteToSeriesFields {
+  title: string;
+  details: string | null;
+  subjectId: string | null;
+  requiresReview: boolean;
+  estimatedMinutes: number | null;
+  recurrence: {
+    frequency: Frequency;
+    daysOfWeek: string | null;
+    interval: number;
+  };
+  endCondition: EndCondition;
+  endDate: Date | null;
+  endCount: number | null;
+}
+
 type EditablePrisma = Pick<PrismaClient, "assignmentInstance" | "assignmentSeries" | "recurrenceRule" | "schoolDay" | "$transaction">;
 
 /** §4 "This assignment only" — edits one occurrence and detaches it from its
@@ -143,5 +159,94 @@ export async function editAllInSeries(
       });
     }
     await materializeSeries(tx, seriesId, asOf);
+  });
+}
+
+/**
+ * Adding repetition to a previously one-off instance (§4's "add repetition,
+ * etc." when editing a quick-added item). Since a standalone instance has
+ * no series to extend, this creates a fresh one rooted at the instance's
+ * due date, materializes it, and removes the now-superseded standalone row.
+ */
+export async function promoteInstanceToSeries(
+  prisma: EditablePrisma,
+  instanceId: string,
+  fields: PromoteToSeriesFields
+): Promise<{ seriesId: string }> {
+  return prisma.$transaction(async (tx) => {
+    const instance = await tx.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
+    if (instance.seriesId) {
+      throw new Error("This assignment already belongs to a series.");
+    }
+
+    const startDate = instance.dueDate ? startOfUTCDay(instance.dueDate) : startOfUTCDay(new Date());
+
+    const series = await tx.assignmentSeries.create({
+      data: {
+        title: fields.title,
+        details: fields.details,
+        studentId: instance.studentId,
+        subjectId: fields.subjectId,
+        createdBy: instance.createdBy,
+        startDate,
+        endCondition: fields.endCondition,
+        endDate: fields.endDate,
+        endCount: fields.endCount,
+        estimatedMinutes: fields.estimatedMinutes,
+        requiresReview: fields.requiresReview,
+        recurrence: { create: fields.recurrence },
+      },
+    });
+
+    await tx.assignmentInstance.delete({ where: { id: instanceId } });
+    await materializeSeries(tx, series.id, startDate);
+
+    return { seriesId: series.id };
+  });
+}
+
+/**
+ * Drag-to-reschedule (§5). A dragged card always moves just that one
+ * occurrence — never the rest of a repeating series — matching "move an
+ * assignment from Friday to Saturday even if it's set to every school day,
+ * without messing up the rest of the repeated assignments."
+ */
+export async function rescheduleInstance(
+  prisma: Pick<PrismaClient, "assignmentInstance">,
+  instanceId: string,
+  newDueDate: Date
+): Promise<void> {
+  const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
+
+  if (instance.seriesId) {
+    await editInstanceOnly(prisma, instanceId, { dueDate: newDueDate });
+  } else {
+    await prisma.assignmentInstance.update({
+      where: { id: instanceId },
+      data: { dueDate: newDueDate, originalDueDate: newDueDate },
+    });
+  }
+}
+
+/** Click-a-date quick-add (§4): title only, everything else refined later
+ * via the full edit modal. */
+export async function quickCreateInstance(
+  prisma: Pick<PrismaClient, "assignmentInstance">,
+  studentId: string,
+  dueDate: Date,
+  title: string
+): Promise<void> {
+  const trimmed = title.trim();
+  if (!trimmed || !studentId) return;
+
+  await prisma.assignmentInstance.create({
+    data: {
+      title: trimmed,
+      studentId,
+      createdBy: "parent",
+      dueDate,
+      originalDueDate: dueDate,
+      status: "open",
+    },
   });
 }
