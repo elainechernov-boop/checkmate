@@ -69,7 +69,7 @@ Design north star: **TeuxDeux, not Trello.** Days as columns, tasks as plain tex
 ## 4. Recurrence UX (parent side)
 
 New Assignment sheet, one screen:
-- Title, student (segmented control), subject (menu), details (optional), est. minutes
+- Title, student(s) (multi-select segmented control — picking more than one creates an independent copy of the assignment per student), subject (menu), details (optional), est. minutes
 - Due date picker
 - Repeat: **Does not repeat / Every school day / Weekly on… / Every 2 weeks on… / Monthly** — mirroring the Google Calendar menu exactly, because it's the mental model the parent already has
 - Ends: Never / On date / After N times

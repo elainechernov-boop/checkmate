@@ -24,8 +24,14 @@ const END_OPTIONS = [
 export function AssignmentForm({ students, subjects }: { students: Student[]; subjects: Subject[] }) {
   const [repeat, setRepeat] = useState("none");
   const [endCondition, setEndCondition] = useState("never");
-  const [studentId, setStudentId] = useState(students[0]?.id ?? "");
+  const [studentIds, setStudentIds] = useState<string[]>(students[0] ? [students[0].id] : []);
   const showDaysOfWeek = repeat === "weekly" || repeat === "biweekly";
+
+  function toggleStudent(id: string) {
+    setStudentIds((current) =>
+      current.includes(id) ? current.filter((studentId) => studentId !== id) : [...current, id]
+    );
+  }
 
   return (
     <form action={createAssignment} className="mt-8 max-w-lg space-y-6">
@@ -40,10 +46,13 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
       </div>
 
       <div>
-        <span className="block text-sm font-medium">Student</span>
-        <div className="mt-1 flex gap-2">
+        <span className="block text-sm font-medium">Student{studentIds.length > 1 ? "s" : ""}</span>
+        <p className="mt-1 text-xs text-[#6B6B6B]">
+          Select more than one to give each student their own copy of this assignment.
+        </p>
+        <div className="mt-2 flex gap-2">
           {students.map((student) => {
-            const selected = student.id === studentId;
+            const selected = studentIds.includes(student.id);
             return (
               <label
                 key={student.id}
@@ -55,12 +64,11 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
                 style={{ borderTopColor: student.accentColor, borderTopWidth: 3 }}
               >
                 <input
-                  type="radio"
+                  type="checkbox"
                   name="studentId"
                   value={student.id}
-                  required
                   checked={selected}
-                  onChange={() => setStudentId(student.id)}
+                  onChange={() => toggleStudent(student.id)}
                   className="sr-only"
                 />
                 {student.name}
@@ -68,6 +76,9 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
             );
           })}
         </div>
+        {studentIds.length === 0 && (
+          <p className="mt-1 text-xs text-[#B5451B]">Select at least one student.</p>
+        )}
       </div>
 
       <div>
@@ -178,7 +189,11 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
         &ldquo;Show me the work&rdquo; — require sign-off before this counts as done
       </label>
 
-      <button type="submit" className="rounded bg-[#1A1A1A] px-4 py-2.5 text-white hover:bg-[#333]">
+      <button
+        type="submit"
+        disabled={studentIds.length === 0}
+        className="rounded bg-[#1A1A1A] px-4 py-2.5 text-white hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+      >
         Create assignment
       </button>
     </form>
