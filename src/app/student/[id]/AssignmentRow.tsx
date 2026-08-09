@@ -30,7 +30,7 @@ export function AssignmentRow({
   instance: StudentInstance;
   interactive: boolean;
   prefersReducedMotion: boolean;
-  onToggle: () => void;
+  onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
 }) {
   const [animating, setAnimating] = useState(false);
@@ -61,7 +61,7 @@ export function AssignmentRow({
     .filter(Boolean)
     .join(" · ");
 
-  function handleTitleClick(event: MouseEvent) {
+  function handleTitleClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
     if (!interactive || animating) return;
     if (isForward) playCompletionTick();
@@ -69,12 +69,18 @@ export function AssignmentRow({
     setPulsing(true);
     window.setTimeout(() => setPulsing(false), prefersReducedMotion ? 150 : 220);
 
+    // Captured now, before the row reflows/reorders — the celebration (if
+    // any) launches from where this row actually was, not wherever it ends
+    // up after the list settles.
+    const rect = event.currentTarget.getBoundingClientRect();
+    const origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+
     const delay = prefersReducedMotion ? 150 : duration * 1000;
     // The real status flip (and the list reorder it triggers) happens once
     // the strike/half-strike finishes drawing — steps 1-3 first, step 4 after.
     window.setTimeout(() => {
       setAnimating(false);
-      onToggle();
+      onToggle(origin);
     }, delay);
   }
 

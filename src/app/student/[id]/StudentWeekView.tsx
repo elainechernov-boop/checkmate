@@ -40,7 +40,9 @@ export function StudentWeekView({
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [celebratedToday, setCelebratedToday] = useState(true); // avoid a flash before the effect below settles
-  const [itemCelebrationKey, setItemCelebrationKey] = useState<number | null>(null);
+  const [itemCelebration, setItemCelebration] = useState<{ key: number; origin: { x: number; y: number } } | null>(
+    null
+  );
 
   const todayISO = toISODate(today);
   const celebratedKey = `checkmate:celebrated:${student.id}:${todayISO}`;
@@ -84,7 +86,7 @@ export function StudentWeekView({
     window.localStorage.setItem(celebratedKey, "1");
   }
 
-  async function handleToggle(instance: StudentInstance) {
+  async function handleToggle(instance: StudentInstance, origin: { x: number; y: number }) {
     const goingToOpen = instance.status !== InstanceStatus.open;
     const nextStatus = goingToOpen
       ? InstanceStatus.open
@@ -96,7 +98,7 @@ export function StudentWeekView({
     // completion only. Entering pendingReview or undoing stays quiet: §5's
     // "the reward lands only when the work has been shown" still holds.
     if (!goingToOpen && nextStatus === InstanceStatus.done && !prefersReducedMotion) {
-      setItemCelebrationKey(Date.now());
+      setItemCelebration({ key: Date.now(), origin });
     }
 
     setLocalInstances((current) =>
@@ -223,8 +225,12 @@ export function StudentWeekView({
         prefersReducedMotion={prefersReducedMotion}
       />
 
-      {itemCelebrationKey != null && (
-        <ItemCelebration key={itemCelebrationKey} onDone={() => setItemCelebrationKey(null)} />
+      {itemCelebration && (
+        <ItemCelebration
+          key={itemCelebration.key}
+          origin={itemCelebration.origin}
+          onDone={() => setItemCelebration(null)}
+        />
       )}
     </main>
   );

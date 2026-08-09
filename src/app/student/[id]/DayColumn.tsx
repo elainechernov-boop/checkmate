@@ -12,7 +12,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { formatDayLabel } from "@/lib/dates";
+import { formatDayLabel, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
 import { AssignmentRow } from "./AssignmentRow";
@@ -27,7 +27,7 @@ function SortableRow({
 }: {
   instance: StudentInstance;
   prefersReducedMotion: boolean;
-  onToggle: () => void;
+  onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
 }) {
   // dnd-kit owns this wrapper's transform (drag position + reorder FLIP);
@@ -88,7 +88,7 @@ export function DayColumn({
   prefersReducedMotion: boolean;
   celebrated: boolean;
   onCelebrate: () => void;
-  onToggle: (instance: StudentInstance) => void;
+  onToggle: (instance: StudentInstance, origin: { x: number; y: number }) => void;
   onOpenDetails: (instance: StudentInstance) => void;
   onReorderOpen: (orderedIds: string[]) => void;
 }) {
@@ -127,7 +127,7 @@ export function DayColumn({
         instance={instance}
         interactive={interactive && instance.status !== InstanceStatus.excused}
         prefersReducedMotion={prefersReducedMotion}
-        onToggle={() => onToggle(instance)}
+        onToggle={(origin) => onToggle(instance, origin)}
         onOpenDetails={() => onOpenDetails(instance)}
       />
     );
@@ -167,14 +167,24 @@ export function DayColumn({
         {rolled.map(plainRow)}
 
         {interactive && open.length > 0 ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          // Explicit `id` makes dnd-kit's internal aria-describedby id
+          // deterministic — without it, dnd-kit derives it from a
+          // module-level counter that isn't SSR-safe, causing a harmless
+          // but real hydration-attribute mismatch (same fix already used
+          // in ParentWeekBoard.tsx).
+          <DndContext
+            id={`day-${toISODate(day)}`}
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext items={open.map((i) => i.id)} strategy={verticalListSortingStrategy}>
               {open.map((instance) => (
                 <SortableRow
                   key={instance.id}
                   instance={instance}
                   prefersReducedMotion={prefersReducedMotion}
-                  onToggle={() => onToggle(instance)}
+                  onToggle={(origin) => onToggle(instance, origin)}
                   onOpenDetails={() => onOpenDetails(instance)}
                 />
               ))}
