@@ -13,9 +13,8 @@ const SPARKLE = "✨";
 const GLYPH_HALF = 26; // half the ~52px (3.25rem) glyph box, to center it on `origin`
 const FLIGHT_DURATION = 1.7;
 const FLIGHT_TIMES = [0, 0.15, 0.75, 1];
-const SPARKLE_COUNT = 7;
-const SPARKLE_STAGGER = 0.05; // seconds between each trailing sparkle's start
-const SPARKLE_PEAK_OPACITY = 0.85; // brightest (nearest the critter) sparkle's peak
+const SPARKLE_COUNT = 8;
+const SPARKLE_STAGGER = 0.045; // seconds between each trailing sparkle's start
 
 function randomFlight() {
   return {
@@ -74,15 +73,22 @@ export function ItemCelebration({
     <>
       {Array.from({ length: SPARKLE_COUNT }, (_, i) => {
         // i=0 trails closest to the critter (least delay); each step back
-        // is dimmer and smaller than the last, so the trail actually reads
-        // as fading into the distance rather than a row of identical marks.
-        const peak = SPARKLE_PEAK_OPACITY * (1 - i / SPARKLE_COUNT);
+        // fades a little more than the last, so the trail reads as fading
+        // into the distance — but gently, so the whole trail stays visible,
+        // not just the first sparkle. Each one pops bigger than its resting
+        // size before shrinking and fading out — a "twinkle," not a fade.
+        const fade = 1 - i * 0.09;
         return (
           <motion.div
             key={i}
             aria-hidden
             initial={{ left: left[0], top: top[0], scale: 0, opacity: 0 }}
-            animate={{ left, top, scale: [0, 0.9 - i * 0.06, 0.5 - i * 0.03, 0], opacity: [0, peak, peak * 0.4, 0] }}
+            animate={{
+              left,
+              top,
+              scale: [0, 1.5, 0.6, 0],
+              opacity: [0, fade, fade * 0.65, 0],
+            }}
             transition={{
               duration: FLIGHT_DURATION,
               times: FLIGHT_TIMES,
@@ -91,10 +97,11 @@ export function ItemCelebration({
             }}
             style={{
               position: "fixed",
-              fontSize: `${1.5 - i * 0.13}rem`,
+              fontSize: "1.9rem",
               lineHeight: 1,
               pointerEvents: "none",
               zIndex: 9998,
+              filter: "drop-shadow(0 0 6px rgba(255,205,60,0.75))",
             }}
           >
             {SPARKLE}
