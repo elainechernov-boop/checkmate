@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { addDays, defaultWeekStart, parseISODate, startOfUTCDay } from "@/lib/dates";
+import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { StudentWeekView } from "./StudentWeekView";
 
@@ -16,7 +16,7 @@ export default async function StudentPage({
   const student = await prisma.student.findUnique({ where: { id } });
   if (!student) notFound();
 
-  const today = startOfUTCDay(new Date());
+  const today = getToday();
   const monday = week ? parseISODate(week) : defaultWeekStart(today);
   const weekEnd = addDays(monday, 6); // Mon..Sat, six columns per §6
 

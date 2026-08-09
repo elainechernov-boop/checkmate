@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { startOfUTCDay, toISODate } from "@/lib/dates";
+import { getToday, toISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
 
@@ -14,7 +14,7 @@ import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances"
 export async function toggleInstance(instanceId: string): Promise<{ status: InstanceStatus }> {
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
 
-  const today = toISODate(startOfUTCDay(new Date()));
+  const today = toISODate(getToday());
   const dueToday = instance.dueDate && toISODate(instance.dueDate) === today;
   if (!dueToday) {
     throw new Error("Only today's items can be checked or unchecked.");

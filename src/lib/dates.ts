@@ -20,6 +20,17 @@ export function startOfUTCDay(date: Date): Date {
   return parseISODate(toISODate(date));
 }
 
+// "Today," but overridable outside production so the Mon-Sat student view
+// (and the server-side same-day check on check/uncheck) can be exercised on
+// any day of the week without waiting for the calendar or touching the
+// Mac's system clock. Gated to non-production and read only from an env
+// var (never a query param), so it can't be used to spoof "today" from a
+// URL, and it's a no-op in the deployed app regardless of env contents.
+export function getToday(): Date {
+  const override = process.env.NODE_ENV !== "production" ? process.env.DEBUG_TODAY : undefined;
+  return override ? parseISODate(override) : startOfUTCDay(new Date());
+}
+
 export const WEEKDAYS = [
   { code: "mon", label: "Monday" },
   { code: "tue", label: "Tuesday" },
