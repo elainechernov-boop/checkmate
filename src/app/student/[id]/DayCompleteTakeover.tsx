@@ -77,11 +77,17 @@ export function DayCompleteTakeover({
 
   return createPortal(
     <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 9998, pointerEvents: "none", overflow: "hidden" }}>
+      {/* Dims the week grid behind the celebration for the length of the
+          moment (not just a quick flash) — the message sits at true page
+          center, which otherwise lands right on top of the day columns and
+          gets lost in their text. Dimming what's behind it, rather than
+          dodging the columns with an off-center message, is what actually
+          makes "centered" read as centered. */}
       <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: [0, 0.5, 0] }}
-        transition={{ duration: 0.5 }}
-        style={{ position: "absolute", inset: 0, background: "white" }}
+        animate={{ opacity: [0, 0.92, 0.92, 0] }}
+        transition={{ duration: 3.3, times: [0, 0.12, 0.82, 1], ease: "easeInOut" }}
+        style={{ position: "absolute", inset: 0, background: COLORS.background }}
       />
 
       {particles.map((p) => (
