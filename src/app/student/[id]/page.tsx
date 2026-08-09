@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, getToday, isDebugToday, parseISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { StudentWeekView } from "./StudentWeekView";
 
@@ -53,6 +53,7 @@ export default async function StudentPage({
       today={today}
       instances={weekInstances}
       comingUp={comingUp}
+      skipCelebratedGuard={isDebugToday()}
     />
   );
 }

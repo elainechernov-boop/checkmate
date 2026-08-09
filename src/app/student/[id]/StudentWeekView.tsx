@@ -24,12 +24,14 @@ export function StudentWeekView({
   today,
   instances,
   comingUp,
+  skipCelebratedGuard,
 }: {
   student: Student;
   monday: Date;
   today: Date;
   instances: StudentInstance[];
   comingUp: StudentInstance[];
+  skipCelebratedGuard: boolean;
 }) {
   const router = useRouter();
   const prefersReducedMotion = !!useReducedMotion();
@@ -60,8 +62,11 @@ export function StudentWeekView({
     // server-rendered markup and the first client render still match.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMuted(isSoundMuted());
-    setCelebratedToday(window.localStorage.getItem(celebratedKey) === "1");
-  }, [celebratedKey]);
+    // With DEBUG_TODAY pinned, "today" never actually advances, so this
+    // flag would never naturally clear — always start uncelebrated so the
+    // day-complete moment can be re-tested as many times as needed.
+    setCelebratedToday(skipCelebratedGuard ? false : window.localStorage.getItem(celebratedKey) === "1");
+  }, [celebratedKey, skipCelebratedGuard]);
 
   // §1: a light 60-second background refresh, so a morning edit appears
   // without the student touching anything.
@@ -82,6 +87,7 @@ export function StudentWeekView({
   const todayIsSunday = today.getUTCDay() === 0;
 
   function handleCelebrate() {
+    if (skipCelebratedGuard) return; // stay re-testable while pinned to a fixed debug date
     setCelebratedToday(true);
     window.localStorage.setItem(celebratedKey, "1");
   }

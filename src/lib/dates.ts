@@ -31,6 +31,16 @@ export function getToday(): Date {
   return override ? parseISODate(override) : startOfUTCDay(new Date());
 }
 
+// True when getToday() is pinned by DEBUG_TODAY. A real "today" advances
+// daily, so the day-complete celebration's once-per-day localStorage guard
+// (§6 step 6) naturally resets on its own; a frozen debug date never
+// advances, so that guard would permanently block re-testing the moment
+// after the first success. Callers use this to bypass the guard rather
+// than change its (correct) production behavior.
+export function isDebugToday(): boolean {
+  return process.env.NODE_ENV !== "production" && !!process.env.DEBUG_TODAY;
+}
+
 export const WEEKDAYS = [
   { code: "mon", label: "Monday" },
   { code: "tue", label: "Tuesday" },
