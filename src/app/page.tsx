@@ -5,7 +5,7 @@ export default async function Home() {
   const students = await prisma.student.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[#FAF7F2] px-6 text-[#1A1A1A]">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-6 text-[#161616]">
       <h1 className="text-3xl font-medium">Checkmate</h1>
       <p className="mt-2 text-sm text-[#6B6B6B]">Who&rsquo;s working today?</p>
 
@@ -14,7 +14,7 @@ export default async function Home() {
           <Link
             key={student.id}
             href={`/student/${student.id}`}
-            className="rounded-lg border border-[#DDD6CB] bg-white px-8 py-6 text-lg font-medium transition hover:border-[#1A1A1A]"
+            className="rounded-lg border border-[#E1E3E6] bg-white px-8 py-6 text-lg font-medium transition hover:border-[#161616]"
             style={{ borderTopColor: student.accentColor, borderTopWidth: 3 }}
           >
             {student.name}

@@ -59,7 +59,7 @@ export function RescheduleHelperModal({
             type="button"
             disabled={pending}
             onClick={() => run("nextSchoolDay")}
-            className="rounded border px-3 py-2 text-left hover:border-[#B8AF9F]"
+            className="rounded border px-3 py-2 text-left hover:border-[#A9ACB2]"
             style={{ borderColor: COLORS.hairline }}
           >
             Shift to next school day
@@ -77,7 +77,7 @@ export function RescheduleHelperModal({
               type="button"
               disabled={pending || !chosenDate}
               onClick={() => run("chosenDate")}
-              className="shrink-0 rounded border px-3 py-2 hover:border-[#B8AF9F]"
+              className="shrink-0 rounded border px-3 py-2 hover:border-[#A9ACB2]"
               style={{ borderColor: COLORS.hairline }}
             >
               Move here
@@ -88,7 +88,7 @@ export function RescheduleHelperModal({
             type="button"
             disabled={pending}
             onClick={() => run("distribute")}
-            className="rounded border px-3 py-2 text-left hover:border-[#B8AF9F]"
+            className="rounded border px-3 py-2 text-left hover:border-[#A9ACB2]"
             style={{ borderColor: COLORS.hairline }}
           >
             Distribute across the week

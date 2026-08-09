@@ -9,7 +9,7 @@ export default async function NewAssignmentPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#FAF7F2] px-10 py-12 text-[#1A1A1A]">
+    <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
       <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
         ← Back to week
       </Link>

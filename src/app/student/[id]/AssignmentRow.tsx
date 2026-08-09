@@ -112,9 +112,9 @@ export function AssignmentRow({
         className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
         style={{ cursor: interactive ? "pointer" : "default" }}
       >
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           <motion.span
-            className="relative inline-block"
+            className="relative block min-w-0 flex-1 truncate"
             animate={
               pulsing
                 ? prefersReducedMotion
@@ -125,6 +125,11 @@ export function AssignmentRow({
             transition={{ duration: prefersReducedMotion ? 0.15 : 0.22, ease: "easeOut" }}
             style={{ transformOrigin: "left center" }}
           >
+            {/* Titles are kept to a single line (truncated, not wrapped) —
+                the strike below is a simple width-animated line pinned to
+                this line's own vertical center, which only reads correctly
+                when there's exactly one line to pin it to. The full title
+                is still available via the details popup. */}
             <motion.span
               initial={false}
               animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
@@ -134,35 +139,22 @@ export function AssignmentRow({
             </motion.span>
 
             {(currentWidth > 0 || targetWidth > 0) && (
-              // A same-text overlay with a native line-through, revealed via
-              // a growing clip-path, rather than one absolutely-positioned
-              // line pinned to the block's vertical center — that approach
-              // only ever crossed the first line once the title wrapped
-              // (the center of a two-line block sits *between* the lines,
-              // not on either one). text-decoration-line draws correctly
-              // per wrapped line on its own; clip-path just reveals it
-              // left-to-right to keep the "draws on" feel.
               <motion.span
                 aria-hidden
                 initial={false}
-                animate={{ clipPath: `inset(0 ${100 - showWidth}% 0 0)` }}
+                animate={{ width: `${showWidth}%` }}
                 transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  color: "transparent",
-                  textDecorationLine: "line-through",
-                  textDecorationColor: COLORS.text,
-                  textDecorationThickness: "1px",
-                }}
-              >
-                {instance.title}
-              </motion.span>
+                style={{ position: "absolute", left: 0, top: "50%", height: 1, background: COLORS.text }}
+              />
             )}
           </motion.span>
 
           {rollMark && (
-            <span style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
+            <span
+              className="shrink-0"
+              style={{ color: COLORS.amber, fontSize: "0.7rem" }}
+              title={`Rolled ${instance.rolledCount} day(s)`}
+            >
               {rollMark}
             </span>
           )}

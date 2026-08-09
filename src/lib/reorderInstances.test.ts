@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { parseISODate } from "./dates";
-import { reorderOpenItems } from "./reorderInstances";
+import { reorderInstancesForDay, reorderOpenItems } from "./reorderInstances";
 import { makeStudent, makeSubject } from "./test/fixtures";
 import { createTestClient, resetDb } from "./test/testDb";
 
@@ -88,5 +88,40 @@ describe("reorderOpenItems", () => {
 
     const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: done.id } });
     expect(after.sortOrder).toBe(0);
+  });
+});
+
+describe("reorderInstancesForDay (Parent Mode's own within-day reorder)", () => {
+  it("reorders regardless of status, unlike reorderOpenItems", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    const open = await makeOpenInstance(student.id, subject.id, "Open");
+    const done = await makeOpenInstance(student.id, subject.id, "Done", { status: "done" });
+
+    await reorderInstancesForDay(prisma, student.id, "2026-08-10", [done.id, open.id]);
+
+    const rows = await prisma.assignmentInstance.findMany({
+      where: { studentId: student.id },
+      orderBy: { sortOrder: "asc" },
+    });
+    expect(rows.map((r) => r.title)).toEqual(["Done", "Open"]);
+  });
+
+  it("ignores ids belonging to a different day or student", async () => {
+    const student = await makeStudent(prisma, { name: "Miles" });
+    const other = await makeStudent(prisma, { name: "Violet" });
+    const subject = await makeSubject(prisma);
+    const mine = await makeOpenInstance(student.id, subject.id, "Mine");
+    const theirs = await makeOpenInstance(other.id, subject.id, "Theirs");
+    const wrongDay = await makeOpenInstance(student.id, subject.id, "Tomorrow", {
+      dueDate: parseISODate("2026-08-11"),
+    });
+
+    await reorderInstancesForDay(prisma, student.id, "2026-08-10", [mine.id, theirs.id, wrongDay.id]);
+
+    const theirsAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: theirs.id } });
+    const wrongDayAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: wrongDay.id } });
+    expect(theirsAfter.sortOrder).toBe(0);
+    expect(wrongDayAfter.sortOrder).toBe(0);
   });
 });

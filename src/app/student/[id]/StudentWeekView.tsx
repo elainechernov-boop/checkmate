@@ -193,14 +193,9 @@ export function StudentWeekView({
   return (
     <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-10 py-10">
       <header className="flex items-start justify-between">
-        <div>
-          <Link href="/" className="text-sm hover:underline" style={{ color: COLORS.muted }}>
-            ← Switch student
-          </Link>
-          <h1 className="mt-1 text-2xl font-medium" style={{ color: student.accentColor }}>
-            {student.name}&rsquo;s week
-          </h1>
-        </div>
+        <h1 className="text-2xl font-medium" style={{ color: student.accentColor }}>
+          {student.name}&rsquo;s week
+        </h1>
         <div className="flex items-center gap-6 text-sm">
           <button onClick={() => setComingUpOpen(true)} className="hover:underline" style={{ color: COLORS.muted }}>
             Coming Up
@@ -213,6 +208,7 @@ export function StudentWeekView({
           >
             {muted ? "🔈" : "🔊"}
           </button>
+          <StudentMenu />
         </div>
       </header>
 
@@ -288,5 +284,52 @@ export function StudentWeekView({
         />
       )}
     </main>
+  );
+}
+
+/** "Switch student" tucked behind a small "⋯" menu rather than sitting
+ * next to the student's name — it's used rarely, so it shouldn't visually
+ * compete with the week itself. */
+function StudentMenu() {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        onClick={() => setOpen((current) => !current)}
+        aria-label="Menu"
+        aria-expanded={open}
+        className="text-base leading-none"
+        style={{ color: COLORS.mutedFaint }}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded border py-1 shadow-sm"
+          style={{ borderColor: COLORS.hairline, background: COLORS.background }}
+        >
+          <Link
+            href="/"
+            className="block px-3 py-1.5 text-sm hover:underline"
+            style={{ color: COLORS.muted }}
+          >
+            ← Switch student
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }

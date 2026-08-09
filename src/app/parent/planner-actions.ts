@@ -13,6 +13,7 @@ import {
   rescheduleInstance as rescheduleInstanceLib,
 } from "@/lib/assignmentEdits";
 import { materializeSeries } from "@/lib/materialize";
+import { reorderInstancesForDay } from "@/lib/reorderInstances";
 import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
 import { approveReview, returnReview } from "@/lib/reviewActions";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
@@ -31,6 +32,13 @@ export async function quickCreateAssignment(studentId: string, dueDateISO: strin
 
 export async function rescheduleInstance(instanceId: string, newDueDateISO: string) {
   await rescheduleInstanceLib(prisma, instanceId, parseISODate(newDueDateISO));
+  revalidatePath("/parent");
+}
+
+/** Parent Mode's own within-day drag-reorder, for her own visual planning
+ * (not tied to "today" or "open" the way the student's own reorder is). */
+export async function reorderDayInstances(studentId: string, dateISO: string, orderedIds: string[]) {
+  await reorderInstancesForDay(prisma, studentId, dateISO, orderedIds);
   revalidatePath("/parent");
 }
 

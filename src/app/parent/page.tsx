@@ -47,7 +47,7 @@ export default async function ParentPage({
   const schoolDayTypes = Object.fromEntries(schoolDayMap);
 
   return (
-    <main className="min-h-screen bg-[#FAF7F2] px-10 py-12 text-[#1A1A1A]">
+    <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-medium">Parent Mode</h1>
         <nav className="flex items-center gap-8 text-sm">
@@ -59,7 +59,7 @@ export default async function ParentPage({
           </Link>
           <Link
             href="/parent/assignments/new"
-            className="rounded bg-[#1A1A1A] px-3 py-1.5 text-white hover:bg-[#333]"
+            className="rounded bg-[#161616] px-3 py-1.5 text-white hover:bg-[#333]"
           >
             + New assignment
           </Link>
@@ -70,6 +70,7 @@ export default async function ParentPage({
         students={students}
         subjects={subjects}
         monday={monday}
+        today={today}
         instances={instances}
         schoolDayTypes={schoolDayTypes}
       />

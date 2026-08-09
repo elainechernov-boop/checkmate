@@ -6,7 +6,7 @@ export default async function StudentsPage() {
   const students = await prisma.student.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="min-h-screen bg-[#FAF7F2] px-10 py-12 text-[#1A1A1A]">
+    <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
       <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
         ← Back to week
       </Link>
@@ -17,14 +17,14 @@ export default async function StudentsPage() {
           <form
             key={student.id}
             action={updateStudent}
-            className="flex items-center gap-3 rounded border border-[#DDD6CB] bg-white p-4"
+            className="flex items-center gap-3 rounded border border-[#E1E3E6] bg-white p-4"
           >
             <input type="hidden" name="id" value={student.id} />
             <input
               type="color"
               name="accentColor"
               defaultValue={student.accentColor}
-              className="h-9 w-9 shrink-0 rounded border border-[#DDD6CB]"
+              className="h-9 w-9 shrink-0 rounded border border-[#E1E3E6]"
               aria-label={`${student.name}'s accent color`}
             />
             <input
@@ -32,7 +32,7 @@ export default async function StudentsPage() {
               name="name"
               defaultValue={student.name}
               required
-              className="w-40 rounded border border-[#DDD6CB] px-3 py-2"
+              className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
               aria-label="Name"
             />
             <input
@@ -40,19 +40,19 @@ export default async function StudentsPage() {
               name="gradeLevel"
               defaultValue={student.gradeLevel}
               required
-              className="w-40 rounded border border-[#DDD6CB] px-3 py-2"
+              className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
               aria-label="Grade level"
             />
             <button
               type="submit"
-              className="rounded bg-[#1A1A1A] px-3 py-2 text-sm text-white hover:bg-[#333]"
+              className="rounded bg-[#161616] px-3 py-2 text-sm text-white hover:bg-[#333]"
             >
               Save
             </button>
             <button
               type="submit"
               formAction={deleteStudent}
-              className="rounded border border-[#DDD6CB] px-3 py-2 text-sm text-[#B5451B] hover:border-[#B5451B]"
+              className="rounded border border-[#E1E3E6] px-3 py-2 text-sm text-[#B5451B] hover:border-[#B5451B]"
             >
               Delete
             </button>
@@ -62,13 +62,13 @@ export default async function StudentsPage() {
 
       <form
         action={createStudent}
-        className="mt-8 flex items-center gap-3 rounded border border-dashed border-[#DDD6CB] bg-white p-4"
+        className="mt-8 flex items-center gap-3 rounded border border-dashed border-[#E1E3E6] bg-white p-4"
       >
         <input
           type="color"
           name="accentColor"
           defaultValue="#6B6B6B"
-          className="h-9 w-9 shrink-0 rounded border border-[#DDD6CB]"
+          className="h-9 w-9 shrink-0 rounded border border-[#E1E3E6]"
           aria-label="Accent color"
         />
         <input
@@ -76,18 +76,18 @@ export default async function StudentsPage() {
           name="name"
           placeholder="Name"
           required
-          className="w-40 rounded border border-[#DDD6CB] px-3 py-2"
+          className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
         />
         <input
           type="text"
           name="gradeLevel"
           placeholder="Grade level"
           required
-          className="w-40 rounded border border-[#DDD6CB] px-3 py-2"
+          className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
         />
         <button
           type="submit"
-          className="rounded bg-[#1A1A1A] px-3 py-2 text-sm text-white hover:bg-[#333]"
+          className="rounded bg-[#161616] px-3 py-2 text-sm text-white hover:bg-[#333]"
         >
           + Add student
         </button>

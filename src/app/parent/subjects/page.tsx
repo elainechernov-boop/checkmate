@@ -9,7 +9,7 @@ export default async function SubjectsPage() {
   const subjects = await prisma.subject.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="min-h-screen bg-[#FAF7F2] px-10 py-12 text-[#1A1A1A]">
+    <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
       <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
         ← Back to week
       </Link>
@@ -24,7 +24,7 @@ export default async function SubjectsPage() {
           <form
             key={subject.id}
             action={updateSubject}
-            className="flex flex-wrap items-center gap-3 rounded border border-[#DDD6CB] bg-white p-4"
+            className="flex flex-wrap items-center gap-3 rounded border border-[#E1E3E6] bg-white p-4"
           >
             <input type="hidden" name="id" value={subject.id} />
             <input
@@ -32,13 +32,13 @@ export default async function SubjectsPage() {
               name="name"
               defaultValue={subject.name}
               required
-              className="w-36 rounded border border-[#DDD6CB] px-3 py-2"
+              className="w-36 rounded border border-[#E1E3E6] px-3 py-2"
               aria-label="Name"
             />
             <select
               name="workSampleCategory"
               defaultValue={subject.workSampleCategory}
-              className="rounded border border-[#DDD6CB] px-3 py-2"
+              className="rounded border border-[#E1E3E6] px-3 py-2"
               aria-label="Work sample category"
             >
               {CATEGORY_OPTIONS.map((option) => (
@@ -57,14 +57,14 @@ export default async function SubjectsPage() {
             </label>
             <button
               type="submit"
-              className="rounded bg-[#1A1A1A] px-3 py-2 text-sm text-white hover:bg-[#333]"
+              className="rounded bg-[#161616] px-3 py-2 text-sm text-white hover:bg-[#333]"
             >
               Save
             </button>
             <button
               type="submit"
               formAction={deleteSubject}
-              className="rounded border border-[#DDD6CB] px-3 py-2 text-sm text-[#B5451B] hover:border-[#B5451B]"
+              className="rounded border border-[#E1E3E6] px-3 py-2 text-sm text-[#B5451B] hover:border-[#B5451B]"
             >
               Delete
             </button>
@@ -74,19 +74,19 @@ export default async function SubjectsPage() {
 
       <form
         action={createSubject}
-        className="mt-8 flex flex-wrap items-center gap-3 rounded border border-dashed border-[#DDD6CB] bg-white p-4"
+        className="mt-8 flex flex-wrap items-center gap-3 rounded border border-dashed border-[#E1E3E6] bg-white p-4"
       >
         <input
           type="text"
           name="name"
           placeholder="Name"
           required
-          className="w-36 rounded border border-[#DDD6CB] px-3 py-2"
+          className="w-36 rounded border border-[#E1E3E6] px-3 py-2"
         />
         <select
           name="workSampleCategory"
           defaultValue={WorkSampleCategory.none}
-          className="rounded border border-[#DDD6CB] px-3 py-2"
+          className="rounded border border-[#E1E3E6] px-3 py-2"
         >
           {CATEGORY_OPTIONS.map((option) => (
             <option key={option} value={option}>
@@ -100,7 +100,7 @@ export default async function SubjectsPage() {
         </label>
         <button
           type="submit"
-          className="rounded bg-[#1A1A1A] px-3 py-2 text-sm text-white hover:bg-[#333]"
+          className="rounded bg-[#161616] px-3 py-2 text-sm text-white hover:bg-[#333]"
         >
           + Add subject
         </button>

@@ -98,8 +98,8 @@ function EditForm({
                 onClick={() => setScope(option.value)}
                 className={`flex-1 rounded border px-2 py-1.5 text-xs transition-colors ${
                   scope === option.value
-                    ? "border-[#1A1A1A] bg-[#1A1A1A] text-white"
-                    : "border-[#DDD6CB] text-[#1A1A1A] hover:border-[#B8AF9F]"
+                    ? "border-[#161616] bg-[#161616] text-white"
+                    : "border-[#E1E3E6] text-[#161616] hover:border-[#A9ACB2]"
                 }`}
               >
                 {option.label}
@@ -116,7 +116,7 @@ function EditForm({
           name="title"
           required
           defaultValue={instance.title}
-          className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
         />
       </div>
 
@@ -125,7 +125,7 @@ function EditForm({
         <select
           name="subjectId"
           defaultValue={instance.subjectId ?? ""}
-          className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
         >
           <option value="">No subject</option>
           {subjects.map((subject) => (
@@ -142,7 +142,7 @@ function EditForm({
           name="details"
           rows={2}
           defaultValue={instance.details ?? ""}
-          className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
         />
       </div>
 
@@ -153,7 +153,7 @@ function EditForm({
           name="estimatedMinutes"
           min={0}
           defaultValue={instance.series?.estimatedMinutes ?? ""}
-          className="mt-1 w-32 rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-32 rounded border border-[#E1E3E6] px-3 py-2"
         />
       </div>
 
@@ -165,7 +165,7 @@ function EditForm({
             name="dueDate"
             required
             defaultValue={instance.dueDate ? toISODate(instance.dueDate) : ""}
-            className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+            className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
           />
         </div>
       )}
@@ -177,7 +177,7 @@ function EditForm({
             name="repeat"
             value={repeat}
             onChange={(event) => setRepeat(event.target.value)}
-            className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+            className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
           >
             {REPEAT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -214,7 +214,7 @@ function EditForm({
             name="endCondition"
             value={endCondition}
             onChange={(event) => setEndCondition(event.target.value)}
-            className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+            className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
           >
             {END_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -229,7 +229,7 @@ function EditForm({
               name="endDate"
               required
               defaultValue={instance.series?.endDate ? toISODate(instance.series.endDate) : ""}
-              className="mt-2 w-full rounded border border-[#DDD6CB] px-3 py-2"
+              className="mt-2 w-full rounded border border-[#E1E3E6] px-3 py-2"
             />
           )}
           {endCondition === "afterNCount" && (
@@ -240,7 +240,7 @@ function EditForm({
               required
               placeholder="Number of times"
               defaultValue={instance.series?.endCount ?? ""}
-              className="mt-2 w-full rounded border border-[#DDD6CB] px-3 py-2"
+              className="mt-2 w-full rounded border border-[#E1E3E6] px-3 py-2"
             />
           )}
         </div>
@@ -251,7 +251,7 @@ function EditForm({
         &ldquo;Show me the work&rdquo; — require sign-off before this counts as done
       </label>
 
-      <button type="submit" className="rounded bg-[#1A1A1A] px-4 py-2.5 text-white hover:bg-[#333]">
+      <button type="submit" className="rounded bg-[#161616] px-4 py-2.5 text-white hover:bg-[#333]">
         Save
       </button>
     </form>

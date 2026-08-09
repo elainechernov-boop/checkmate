@@ -44,3 +44,42 @@ export async function reorderOpenItems(
     )
   );
 }
+
+/**
+ * Parent Mode's own drag-reorder within a single day's cell — unlike
+ * reorderOpenItems above, this isn't limited to "open" or "today" (a
+ * parent may want to order any day's card, any status, for her own
+ * planning view — e.g. sequencing before a future "lunch" divider).
+ * `orderedIds` is trusted only for instances that actually belong to this
+ * student and this exact date.
+ */
+export async function reorderInstancesForDay(
+  prisma: ReorderablePrisma,
+  studentId: string,
+  dateISO: string,
+  orderedIds: string[]
+): Promise<void> {
+  if (orderedIds.length === 0) return;
+
+  const instances = await prisma.assignmentInstance.findMany({
+    where: { id: { in: orderedIds } },
+  });
+
+  const validIds = new Set(
+    instances
+      .filter(
+        (instance) =>
+          instance.studentId === studentId && instance.dueDate && toISODate(instance.dueDate) === dateISO
+      )
+      .map((instance) => instance.id)
+  );
+
+  const idsToReorder = orderedIds.filter((id) => validIds.has(id));
+  if (idsToReorder.length === 0) return;
+
+  await prisma.$transaction(
+    idsToReorder.map((id, index) =>
+      prisma.assignmentInstance.update({ where: { id }, data: { sortOrder: index } })
+    )
+  );
+}

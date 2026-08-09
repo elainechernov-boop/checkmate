@@ -178,6 +178,7 @@ export function DayColumn({
             style={{
               color: isToday ? accentColor : COLORS.text,
               fontSize: isToday ? "1.5rem" : "1.15rem",
+              fontStretch: "condensed",
             }}
           >
             {formatDayWeekdayName(day)}

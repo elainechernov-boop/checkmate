@@ -41,7 +41,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
           type="text"
           name="title"
           required
-          className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
         />
       </div>
 
@@ -58,8 +58,8 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
                 key={student.id}
                 className={`flex-1 cursor-pointer rounded border px-3 py-2 text-center text-sm transition-colors ${
                   selected
-                    ? "border-[#1A1A1A] bg-[#1A1A1A] text-white"
-                    : "border-[#DDD6CB] text-[#1A1A1A] hover:border-[#B8AF9F]"
+                    ? "border-[#161616] bg-[#161616] text-white"
+                    : "border-[#E1E3E6] text-[#161616] hover:border-[#A9ACB2]"
                 }`}
                 style={{ borderTopColor: student.accentColor, borderTopWidth: 3 }}
               >
@@ -83,7 +83,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
 
       <div>
         <label className="block text-sm font-medium">Subject</label>
-        <select name="subjectId" required className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2">
+        <select name="subjectId" required className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2">
           {subjects.map((subject) => (
             <option key={subject.id} value={subject.id}>
               {subject.name}
@@ -94,7 +94,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
 
       <div>
         <label className="block text-sm font-medium">Details (optional)</label>
-        <textarea name="details" rows={2} className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2" />
+        <textarea name="details" rows={2} className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2" />
       </div>
 
       <div>
@@ -103,7 +103,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
           type="number"
           name="estimatedMinutes"
           min={0}
-          className="mt-1 w-32 rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-32 rounded border border-[#E1E3E6] px-3 py-2"
         />
       </div>
 
@@ -113,7 +113,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
           type="date"
           name="dueDate"
           required
-          className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
         />
       </div>
 
@@ -123,7 +123,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
           name="repeat"
           value={repeat}
           onChange={(event) => setRepeat(event.target.value)}
-          className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
         >
           {REPEAT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -154,7 +154,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
             name="endCondition"
             value={endCondition}
             onChange={(event) => setEndCondition(event.target.value)}
-            className="mt-1 w-full rounded border border-[#DDD6CB] px-3 py-2"
+            className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
           >
             {END_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -168,7 +168,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
               type="date"
               name="endDate"
               required
-              className="mt-2 w-full rounded border border-[#DDD6CB] px-3 py-2"
+              className="mt-2 w-full rounded border border-[#E1E3E6] px-3 py-2"
             />
           )}
           {endCondition === "afterNCount" && (
@@ -178,7 +178,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
               min={1}
               required
               placeholder="Number of times"
-              className="mt-2 w-full rounded border border-[#DDD6CB] px-3 py-2"
+              className="mt-2 w-full rounded border border-[#E1E3E6] px-3 py-2"
             />
           )}
         </div>
@@ -192,7 +192,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
       <button
         type="submit"
         disabled={studentIds.length === 0}
-        className="rounded bg-[#1A1A1A] px-4 py-2.5 text-white hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded bg-[#161616] px-4 py-2.5 text-white hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
       >
         Create assignment
       </button>
