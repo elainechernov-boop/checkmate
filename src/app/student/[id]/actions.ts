@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { startOfUTCDay, toISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
 
 /**
  * The student's only two verbs (§2): check and uncheck. §6's undo rule and
@@ -39,4 +40,9 @@ export async function toggleInstance(instanceId: string): Promise<{ status: Inst
 
   revalidatePath(`/student/${instance.studentId}`);
   return { status: updated.status };
+}
+
+export async function reorderOpenItems(studentId: string, orderedIds: string[]): Promise<void> {
+  await reorderOpenItemsLib(prisma, studentId, orderedIds);
+  revalidatePath(`/student/${studentId}`);
 }

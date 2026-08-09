@@ -4,16 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
-import type { AssignmentInstance, Student } from "@/generated/prisma/client";
+import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, formatWeekLabel, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { isSoundMuted, setSoundMuted } from "@/lib/completionSound";
-import { toggleInstance } from "./actions";
+import { reorderOpenItems, toggleInstance } from "./actions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
-
-type InstanceWithSubject = AssignmentInstance & { subject: { id: string; name: string } | null };
+import { AssignmentDetailsModal } from "./AssignmentDetailsModal";
+import type { StudentInstance } from "./types";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -27,8 +27,8 @@ export function StudentWeekView({
   student: Student;
   monday: Date;
   today: Date;
-  instances: InstanceWithSubject[];
-  comingUp: InstanceWithSubject[];
+  instances: StudentInstance[];
+  comingUp: StudentInstance[];
 }) {
   const router = useRouter();
   const prefersReducedMotion = !!useReducedMotion();
@@ -36,6 +36,7 @@ export function StudentWeekView({
   const [localInstances, setLocalInstances] = useState(instances);
   const [syncedInstances, setSyncedInstances] = useState(instances);
   const [comingUpOpen, setComingUpOpen] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [celebratedToday, setCelebratedToday] = useState(true); // avoid a flash before the effect below settles
 
@@ -75,7 +76,7 @@ export function StudentWeekView({
     window.localStorage.setItem(celebratedKey, "1");
   }
 
-  async function handleToggle(instance: InstanceWithSubject) {
+  async function handleToggle(instance: StudentInstance) {
     const goingToOpen = instance.status !== InstanceStatus.open;
     const nextStatus = goingToOpen
       ? InstanceStatus.open
@@ -97,11 +98,26 @@ export function StudentWeekView({
     }
   }
 
+  async function handleReorderOpen(orderedIds: string[]) {
+    const previous = localInstances;
+    const order = new Map(orderedIds.map((id, index) => [id, index]));
+    setLocalInstances((current) =>
+      current.map((i) => (order.has(i.id) ? { ...i, sortOrder: order.get(i.id)! } : i))
+    );
+    try {
+      await reorderOpenItems(student.id, orderedIds);
+    } catch {
+      setLocalInstances(previous);
+    }
+  }
+
   function toggleMute() {
     const next = !muted;
     setMuted(next);
     setSoundMuted(next);
   }
+
+  const selectedInstance = localInstances.find((i) => i.id === selectedInstanceId) ?? null;
 
   return (
     <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-10 py-10">
@@ -165,6 +181,8 @@ export function StudentWeekView({
                 celebrated={celebratedToday}
                 onCelebrate={handleCelebrate}
                 onToggle={handleToggle}
+                onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
+                onReorderOpen={handleReorderOpen}
               />
             );
           })}
@@ -175,6 +193,12 @@ export function StudentWeekView({
         open={comingUpOpen}
         onClose={() => setComingUpOpen(false)}
         items={comingUp}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      <AssignmentDetailsModal
+        instance={selectedInstance}
+        onClose={() => setSelectedInstanceId(null)}
         prefersReducedMotion={prefersReducedMotion}
       />
     </main>

@@ -97,18 +97,18 @@ New Assignment sheet, one screen:
 
 ## 6. Student experience — the TeuxDeux view
 
-**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line of text: a small subject tick (2px vertical bar in the subject color) + title. Click anywhere on the line to complete. No checkbox chrome until hover.
+**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line: a persistent circular checkbox (ringed in the subject color; the subject tick and the completion control are the same element) + title. Clicking the checkbox completes or undoes the item; clicking the title opens a read-only details popup (subject, notes, estimated time, due date, status) — parent-assigned work stays uneditable by students (§2). Today's open items can be dragged to reorder within the day (a small handle appears per row); other days are display-only, matching the existing today-only interactivity rule.
 
 **The completion moment (the signature — build this with care):**
-1. On click, a strikethrough line draws left-to-right across the text over ~280ms with an ease-out curve
-2. Simultaneously the text color fades to muted gray and the row gives a single, small spring scale (1.0 → 0.97 → 1.0)
-3. A soft, short completion sound (subtle "tick," toggleable in settings)
+1. Clicking the checkbox draws a strikethrough line left-to-right across the title over ~280ms with an ease-out curve
+2. Simultaneously the text color fades to muted gray and the checkbox gives a single, small spring scale/fill pulse as it fills in with a checkmark
+3. A soft, short completion sound (subtle "tick," toggleable via the header sound icon)
 4. Completed items sink below open items in the column with an animated reorder
 5. **Day-complete moment:** when the last open item in today's column is checked, the day header blooms — a one-time burst of 12–16 small confetti particles in the student's accent color, ~700ms, then gone. Once per day, today only.
-6. Undo: clicking a completed item today reverses the animation; clicking a pendingReview item withdraws it back to open. Yesterday and earlier are locked for students.
+6. Undo: clicking a completed item's checkbox today reverses the animation; clicking a pendingReview item's checkbox withdraws it back to open. Yesterday and earlier are locked for students.
 7. Respect the `prefers-reduced-motion` setting: replace draw/confetti with a simple crossfade.
 
-**Item states in the column, top to bottom:** rolled items (with their day-count marks, oldest first) → today's open items (parent-assigned and project tasks interleaved) → pendingReview items ("Show Mom," half-struck, holding) → completed items (muted, struck). The column reads as a work queue: debts, then today, then waiting-on-Mom, then done.
+**Item states in the column, top to bottom:** rolled items (with their day-count marks, oldest first) → today's open items (parent-assigned and project tasks interleaved, in the student's own drag-order) → pendingReview items ("Show Mom," half-struck, holding, checkbox ringed in amber with a raised-hand mark) → completed items (muted, struck). The column reads as a work queue: debts, then today, then waiting-on-Mom, then done.
 
 ## 7. Self-initiated projects (student-created)
 

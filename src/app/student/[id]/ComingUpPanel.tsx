@@ -1,12 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import type { AssignmentInstance } from "@/generated/prisma/client";
 import { formatComingUpDate, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { getSubjectColor } from "@/lib/subjectColors";
-
-type InstanceWithSubject = AssignmentInstance & { subject: { id: string; name: string } | null };
+import type { StudentInstance } from "./types";
 
 /** §2/§5: the next 14 days of due dates, kept minimal and read-only — grayed,
  * never interactive. "The week view is the teacher." */
@@ -18,10 +16,10 @@ export function ComingUpPanel({
 }: {
   open: boolean;
   onClose: () => void;
-  items: InstanceWithSubject[];
+  items: StudentInstance[];
   prefersReducedMotion: boolean;
 }) {
-  const groups = new Map<string, { date: Date; items: InstanceWithSubject[] }>();
+  const groups = new Map<string, { date: Date; items: StudentInstance[] }>();
   for (const item of items) {
     if (!item.dueDate) continue;
     const key = toISODate(item.dueDate);

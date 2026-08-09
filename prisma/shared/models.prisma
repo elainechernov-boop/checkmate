@@ -178,6 +178,9 @@ model AssignmentInstance {
   workSampleNote  String?
   // a per-instance edit detaches it from the series for this occurrence only
   isOverride      Boolean        @default(false)
+  // manual same-day ordering within the "open" bucket (student drag-reorder,
+  // today only); ties break on createdAt
+  sortOrder       Int            @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

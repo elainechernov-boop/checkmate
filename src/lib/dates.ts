@@ -38,6 +38,15 @@ export function mondayOf(date: Date): Date {
   return addDays(date, diffToMonday);
 }
 
+// The default (no explicit ?week=) landing week. `mondayOf` treats Sunday as
+// the tail end of the week that just finished, which is correct for "what
+// week is this date in" but wrong for "what should I show by default" — on
+// a Sunday (a day with no column in the six-day Mon-Sat view) it would land
+// on a week that's entirely in the past. Default to the upcoming week instead.
+export function defaultWeekStart(today: Date): Date {
+  return today.getUTCDay() === 0 ? mondayOf(addDays(today, 1)) : mondayOf(today);
+}
+
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_LONG = [
   "January",

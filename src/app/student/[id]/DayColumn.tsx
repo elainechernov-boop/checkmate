@@ -1,15 +1,64 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AssignmentInstance } from "@/generated/prisma/client";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { formatDayLabel } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
 import { AssignmentRow } from "./AssignmentRow";
 import { ConfettiBurst } from "./ConfettiBurst";
+import type { StudentInstance } from "./types";
 
-type InstanceWithSubject = AssignmentInstance & { subject: { id: string; name: string } | null };
+function SortableRow({
+  instance,
+  prefersReducedMotion,
+  onToggle,
+  onOpenDetails,
+}: {
+  instance: StudentInstance;
+  prefersReducedMotion: boolean;
+  onToggle: () => void;
+  onOpenDetails: () => void;
+}) {
+  // dnd-kit owns this wrapper's transform (drag position + reorder FLIP);
+  // Framer Motion's animations inside AssignmentRow stay on a separate node
+  // so the two never fight over the same element's transform.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: instance.id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: transition ?? undefined,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : undefined,
+        position: "relative",
+      }}
+    >
+      <AssignmentRow
+        instance={instance}
+        interactive
+        prefersReducedMotion={prefersReducedMotion}
+        dragHandleProps={{ attributes, listeners }}
+        onToggle={onToggle}
+        onOpenDetails={onOpenDetails}
+      />
+    </div>
+  );
+}
 
 export function DayColumn({
   day,
@@ -21,23 +70,28 @@ export function DayColumn({
   celebrated,
   onCelebrate,
   onToggle,
+  onOpenDetails,
+  onReorderOpen,
 }: {
   day: Date;
   isToday: boolean;
   interactive: boolean;
-  instances: InstanceWithSubject[];
+  instances: StudentInstance[];
   accentColor: string;
   prefersReducedMotion: boolean;
   celebrated: boolean;
   onCelebrate: () => void;
-  onToggle: (instance: InstanceWithSubject) => void;
+  onToggle: (instance: StudentInstance) => void;
+  onOpenDetails: (instance: StudentInstance) => void;
+  onReorderOpen: (orderedIds: string[]) => void;
 }) {
   const [showConfetti, setShowConfetti] = useState(false);
   const wasAllDone = useRef<boolean | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const { rolled, open, pendingReview, completed } = bucketDayInstances(instances);
-  const orderedRows = [...rolled, ...open, ...pendingReview, ...completed];
   const allDone = instances.length > 0 && open.length === 0 && pendingReview.length === 0 && rolled.length === 0;
+  const totalRows = rolled.length + open.length + pendingReview.length + completed.length;
 
   useEffect(() => {
     if (!isToday) return;
@@ -49,6 +103,28 @@ export function DayColumn({
     }
     wasAllDone.current = allDone;
   }, [allDone, isToday, celebrated, onCelebrate]);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = open.findIndex((i) => i.id === active.id);
+    const newIndex = open.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    onReorderOpen(arrayMove(open, oldIndex, newIndex).map((i) => i.id));
+  }
+
+  function plainRow(instance: StudentInstance) {
+    return (
+      <AssignmentRow
+        key={instance.id}
+        instance={instance}
+        interactive={interactive && instance.status !== InstanceStatus.excused}
+        prefersReducedMotion={prefersReducedMotion}
+        onToggle={() => onToggle(instance)}
+        onOpenDetails={() => onOpenDetails(instance)}
+      />
+    );
+  }
 
   return (
     <div
@@ -74,21 +150,35 @@ export function DayColumn({
         )}
       </div>
 
-      <div className="mt-2 flex flex-col gap-1.5">
-        {orderedRows.length === 0 && (
+      <div className="mt-2 flex flex-col gap-1">
+        {totalRows === 0 && (
           <p className="py-1 text-center text-sm" style={{ color: COLORS.mutedFaint }}>
             Nothing due.
           </p>
         )}
-        {orderedRows.map((instance) => (
-          <AssignmentRow
-            key={instance.id}
-            instance={instance}
-            interactive={interactive && instance.status !== InstanceStatus.excused}
-            prefersReducedMotion={prefersReducedMotion}
-            onToggle={() => onToggle(instance)}
-          />
-        ))}
+
+        {rolled.map(plainRow)}
+
+        {interactive && open.length > 0 ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={open.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              {open.map((instance) => (
+                <SortableRow
+                  key={instance.id}
+                  instance={instance}
+                  prefersReducedMotion={prefersReducedMotion}
+                  onToggle={() => onToggle(instance)}
+                  onOpenDetails={() => onOpenDetails(instance)}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          open.map(plainRow)
+        )}
+
+        {pendingReview.map(plainRow)}
+        {completed.map(plainRow)}
       </div>
     </div>
   );

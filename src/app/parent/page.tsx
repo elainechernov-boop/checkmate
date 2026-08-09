@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { addDays, formatDayLabel, formatWeekLabel, mondayOf, parseISODate, toISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, formatDayLabel, formatWeekLabel, parseISODate, toISODate } from "@/lib/dates";
 
 export default async function ParentPage({
   searchParams,
@@ -8,7 +8,7 @@ export default async function ParentPage({
   searchParams: Promise<{ week?: string }>;
 }) {
   const { week } = await searchParams;
-  const monday = week ? parseISODate(week) : mondayOf(new Date());
+  const monday = week ? parseISODate(week) : defaultWeekStart(new Date());
   const days = Array.from({ length: 6 }, (_, index) => addDays(monday, index));
   const weekEnd = addDays(monday, 6);
 
