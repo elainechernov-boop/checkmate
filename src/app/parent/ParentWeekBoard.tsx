@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
-import { addDays, formatDayLabel, formatWeekLabel, toISODate } from "@/lib/dates";
+import { addDays, formatDayLabel, toISODate } from "@/lib/dates";
 import { getSubjectColor } from "@/lib/subjectColors";
 import { COLORS } from "@/lib/theme";
 import { approveReviewAction, quickCreateAssignment, rescheduleInstance, returnReviewAction } from "./planner-actions";
@@ -41,11 +41,10 @@ export function ParentWeekBoard({
 
   return (
     <>
-      <div className="mt-8 flex items-center gap-6 text-sm">
+      <div className="mt-8 flex items-center justify-between text-sm">
         <Link href={`/parent?week=${prevWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
           ← Prev week
         </Link>
-        <span className="font-medium">Week of {formatWeekLabel(days[0])}</span>
         <Link href={`/parent?week=${nextWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
           Next week →
         </Link>
@@ -188,9 +187,14 @@ function DayCell({
       }}
     >
       <div className="text-xs font-medium text-[#6B6B6B]">{formatDayLabel(day)}</div>
-      <div className="mt-2 flex flex-col gap-1">
-        {instances.map((instance) => (
-          <DraggableRow key={instance.id} instance={instance} onClick={() => onEdit(instance.id)} />
+      <div className="mt-2 flex flex-col">
+        {instances.map((instance, index) => (
+          <DraggableRow
+            key={instance.id}
+            instance={instance}
+            isLast={index === instances.length - 1}
+            onClick={() => onEdit(instance.id)}
+          />
         ))}
       </div>
 
@@ -219,12 +223,23 @@ function DayCell({
   );
 }
 
-function DraggableRow({ instance, onClick }: { instance: EditableInstance; onClick: () => void }) {
+function DraggableRow({
+  instance,
+  isLast,
+  onClick,
+}: {
+  instance: EditableInstance;
+  isLast: boolean;
+  onClick: () => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: instance.id });
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
 
   return (
-    <div className="flex flex-col gap-1 rounded px-1 py-0.5">
+    <div
+      className="flex flex-col gap-1 px-1 py-0.5"
+      style={{ borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}` }}
+    >
       <div
         ref={setNodeRef}
         {...attributes}

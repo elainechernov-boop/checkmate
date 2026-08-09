@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { addDays, formatWeekLabel, toISODate } from "@/lib/dates";
+import { addDays, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, setSoundMuted } from "@/lib/completionSound";
 import { approveReviewViaPasscode, reorderOpenItems, toggleInstance } from "./actions";
@@ -216,7 +216,7 @@ export function StudentWeekView({
         </div>
       </header>
 
-      <div className="mt-8 flex items-center gap-6 text-sm">
+      <div className="mt-8 flex items-center justify-between text-sm">
         <Link
           href={`/student/${student.id}?week=${toISODate(addDays(monday, -7))}`}
           className="px-1 hover:underline"
@@ -224,7 +224,6 @@ export function StudentWeekView({
         >
           ← Prev week
         </Link>
-        <span className="font-medium">Week of {formatWeekLabel(days[0])}</span>
         <Link
           href={`/student/${student.id}?week=${toISODate(addDays(monday, 7))}`}
           className="px-1 hover:underline"
@@ -254,6 +253,7 @@ export function StudentWeekView({
                 interactive={isToday}
                 instances={dayInstances}
                 studentName={student.name}
+                accentColor={student.accentColor}
                 prefersReducedMotion={prefersReducedMotion}
                 celebrated={celebratedToday}
                 onCelebrate={handleCelebrate}

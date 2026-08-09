@@ -12,7 +12,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { formatDayLabel, toISODate } from "@/lib/dates";
+import { formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
 import { AssignmentRow } from "./AssignmentRow";
@@ -22,11 +22,13 @@ import type { StudentInstance } from "./types";
 function SortableRow({
   instance,
   prefersReducedMotion,
+  isLast,
   onToggle,
   onOpenDetails,
 }: {
   instance: StudentInstance;
   prefersReducedMotion: boolean;
+  isLast: boolean;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
   // Open-bucket rows are never pendingReview (§6's ordering), so this
@@ -62,6 +64,7 @@ function SortableRow({
         instance={instance}
         interactive
         prefersReducedMotion={prefersReducedMotion}
+        isLast={isLast}
         onToggle={onToggle}
         onOpenDetails={onOpenDetails}
       />
@@ -75,6 +78,7 @@ export function DayColumn({
   interactive,
   instances,
   studentName,
+  accentColor,
   prefersReducedMotion,
   celebrated,
   onCelebrate,
@@ -88,6 +92,7 @@ export function DayColumn({
   interactive: boolean;
   instances: StudentInstance[];
   studentName: string;
+  accentColor: string;
   prefersReducedMotion: boolean;
   celebrated: boolean;
   onCelebrate: () => void;
@@ -103,6 +108,11 @@ export function DayColumn({
   const { rolled, open, pendingReview, completed } = bucketDayInstances(instances);
   const allDone = instances.length > 0 && open.length === 0 && pendingReview.length === 0 && rolled.length === 0;
   const totalRows = rolled.length + open.length + pendingReview.length + completed.length;
+  // The column's true bottom-to-top order (rolled -> open -> pendingReview
+  // -> completed, §6) regardless of which bucket a row is rendered from —
+  // only this one row skips its trailing divider.
+  const orderedRows = [...rolled, ...open, ...pendingReview, ...completed];
+  const lastRowId = orderedRows.length > 0 ? orderedRows[orderedRows.length - 1].id : null;
 
   useEffect(() => {
     if (!isToday) return;
@@ -131,6 +141,7 @@ export function DayColumn({
         instance={instance}
         interactive={interactive && instance.status !== InstanceStatus.excused}
         prefersReducedMotion={prefersReducedMotion}
+        isLast={instance.id === lastRowId}
         onToggle={(origin) => onToggle(instance, origin)}
         onOpenDetails={() => onOpenDetails(instance)}
         // Available even on a non-today column — a pendingReview item holds
@@ -149,13 +160,29 @@ export function DayColumn({
         borderWidth: isToday ? 1.5 : 1,
       }}
     >
-      <div className="relative flex items-center justify-between">
-        <span
-          className="font-medium"
-          style={{ color: isToday ? COLORS.text : COLORS.muted, fontSize: isToday ? "0.95rem" : "0.8rem" }}
-        >
-          {formatDayLabel(day)}
-        </span>
+      <div className="relative flex items-start justify-between">
+        {/* TeuxDeux's two-line day header (§9): a tiny uppercase date line,
+            the weekday name large and bold directly beneath it — the two
+            sit close together, with almost all the visual weight on the
+            weekday name. Today's name picks up the student's own accent
+            color instead of the near-black default. */}
+        <div className="flex flex-col leading-tight">
+          <span
+            className="font-medium uppercase"
+            style={{ color: COLORS.muted, fontSize: "0.6rem", letterSpacing: "0.06em" }}
+          >
+            {formatDayDateLine(day)}
+          </span>
+          <span
+            className="font-bold uppercase"
+            style={{
+              color: isToday ? accentColor : COLORS.text,
+              fontSize: isToday ? "1.5rem" : "1.15rem",
+            }}
+          >
+            {formatDayWeekdayName(day)}
+          </span>
+        </div>
         {showTakeover && (
           <DayCompleteTakeover
             studentName={studentName}
@@ -165,7 +192,7 @@ export function DayColumn({
         )}
       </div>
 
-      <div className="mt-2 flex flex-col gap-1">
+      <div className="mt-2 flex flex-col">
         {totalRows === 0 && (
           <p className="py-1 text-center text-sm" style={{ color: COLORS.mutedFaint }}>
             Nothing due.
@@ -192,6 +219,7 @@ export function DayColumn({
                   key={instance.id}
                   instance={instance}
                   prefersReducedMotion={prefersReducedMotion}
+                  isLast={instance.id === lastRowId}
                   onToggle={(origin) => onToggle(instance, origin)}
                   onOpenDetails={() => onOpenDetails(instance)}
                 />

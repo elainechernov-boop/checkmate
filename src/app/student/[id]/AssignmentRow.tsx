@@ -25,6 +25,7 @@ export function AssignmentRow({
   instance,
   interactive,
   prefersReducedMotion,
+  isLast,
   onToggle,
   onOpenDetails,
   onApproveViaPasscode,
@@ -32,6 +33,7 @@ export function AssignmentRow({
   instance: StudentInstance;
   interactive: boolean;
   prefersReducedMotion: boolean;
+  isLast: boolean;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
   onApproveViaPasscode?: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
@@ -93,7 +95,10 @@ export function AssignmentRow({
   const showWidth = animating ? targetWidth : currentWidth;
 
   return (
-    <div className="relative flex items-center gap-2 rounded py-1.5 text-sm">
+    <div
+      className="relative flex items-center gap-2 py-1.5 text-sm"
+      style={{ borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}` }}
+    >
       {/* No checkbox, no dot, no drag handle — the word itself is the
           completion control (TeuxDeux's model, §6 north star), and the
           whole row is now the drag target (dnd-kit listeners live on
@@ -129,13 +134,30 @@ export function AssignmentRow({
             </motion.span>
 
             {(currentWidth > 0 || targetWidth > 0) && (
+              // A same-text overlay with a native line-through, revealed via
+              // a growing clip-path, rather than one absolutely-positioned
+              // line pinned to the block's vertical center — that approach
+              // only ever crossed the first line once the title wrapped
+              // (the center of a two-line block sits *between* the lines,
+              // not on either one). text-decoration-line draws correctly
+              // per wrapped line on its own; clip-path just reveals it
+              // left-to-right to keep the "draws on" feel.
               <motion.span
                 aria-hidden
                 initial={false}
-                animate={{ width: `${showWidth}%` }}
+                animate={{ clipPath: `inset(0 ${100 - showWidth}% 0 0)` }}
                 transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
-                style={{ position: "absolute", left: 0, top: "50%", height: 1, background: COLORS.text }}
-              />
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  color: "transparent",
+                  textDecorationLine: "line-through",
+                  textDecorationColor: COLORS.text,
+                  textDecorationThickness: "1px",
+                }}
+              >
+                {instance.title}
+              </motion.span>
             )}
           </motion.span>
 

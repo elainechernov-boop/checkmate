@@ -69,20 +69,7 @@ export function defaultWeekStart(today: Date): Date {
 }
 
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_LONG = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const WEEKDAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Hand-rolled instead of Intl.DateTimeFormat: `toLocaleDateString` can format
@@ -95,8 +82,15 @@ export function formatDayLabel(date: Date): string {
   return `${WEEKDAY_SHORT[date.getUTCDay()]} ${date.getUTCDate()}`;
 }
 
-export function formatWeekLabel(date: Date): string {
-  return `${MONTH_LONG[date.getUTCMonth()]} ${date.getUTCDate()}`;
+/** TeuxDeux-style two-line day header (student view, §6/§9) — the small
+ * uppercase date line, e.g. "MON AUG 10". */
+export function formatDayDateLine(date: Date): string {
+  return `${WEEKDAY_SHORT[date.getUTCDay()]} ${MONTH_SHORT[date.getUTCMonth()]} ${date.getUTCDate()}`.toUpperCase();
+}
+
+/** The large weekday name beneath the date line, e.g. "Monday". */
+export function formatDayWeekdayName(date: Date): string {
+  return WEEKDAY_LONG[date.getUTCDay()];
 }
 
 export function formatComingUpDate(date: Date): string {
