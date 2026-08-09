@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
@@ -8,8 +8,8 @@ import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, formatWeekLabel, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
-import { isSoundMuted, setSoundMuted } from "@/lib/completionSound";
-import { reorderOpenItems, toggleInstance } from "./actions";
+import { isSoundMuted, playCompletionTick, setSoundMuted } from "@/lib/completionSound";
+import { approveReviewViaPasscode, reorderOpenItems, toggleInstance } from "./actions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
 import { AssignmentDetailsModal } from "./AssignmentDetailsModal";
@@ -56,6 +56,36 @@ export function StudentWeekView({
     setSyncedInstances(instances);
     setLocalInstances(instances);
   }
+
+  // §5 step 3: "the full completion sequence... plays on the student's
+  // screen at next refresh." A student's own toggle (actions.ts) never
+  // produces a pendingReview -> done transition — only an external approval
+  // (Parent Mode, or someone else's passcode popover) does — so spotting one
+  // here is an unambiguous signal to play the reward now. This needs the
+  // real previous props (not the render-time state above, which may have
+  // already been overwritten this same render), so it runs as an effect —
+  // playing a sound and reading window dimensions are side effects anyway.
+  const previousInstancesRef = useRef(instances);
+  useEffect(() => {
+    const previous = previousInstancesRef.current;
+    if (previous !== instances) {
+      const previousStatusById = new Map(previous.map((i) => [i.id, i.status]));
+      const approvedElsewhere = instances.find(
+        (i) => previousStatusById.get(i.id) === InstanceStatus.pendingReview && i.status === InstanceStatus.done
+      );
+      if (approvedElsewhere) {
+        playCompletionTick();
+        if (!prefersReducedMotion) {
+          // A genuine "external system changed, react to it" case (§5 step
+          // 3) — there's no user gesture to hang this off, so the effect
+          // itself is the right place, matching the isSoundMuted() read below.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setItemCelebration({ key: Date.now(), origin: { x: window.innerWidth / 2, y: window.innerHeight / 2 } });
+        }
+      }
+      previousInstancesRef.current = instances;
+    }
+  }, [instances, prefersReducedMotion]);
 
   useEffect(() => {
     // Browser-only reads (localStorage), deferred past hydration so the
@@ -132,6 +162,24 @@ export function StudentWeekView({
     } catch {
       setLocalInstances(previous);
     }
+  }
+
+  // §5 step 2's passcode popover — approval happens right here on the
+  // student's own screen, so (unlike the refresh-detected approval path
+  // below) the full completion sequence fires immediately rather than
+  // waiting for the next poll.
+  async function handleApproveViaPasscode(
+    instance: StudentInstance,
+    passcode: string,
+    origin: { x: number; y: number }
+  ) {
+    await approveReviewViaPasscode(instance.id, passcode); // throws on a wrong passcode; caller shows the error
+
+    playCompletionTick();
+    if (!prefersReducedMotion) setItemCelebration({ key: Date.now(), origin });
+    setLocalInstances((current) =>
+      current.map((i) => (i.id === instance.id ? { ...i, status: InstanceStatus.done, reviewedAt: new Date() } : i))
+    );
   }
 
   function toggleMute() {
@@ -212,6 +260,7 @@ export function StudentWeekView({
                 onToggle={handleToggle}
                 onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
                 onReorderOpen={handleReorderOpen}
+                onApproveViaPasscode={handleApproveViaPasscode}
               />
             );
           })}

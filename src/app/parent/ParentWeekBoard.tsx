@@ -12,22 +12,26 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import type { Student } from "@/generated/prisma/client";
+import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, formatDayLabel, formatWeekLabel, toISODate } from "@/lib/dates";
 import { getSubjectColor } from "@/lib/subjectColors";
 import { COLORS } from "@/lib/theme";
-import { quickCreateAssignment, rescheduleInstance } from "./planner-actions";
+import { approveReviewAction, quickCreateAssignment, rescheduleInstance, returnReviewAction } from "./planner-actions";
 import { EditAssignmentModal, type EditableInstance } from "./EditAssignmentModal";
+import { SchoolCalendarStrip } from "./SchoolCalendarStrip";
 
 export function ParentWeekBoard({
   students,
   subjects,
   monday,
   instances,
+  schoolDayTypes,
 }: {
   students: Student[];
   subjects: { id: string; name: string }[];
   monday: Date;
   instances: EditableInstance[];
+  schoolDayTypes: Record<string, SchoolDayType>;
 }) {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i));
@@ -46,6 +50,8 @@ export function ParentWeekBoard({
           Next week →
         </Link>
       </div>
+
+      <SchoolCalendarStrip days={days} schoolDayTypes={schoolDayTypes} />
 
       {students.length === 0 && (
         <p className="mt-10 text-sm text-[#6B6B6B]">
@@ -215,29 +221,109 @@ function DayCell({
 
 function DraggableRow({ instance, onClick }: { instance: EditableInstance; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: instance.id });
+  const isPendingReview = instance.status === InstanceStatus.pendingReview;
 
   return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      onClick={onClick}
-      style={{
-        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-        opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 10 : undefined,
-        position: "relative",
-        cursor: "pointer",
-      }}
-      className="flex items-baseline gap-2 rounded px-1 py-0.5 text-sm hover:bg-black/[0.03]"
-    >
-      <span
-        aria-hidden
-        className="mt-0.5 inline-block self-stretch"
-        style={{ width: 2, background: getSubjectColor(instance.subject?.name), flexShrink: 0 }}
-      />
-      <span>{instance.title}</span>
-      {instance.requiresReview && <span style={{ color: COLORS.amber, fontSize: "0.7rem" }}>Show Mom</span>}
+    <div className="flex flex-col gap-1 rounded px-1 py-0.5">
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        onClick={onClick}
+        style={{
+          transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+          opacity: isDragging ? 0.5 : 1,
+          zIndex: isDragging ? 10 : undefined,
+          position: "relative",
+          cursor: "pointer",
+        }}
+        className="flex items-baseline gap-2 text-sm hover:bg-black/[0.03]"
+      >
+        <span
+          aria-hidden
+          className="mt-0.5 inline-block self-stretch"
+          style={{ width: 2, background: getSubjectColor(instance.subject?.name), flexShrink: 0 }}
+        />
+        <span>{instance.title}</span>
+        {isPendingReview && <span style={{ color: COLORS.amber, fontSize: "0.7rem" }}>✋ Show Mom</span>}
+      </div>
+
+      {instance.returnNote && (
+        <p className="pl-3 text-xs" style={{ color: COLORS.muted }}>
+          {instance.returnNote}
+        </p>
+      )}
+
+      {/* §5 step 2/4 — approve/return from Parent Mode. Kept outside the
+          draggable node above (no drag listeners here) so these buttons
+          never race dnd-kit's pointer handling. */}
+      {isPendingReview && <ReviewControls instanceId={instance.id} />}
+    </div>
+  );
+}
+
+function ReviewControls({ instanceId }: { instanceId: string }) {
+  const [returning, setReturning] = useState(false);
+  const [note, setNote] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function handleApprove() {
+    setPending(true);
+    await approveReviewAction(instanceId);
+  }
+
+  async function handleReturn() {
+    setPending(true);
+    await returnReviewAction(instanceId, note);
+  }
+
+  if (returning) {
+    return (
+      <div className="flex items-center gap-1.5 pl-3">
+        <input
+          autoFocus
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="Optional note (e.g. 'redo the last two')"
+          className="min-w-0 flex-1 rounded border border-[#DDD6CB] px-2 py-1 text-xs outline-none"
+          disabled={pending}
+        />
+        <button
+          type="button"
+          onClick={handleReturn}
+          disabled={pending}
+          className="shrink-0 text-xs font-medium"
+          style={{ color: COLORS.amber }}
+        >
+          Send back
+        </button>
+        <button
+          type="button"
+          onClick={() => setReturning(false)}
+          disabled={pending}
+          className="shrink-0 text-xs"
+          style={{ color: COLORS.muted }}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 pl-3">
+      <button type="button" onClick={handleApprove} disabled={pending} className="text-xs font-medium text-[#1A1A1A]">
+        ✓ Approve
+      </button>
+      <button
+        type="button"
+        onClick={() => setReturning(true)}
+        disabled={pending}
+        className="text-xs"
+        style={{ color: COLORS.muted }}
+      >
+        Send back
+      </button>
     </div>
   );
 }

@@ -23,3 +23,16 @@ export async function loadSchoolDayMap(
   });
   return new Map(rows.map((row) => [toISODate(row.date), row.type]));
 }
+
+/** Parent Mode's day-type change (§5 "field trips and off days"). */
+export async function setSchoolDayType(
+  prisma: Pick<PrismaClient, "schoolDay">,
+  date: Date,
+  type: SchoolDayType
+): Promise<void> {
+  await prisma.schoolDay.upsert({
+    where: { date },
+    update: { type },
+    create: { date, type },
+  });
+}

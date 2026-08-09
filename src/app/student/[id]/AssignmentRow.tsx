@@ -6,6 +6,7 @@ import { InstanceStatus } from "@/generated/prisma/enums";
 import { playCompletionTick } from "@/lib/completionSound";
 import { formatRollMark } from "@/lib/instanceGrouping";
 import { COLORS } from "@/lib/theme";
+import { ApprovalPasscodePopover } from "./ApprovalPasscodePopover";
 import type { StudentInstance } from "./types";
 
 function strikeWidthFor(status: InstanceStatus): number {
@@ -26,15 +27,19 @@ export function AssignmentRow({
   prefersReducedMotion,
   onToggle,
   onOpenDetails,
+  onApproveViaPasscode,
 }: {
   instance: StudentInstance;
   interactive: boolean;
   prefersReducedMotion: boolean;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
+  onApproveViaPasscode?: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
 }) {
   const [animating, setAnimating] = useState(false);
   const [pulsing, setPulsing] = useState(false);
+  const [passcodeOpen, setPasscodeOpen] = useState(false);
+  const [passcodeOrigin, setPasscodeOrigin] = useState<{ x: number; y: number } | null>(null);
 
   const isForward = instance.status === InstanceStatus.open; // a click moves it forward
   const resultingStatus = isForward
@@ -152,7 +157,32 @@ export function AssignmentRow({
             ✋ Show Mom
           </span>
         )}
+
+        {/* §5 step 4: a returned item's note lives beneath the title until
+            the student completes it again. */}
+        {instance.returnNote && (
+          <span className="whitespace-nowrap" style={{ color: COLORS.muted, fontSize: "0.7rem" }}>
+            {instance.returnNote}
+          </span>
+        )}
       </button>
+
+      {isPendingReview && onApproveViaPasscode && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            setPasscodeOrigin({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+            setPasscodeOpen(true);
+          }}
+          aria-label="Approve with parent passcode"
+          className="shrink-0 text-xs"
+          style={{ color: COLORS.muted }}
+        >
+          🔑
+        </button>
+      )}
 
       <button
         type="button"
@@ -166,6 +196,15 @@ export function AssignmentRow({
       >
         →
       </button>
+
+      {isPendingReview && onApproveViaPasscode && (
+        <ApprovalPasscodePopover
+          open={passcodeOpen}
+          onClose={() => setPasscodeOpen(false)}
+          prefersReducedMotion={prefersReducedMotion}
+          onSubmit={(passcode) => onApproveViaPasscode(passcode, passcodeOrigin ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 })}
+        />
+      )}
     </div>
   );
 }

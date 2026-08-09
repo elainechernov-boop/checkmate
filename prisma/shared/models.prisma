@@ -176,6 +176,9 @@ model AssignmentInstance {
   reviewedAt      DateTime?
   isWorkSample    Boolean        @default(false)
   workSampleNote  String?
+  // set when the parent returns a "Show Mom" item ("not your best work");
+  // shown beneath the title until the student completes it again (§5)
+  returnNote      String?
   // a per-instance edit detaches it from the series for this occurrence only
   isOverride      Boolean        @default(false)
   // manual same-day ordering within the "open" bucket (student drag-reorder,

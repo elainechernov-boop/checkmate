@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { addDays, defaultWeekStart, getToday, isDebugToday, parseISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { rollOverdueInstances } from "@/lib/rollForward";
 import { StudentWeekView } from "./StudentWeekView";
 
 export default async function StudentPage({
@@ -17,6 +18,11 @@ export default async function StudentPage({
   if (!student) notFound();
 
   const today = getToday();
+  // §5's daily auto-roll — runs on every load (not just "the first" one) so
+  // it stays correct regardless of who opens the app first each day; it's a
+  // no-op once nothing is overdue, so re-running it is harmless.
+  await rollOverdueInstances(prisma, id, today);
+
   const monday = week ? parseISODate(week) : defaultWeekStart(today);
   const weekEnd = addDays(monday, 6); // Mon..Sat, six columns per §6
 

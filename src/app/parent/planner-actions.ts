@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { parseISODate } from "@/lib/dates";
-import { EndCondition, Frequency } from "@/generated/prisma/enums";
+import { EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
 import {
   editAllInSeries,
   editInstanceOnly,
@@ -12,6 +12,10 @@ import {
   quickCreateInstance,
   rescheduleInstance as rescheduleInstanceLib,
 } from "@/lib/assignmentEdits";
+import { materializeSeries } from "@/lib/materialize";
+import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
+import { approveReview, returnReview } from "@/lib/reviewActions";
+import { setSchoolDayType } from "@/lib/schoolCalendar";
 
 const REPEAT_TO_FREQUENCY: Record<string, Frequency> = {
   weekdays: Frequency.weekdays,
@@ -27,6 +31,67 @@ export async function quickCreateAssignment(studentId: string, dueDateISO: strin
 
 export async function rescheduleInstance(instanceId: string, newDueDateISO: string) {
   await rescheduleInstanceLib(prisma, instanceId, parseISODate(newDueDateISO));
+  revalidatePath("/parent");
+}
+
+/** §5 step 2: approving a "Show Mom" item from Parent Mode. The full
+ * completion sequence then plays on the student's own screen at their next
+ * refresh (see StudentWeekView's external-approval detection). */
+export async function approveReviewAction(instanceId: string) {
+  await approveReview(prisma, instanceId);
+  revalidatePath("/parent");
+}
+
+/** §5 step 4: "not your best work" — sends the item back to open. */
+export async function returnReviewAction(instanceId: string, note: string) {
+  await returnReview(prisma, instanceId, note);
+  revalidatePath("/parent");
+}
+
+/**
+ * §5 "field trips and off days." Changing a day's type re-materializes
+ * every series so series-generated occurrences on it correctly disappear
+ * (daily/weekdays already lands on the next valid day per §3; a
+ * weekly-on-specific-day occurrence is simply omitted) — then reports back
+ * whatever's left over (standalone or individually-moved instances) so the
+ * client can decide whether to open the Reschedule Helper.
+ */
+export async function setDayType(dateISO: string, type: SchoolDayType) {
+  const date = parseISODate(dateISO);
+  await setSchoolDayType(prisma, date, type);
+
+  const seriesList = await prisma.assignmentSeries.findMany({ select: { id: true } });
+  for (const series of seriesList) {
+    await materializeSeries(prisma, series.id);
+  }
+
+  revalidatePath("/parent");
+
+  if (type === SchoolDayType.schoolDay) {
+    return { reschedulable: [] as { id: string; title: string; studentName: string }[] };
+  }
+
+  const remaining = await findReschedulableInstances(prisma, date);
+  return {
+    reschedulable: remaining.map((instance) => ({
+      id: instance.id,
+      title: instance.title,
+      studentName: instance.student.name,
+    })),
+  };
+}
+
+export async function applyReschedule(
+  dateISO: string,
+  mode: "nextSchoolDay" | "chosenDate" | "distribute",
+  chosenDateISO?: string
+) {
+  const date = parseISODate(dateISO);
+  await applyRescheduleHelper(
+    prisma,
+    date,
+    mode === "chosenDate" ? { mode, date: parseISODate(chosenDateISO ?? dateISO) } : { mode }
+  );
   revalidatePath("/parent");
 }
 

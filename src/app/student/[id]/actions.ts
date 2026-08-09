@@ -5,6 +5,8 @@ import { InstanceStatus } from "@/generated/prisma/enums";
 import { getToday, toISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
+import { approveReview } from "@/lib/reviewActions";
+import { secretsMatch } from "@/lib/session";
 
 /**
  * The student's only two verbs (§2): check and uncheck. §6's undo rule and
@@ -35,6 +37,9 @@ export async function toggleInstance(instanceId: string): Promise<{ status: Inst
     data: {
       status: nextStatus,
       completedAt: nextStatus === InstanceStatus.open ? null : new Date(),
+      // A returned item's note (§5 step 4) is only meant to live until the
+      // student acts on it again — checking it off a second time starts clean.
+      ...(nextStatus !== InstanceStatus.open ? { returnNote: null } : {}),
     },
   });
 
@@ -45,4 +50,25 @@ export async function toggleInstance(instanceId: string): Promise<{ status: Inst
 export async function reorderOpenItems(studentId: string, orderedIds: string[]): Promise<void> {
   await reorderOpenItemsLib(prisma, studentId, orderedIds);
   revalidatePath(`/student/${studentId}`);
+}
+
+/**
+ * §5 step 2's "directly on the kids' machine via a passcode popover on the
+ * pending item (one tap, passcode, done)." The kids' machine never has
+ * Parent Mode's cookie set, so this checks the passcode itself rather than
+ * relying on session state — same constant-time comparison the Parent Mode
+ * unlock screen uses.
+ */
+export async function approveReviewViaPasscode(instanceId: string, passcode: string): Promise<void> {
+  const expected = process.env.PARENT_PASSCODE;
+  if (!expected) {
+    throw new Error("PARENT_PASSCODE environment variable is not set.");
+  }
+  if (!secretsMatch(passcode, expected)) {
+    throw new Error("Incorrect passcode.");
+  }
+
+  const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
+  await approveReview(prisma, instanceId);
+  revalidatePath(`/student/${instance.studentId}`);
 }

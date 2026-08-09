@@ -29,6 +29,8 @@ function SortableRow({
   prefersReducedMotion: boolean;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
+  // Open-bucket rows are never pendingReview (§6's ordering), so this
+  // variant has no need for the approve-via-passcode prop at all.
 }) {
   // dnd-kit owns this wrapper's transform (drag position + reorder FLIP);
   // Framer Motion's animations inside AssignmentRow stay on a separate node
@@ -79,6 +81,7 @@ export function DayColumn({
   onToggle,
   onOpenDetails,
   onReorderOpen,
+  onApproveViaPasscode,
 }: {
   day: Date;
   isToday: boolean;
@@ -91,6 +94,7 @@ export function DayColumn({
   onToggle: (instance: StudentInstance, origin: { x: number; y: number }) => void;
   onOpenDetails: (instance: StudentInstance) => void;
   onReorderOpen: (orderedIds: string[]) => void;
+  onApproveViaPasscode: (instance: StudentInstance, passcode: string, origin: { x: number; y: number }) => Promise<void>;
 }) {
   const [showTakeover, setShowTakeover] = useState(false);
   const wasAllDone = useRef<boolean | null>(null);
@@ -129,6 +133,10 @@ export function DayColumn({
         prefersReducedMotion={prefersReducedMotion}
         onToggle={(origin) => onToggle(instance, origin)}
         onOpenDetails={() => onOpenDetails(instance)}
+        // Available even on a non-today column — a pendingReview item holds
+        // its original day rather than rolling (§5), but parent approval
+        // isn't gated by the student-only "today only" interactivity rule.
+        onApproveViaPasscode={(passcode, origin) => onApproveViaPasscode(instance, passcode, origin)}
       />
     );
   }
