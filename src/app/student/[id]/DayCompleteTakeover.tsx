@@ -15,8 +15,8 @@ function generateBurst(count: number) {
     id: i,
     left: Math.random() * 100, // vw
     drift: (Math.random() - 0.5) * 30, // vw, horizontal wander while falling
-    delay: Math.random() * 0.5,
-    duration: 1.6 + Math.random() * 1,
+    delay: Math.random() * 0.6,
+    duration: 2.2 + Math.random() * 1.3,
     rotate: (Math.random() - 0.5) * 900,
     width: 5 + Math.random() * 7,
     height: 8 + Math.random() * 10,
@@ -42,7 +42,7 @@ export function DayCompleteTakeover({
   const [particles] = useState(() => generateBurst(120));
 
   useEffect(() => {
-    const timeout = window.setTimeout(onDone, reducedMotion ? 1000 : 2300);
+    const timeout = window.setTimeout(onDone, reducedMotion ? 1200 : 3700);
     return () => window.clearTimeout(timeout);
   }, [onDone, reducedMotion]);
 
@@ -55,7 +55,7 @@ export function DayCompleteTakeover({
         aria-hidden
         initial={{ opacity: 0 }}
         animate={{ opacity: [0, 1, 1, 0] }}
-        transition={{ duration: 1, times: [0, 0.15, 0.75, 1] }}
+        transition={{ duration: 1.1, times: [0, 0.15, 0.75, 1] }}
         style={{
           position: "fixed",
           inset: 0,
@@ -103,10 +103,10 @@ export function DayCompleteTakeover({
       <motion.div
         initial={{ scale: 0.4, opacity: 0 }}
         animate={{ scale: [0.4, 1.15, 1, 1, 0.9], opacity: [0, 1, 1, 1, 0] }}
-        transition={{ duration: 2.1, times: [0, 0.22, 0.35, 0.8, 1], ease: "easeOut" }}
+        transition={{ duration: 3.4, times: [0, 0.13, 0.22, 0.85, 1], ease: "easeOut" }}
         style={{
           position: "absolute",
-          top: "42%",
+          top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
           textAlign: "center",
