@@ -1,19 +1,52 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { addDays, mondayOf, parseISODate, startOfUTCDay } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { StudentWeekView } from "./StudentWeekView";
 
-export default async function StudentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StudentPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ week?: string }>;
+}) {
   const { id } = await params;
+  const { week } = await searchParams;
+
   const student = await prisma.student.findUnique({ where: { id } });
   if (!student) notFound();
 
+  const today = startOfUTCDay(new Date());
+  const monday = week ? parseISODate(week) : mondayOf(today);
+  const weekEnd = addDays(monday, 6); // Mon..Sat, six columns per §6
+
+  const comingUpStart = addDays(today, 1);
+  const comingUpEnd = addDays(today, 14);
+
+  const [weekInstances, comingUp] = await Promise.all([
+    prisma.assignmentInstance.findMany({
+      where: { studentId: id, dueDate: { gte: monday, lt: weekEnd } },
+      include: { subject: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.assignmentInstance.findMany({
+      where: {
+        studentId: id,
+        dueDate: { gte: comingUpStart, lte: comingUpEnd },
+        status: { not: "done" },
+      },
+      include: { subject: { select: { id: true, name: true } } },
+      orderBy: { dueDate: "asc" },
+    }),
+  ]);
+
   return (
-    <main className="min-h-screen bg-[#FAF7F2] px-10 py-12 text-[#1A1A1A]">
-      <Link href="/" className="text-sm text-[#6B6B6B] hover:underline">
-        ← Switch student
-      </Link>
-      <h1 className="mt-4 text-2xl font-medium">{student.name}&rsquo;s week</h1>
-      <p className="mt-1 text-sm text-[#6B6B6B]">The week view arrives in Phase 3.</p>
-    </main>
+    <StudentWeekView
+      student={student}
+      monday={monday}
+      today={today}
+      instances={weekInstances}
+      comingUp={comingUp}
+    />
   );
 }
