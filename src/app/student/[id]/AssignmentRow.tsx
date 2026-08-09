@@ -64,13 +64,13 @@ export function AssignmentRow({
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
 
-  function handleCheckboxClick(event: MouseEvent) {
+  function handleTitleClick(event: MouseEvent) {
     event.stopPropagation();
     if (!interactive || animating) return;
     if (isForward) playCompletionTick();
     setAnimating(true);
     setPulsing(true);
-    window.setTimeout(() => setPulsing(false), prefersReducedMotion ? 150 : 260);
+    window.setTimeout(() => setPulsing(false), prefersReducedMotion ? 150 : 220);
 
     const delay = prefersReducedMotion ? 150 : duration * 1000;
     // The real status flip (and the list reorder it triggers) happens once
@@ -85,7 +85,7 @@ export function AssignmentRow({
   const showWidth = animating ? targetWidth : currentWidth;
 
   return (
-    <div className="relative flex items-center gap-2 rounded px-1 py-1 text-sm">
+    <div className="relative flex items-center gap-2 rounded px-1 py-1.5 text-sm">
       {dragHandleProps ? (
         <span
           {...dragHandleProps.attributes}
@@ -100,71 +100,76 @@ export function AssignmentRow({
         <span className="w-3 shrink-0" aria-hidden />
       )}
 
-      {/* The "big juicy" checkbox — a subject-colored ring that fills with a
-          checkmark on completion, or turns amber with a raised hand while
-          pendingReview ("Show Mom" — §5). This is the only completion
-          control now; the title opens details instead. */}
-      <motion.button
+      {/* No checkbox — the word itself is the completion control (TeuxDeux's
+          model, §6 north star). A small subject-colored tick sits in front
+          for a quiet at-a-glance read; the arrow is the only other target,
+          opening read-only details. */}
+      <button
         type="button"
-        onClick={handleCheckboxClick}
+        onClick={handleTitleClick}
         disabled={!interactive}
         aria-label={isDone ? "Mark as not done" : isPendingReview ? "Withdraw from Show Mom" : "Mark as done"}
-        className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-        style={{
-          border: `2px solid ${isPendingReview ? COLORS.amber : subjectColor}`,
-          background: isDone ? subjectColor : "transparent",
-          cursor: interactive ? "pointer" : "default",
-        }}
-        animate={
-          pulsing
-            ? prefersReducedMotion
-              ? { opacity: [1, 0.5, 1] }
-              : { scale: [1, 1.25, 1] }
-            : { scale: 1, opacity: 1 }
-        }
-        transition={{ duration: prefersReducedMotion ? 0.15 : 0.26, ease: "easeOut" }}
+        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        style={{ cursor: interactive ? "pointer" : "default" }}
       >
-        {isDone && (
-          <svg width="12" height="10" viewBox="0 0 12 10" fill="none" aria-hidden>
-            <path
-              d="M1 5L4.5 8.5L11 1.5"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
-        {isPendingReview && <span style={{ fontSize: "0.7rem" }}>✋</span>}
-      </motion.button>
+        <span
+          aria-hidden
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ background: isPendingReview ? COLORS.amber : subjectColor }}
+        />
 
-      <span className="relative inline-block cursor-pointer" onClick={onOpenDetails}>
         <motion.span
-          initial={false}
-          animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
-          transition={{ duration: prefersReducedMotion ? 0.15 : duration }}
+          className="relative inline-block"
+          animate={
+            pulsing
+              ? prefersReducedMotion
+                ? { opacity: [1, 0.6, 1] }
+                : { scale: [1, 1.03, 1] }
+              : { scale: 1, opacity: 1 }
+          }
+          transition={{ duration: prefersReducedMotion ? 0.15 : 0.22, ease: "easeOut" }}
+          style={{ transformOrigin: "left center" }}
         >
-          {instance.title}
+          <motion.span
+            initial={false}
+            animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
+            transition={{ duration: prefersReducedMotion ? 0.15 : duration }}
+          >
+            {instance.title}
+          </motion.span>
+
+          {(currentWidth > 0 || targetWidth > 0) && (
+            <motion.span
+              aria-hidden
+              initial={false}
+              animate={{ width: `${showWidth}%` }}
+              transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
+              style={{ position: "absolute", left: 0, top: "50%", height: 1, background: COLORS.text }}
+            />
+          )}
         </motion.span>
 
-        {(currentWidth > 0 || targetWidth > 0) && (
-          <motion.span
-            aria-hidden
-            initial={false}
-            animate={{ width: `${showWidth}%` }}
-            transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
-            style={{ position: "absolute", left: 0, top: "50%", height: 1, background: COLORS.text }}
-          />
+        {rollMark && (
+          <span style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
+            {rollMark}
+          </span>
         )}
-      </span>
 
-      {rollMark && (
-        <span style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
-          {rollMark}
-        </span>
-      )}
+        {isPendingReview && <span style={{ color: COLORS.amber, fontSize: "0.75rem" }}>✋ Show Mom</span>}
+      </button>
 
-      {isPendingReview && <span style={{ color: COLORS.amber, fontSize: "0.75rem" }}>Show Mom</span>}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenDetails();
+        }}
+        aria-label="View assignment details"
+        className="shrink-0 rounded px-1.5 py-0.5 text-base leading-none"
+        style={{ color: COLORS.mutedFaint }}
+      >
+        ›
+      </button>
     </div>
   );
 }
