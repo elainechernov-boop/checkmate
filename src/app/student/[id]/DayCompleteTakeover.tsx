@@ -76,7 +76,19 @@ export function DayCompleteTakeover({
   }
 
   return createPortal(
-    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 9998, pointerEvents: "none", overflow: "hidden" }}>
+    <div
+      aria-hidden
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9998,
+        pointerEvents: "none",
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       {/* Dims the week grid behind the celebration for the length of the
           moment (not just a quick flash) — the message sits at true page
           center, which otherwise lands right on top of the day columns and
@@ -106,17 +118,17 @@ export function DayCompleteTakeover({
         />
       ))}
 
+      {/* Centered by the container's own flexbox, not a translate(-50%,-50%)
+          hack — Framer Motion owns the `transform` property outright once
+          it's animating `scale` here, and silently overwrites any static
+          transform in `style`, which is what was actually pushing this
+          off-center before (its top-left corner sat at 50%/50% instead of
+          its own center). */}
       <motion.div
         initial={{ scale: 0.4, opacity: 0 }}
         animate={{ scale: [0.4, 1.15, 1, 1, 0.9], opacity: [0, 1, 1, 1, 0] }}
         transition={{ duration: 3.4, times: [0, 0.13, 0.22, 0.85, 1], ease: "easeOut" }}
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          textAlign: "center",
-        }}
+        style={{ textAlign: "center" }}
       >
         <div style={{ fontSize: "3.5rem" }}>🎉</div>
         <div
