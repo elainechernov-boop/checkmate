@@ -13,6 +13,7 @@ import { reorderOpenItems, toggleInstance } from "./actions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
 import { AssignmentDetailsModal } from "./AssignmentDetailsModal";
+import { ItemCelebration } from "./ItemCelebration";
 import type { StudentInstance } from "./types";
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -39,6 +40,7 @@ export function StudentWeekView({
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [celebratedToday, setCelebratedToday] = useState(true); // avoid a flash before the effect below settles
+  const [itemCelebrationKey, setItemCelebrationKey] = useState<number | null>(null);
 
   const todayISO = toISODate(today);
   const celebratedKey = `checkmate:celebrated:${student.id}:${todayISO}`;
@@ -89,6 +91,13 @@ export function StudentWeekView({
       : instance.requiresReview
         ? InstanceStatus.pendingReview
         : InstanceStatus.done;
+
+    // The per-item "something REALLY fun" moment (§6) — a genuine, no-review
+    // completion only. Entering pendingReview or undoing stays quiet: §5's
+    // "the reward lands only when the work has been shown" still holds.
+    if (!goingToOpen && nextStatus === InstanceStatus.done && !prefersReducedMotion) {
+      setItemCelebrationKey(Date.now());
+    }
 
     setLocalInstances((current) =>
       current.map((i) => (i.id === instance.id ? { ...i, status: nextStatus } : i))
@@ -188,7 +197,7 @@ export function StudentWeekView({
                 isToday={isToday}
                 interactive={isToday}
                 instances={dayInstances}
-                accentColor={student.accentColor}
+                studentName={student.name}
                 prefersReducedMotion={prefersReducedMotion}
                 celebrated={celebratedToday}
                 onCelebrate={handleCelebrate}
@@ -213,6 +222,10 @@ export function StudentWeekView({
         onClose={() => setSelectedInstanceId(null)}
         prefersReducedMotion={prefersReducedMotion}
       />
+
+      {itemCelebrationKey != null && (
+        <ItemCelebration key={itemCelebrationKey} onDone={() => setItemCelebrationKey(null)} />
+      )}
     </main>
   );
 }

@@ -100,18 +100,19 @@ New Assignment sheet, one screen:
 
 ## 6. Student experience — the TeuxDeux view
 
-**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line: a persistent circular checkbox (ringed in the subject color; the subject tick and the completion control are the same element) + title. Clicking the checkbox completes or undoes the item; clicking the title opens a read-only details popup (subject, notes, estimated time, due date, status) — parent-assigned work stays uneditable by students (§2). Today's open items can be dragged to reorder within the day (a small handle appears per row); other days are display-only, matching the existing today-only interactivity rule.
+**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line, flush with the day label above it — no checkbox, no color dot: **the title itself is the completion control.** Clicking it completes or undoes the item; a small subject name + estimated time sits in muted text underneath (more legible to a kid than a color they'd have to memorize), and a small arrow after the title opens a read-only details popup (subject, notes, estimated time, due date, status) — parent-assigned work stays uneditable by students (§2). Today's open items can be dragged to reorder within the day — grab the row itself, no separate handle; other days are display-only, matching the existing today-only interactivity rule.
 
 **The completion moment (the signature — build this with care):**
-1. Clicking the checkbox draws a strikethrough line left-to-right across the title over ~280ms with an ease-out curve
-2. Simultaneously the text color fades to muted gray and the checkbox gives a single, small spring scale/fill pulse as it fills in with a checkmark
+1. Clicking the title draws a strikethrough line left-to-right across it over ~280ms with an ease-out curve
+2. Simultaneously the text color fades to muted gray with a single, small spring scale pulse
 3. A soft, short completion sound (subtle "tick," toggleable via the header sound icon)
-4. Completed items sink below open items in the column with an animated reorder
-5. **Day-complete moment:** when the last open item in today's column is checked, the day header blooms — a one-time burst of 12–16 small confetti particles in the student's accent color, ~700ms, then gone. Once per day, today only.
-6. Undo: clicking a completed item's checkbox today reverses the animation; clicking a pendingReview item's checkbox withdraws it back to open. Yesterday and earlier are locked for students.
-7. Respect the `prefers-reduced-motion` setting: replace draw/confetti with a simple crossfade.
+4. A one-time reward: a fun critter (an emoji, freshly randomized every time — no two completions look the same) flies clean across the whole screen, gone in just over a second. Skipped for pendingReview and for undo; the reward lands only when the work is actually, genuinely done.
+5. Completed items sink below open items in the column with an animated reorder
+6. **Day-complete moment:** when the last open item in today's column is checked, the whole screen takes it over — confetti rains across the full viewport and a big "[Student] finished the day!" message pops in, ~2.3s, then gone. Once per day, today only.
+7. Undo: clicking a completed item today reverses the animation; clicking a pendingReview item withdraws it back to open. Yesterday and earlier are locked for students.
+8. Respect the `prefers-reduced-motion` setting: replace the strike/critter/confetti with a simple crossfade (a soft full-screen flash + static text for the day-complete moment; the per-item critter is skipped outright).
 
-**Item states in the column, top to bottom:** rolled items (with their day-count marks, oldest first) → today's open items (parent-assigned and project tasks interleaved, in the student's own drag-order) → pendingReview items ("Show Mom," half-struck, holding, checkbox ringed in amber with a raised-hand mark) → completed items (muted, struck). The column reads as a work queue: debts, then today, then waiting-on-Mom, then done.
+**Item states in the column, top to bottom:** rolled items (with their day-count marks, oldest first) → today's open items (parent-assigned and project tasks interleaved, in the student's own drag-order) → pendingReview items ("Show Mom," half-struck, holding, an amber raised-hand mark under the title) → completed items (muted, struck). The column reads as a work queue: debts, then today, then waiting-on-Mom, then done.
 
 ## 7. Self-initiated projects (student-created)
 
@@ -123,7 +124,7 @@ This is TeuxDeux's undated "someday" area, turned into a planning sandbox. Below
 
 **Ownership.** Students have full control of their own project tasks — create, edit, move between days, unschedule back to the backlog, delete. Scheduled project tasks roll forward overnight exactly like assigned work, with the same roll marks: their plan slipping is visible to them the same way. Parent-assigned items remain untouchable, and students cannot add tasks outside a project.
 
-**Visual distinction.** Project tasks appear in the day columns as normal rows but with a **hollow tick in the student's accent color** instead of a solid subject tick — theirs at a glance, without a second visual system. Same completion animation; project tasks count toward the day-complete moment (their day is their day).
+**Visual distinction.** Project tasks appear in the day columns as normal rows, with the project's name in the student's accent color where the subject/time line would otherwise sit — theirs at a glance, without a second visual system. Same completion animation; project tasks count toward the day-complete moment (their day is their day).
 
 **Project completion.** When the last task in a project is checked, the project's name in the band gets its own full-width strike and settle, then the project moves to a collapsed "Finished" stack — kept, not deleted. A running record of things they taught themselves is worth more than the confetti.
 
@@ -143,10 +144,10 @@ Features:
 
 ## 9. Visual design brief
 
-- **Near-monochrome.** Warm off-white background, near-black text, one muted gray for completed/secondary. Color appears in exactly three places: subject ticks (solid) and project ticks (hollow, student accent), each student's accent, and a single warm amber reserved for roll marks and the "Show Mom" state. Nothing else.
+- **Near-monochrome, every day.** Warm off-white background, near-black text, one muted gray for completed/secondary/meta text. Color in the day-to-day view appears in exactly two places: each student's accent, and a single warm amber reserved for roll marks and the "Show Mom" state. Nothing else — no per-subject color coding; a subject's *name*, written small under the title, carries that information instead (§6).
 - **One typeface, used well.** A single family (e.g. system SF with deliberate weight/size contrast, or a humanist sans like Inter) — TeuxDeux's charm is typographic restraint, not decoration.
 - Generous whitespace; hairline dividers only where structure demands.
-- No badges, streaks, points, avatars, or mascots. The completion animation is the entire reward system.
+- No badges, streaks, points, or persistent avatars/mascots anywhere in the day-to-day UI. The one deliberate exception: the completion moment itself (§6) is allowed to be genuinely fun — a randomized flying critter per item, a full-screen confetti takeover for the day — because that reward, not a permanent character or score, is the entire game the app plays.
 - Empty day columns show a single centered line: "Nothing due." An empty week shows nothing at all — silence is the design.
 
 ## 10. Out of scope for v1

@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { playCompletionTick } from "@/lib/completionSound";
 import { formatRollMark } from "@/lib/instanceGrouping";
-import { getSubjectColor } from "@/lib/subjectColors";
 import { COLORS } from "@/lib/theme";
 import type { StudentInstance } from "./types";
 
@@ -21,25 +20,16 @@ function isMutedLook(status: InstanceStatus): boolean {
   return status === InstanceStatus.done || status === InstanceStatus.excused;
 }
 
-// Drag listeners for the handle glyph — kept loose (not dnd-kit's exact
-// types) so this file doesn't need to import dnd-kit just for a prop shape.
-interface DragHandleProps {
-  attributes: object;
-  listeners: object | undefined;
-}
-
 export function AssignmentRow({
   instance,
   interactive,
   prefersReducedMotion,
-  dragHandleProps,
   onToggle,
   onOpenDetails,
 }: {
   instance: StudentInstance;
   interactive: boolean;
   prefersReducedMotion: boolean;
-  dragHandleProps?: DragHandleProps;
   onToggle: () => void;
   onOpenDetails: () => void;
 }) {
@@ -60,9 +50,16 @@ export function AssignmentRow({
   const duration = isForward && instance.requiresReview ? 0.15 : 0.28;
 
   const rollMark = formatRollMark(instance.rolledCount);
-  const subjectColor = getSubjectColor(instance.subject?.name);
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
+
+  // Subject + estimated time, small and quiet underneath the title — more
+  // useful to a kid than a color they'd have to memorize (§9 tried a
+  // subject-colored tick; a name reads instantly, a color doesn't).
+  const estMinutes = instance.series?.estimatedMinutes ?? null;
+  const metaText = [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null]
+    .filter(Boolean)
+    .join(" · ");
 
   function handleTitleClick(event: MouseEvent) {
     event.stopPropagation();
@@ -85,25 +82,12 @@ export function AssignmentRow({
   const showWidth = animating ? targetWidth : currentWidth;
 
   return (
-    <div className="relative flex items-center gap-2 rounded px-1 py-1.5 text-sm">
-      {dragHandleProps ? (
-        <span
-          {...dragHandleProps.attributes}
-          {...dragHandleProps.listeners}
-          aria-label="Drag to reorder"
-          className="shrink-0 cursor-grab select-none touch-none active:cursor-grabbing"
-          style={{ color: COLORS.mutedFaint, fontSize: "0.9rem", lineHeight: 1 }}
-        >
-          ⠿
-        </span>
-      ) : (
-        <span className="w-3 shrink-0" aria-hidden />
-      )}
-
-      {/* No checkbox — the word itself is the completion control (TeuxDeux's
-          model, §6 north star). A small subject-colored tick sits in front
-          for a quiet at-a-glance read; the arrow is the only other target,
-          opening read-only details. */}
+    <div className="relative flex items-center gap-2 rounded py-1.5 text-sm">
+      {/* No checkbox, no dot, no drag handle — the word itself is the
+          completion control (TeuxDeux's model, §6 north star), and the
+          whole row is now the drag target (dnd-kit listeners live on
+          DayColumn's SortableRow wrapper). Rows line up flush with the day
+          label above them. */}
       <button
         type="button"
         onClick={handleTitleClick}
@@ -113,12 +97,6 @@ export function AssignmentRow({
         style={{ cursor: interactive ? "pointer" : "default" }}
       >
         <span className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="h-2 w-2 shrink-0 rounded-full"
-            style={{ background: isPendingReview ? COLORS.amber : subjectColor }}
-          />
-
           <motion.span
             className="relative inline-block"
             animate={
@@ -157,6 +135,12 @@ export function AssignmentRow({
           )}
         </span>
 
+        {metaText && (
+          <span className="whitespace-nowrap" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
+            {metaText}
+          </span>
+        )}
+
         {isPendingReview && (
           <span className="whitespace-nowrap" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
             ✋ Show Mom
@@ -179,5 +163,3 @@ export function AssignmentRow({
     </div>
   );
 }
-
-export type { DragHandleProps };

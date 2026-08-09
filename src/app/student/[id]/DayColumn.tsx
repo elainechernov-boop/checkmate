@@ -16,7 +16,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
 import { AssignmentRow } from "./AssignmentRow";
-import { ConfettiBurst } from "./ConfettiBurst";
+import { DayCompleteTakeover } from "./DayCompleteTakeover";
 import type { StudentInstance } from "./types";
 
 function SortableRow({
@@ -32,7 +32,11 @@ function SortableRow({
 }) {
   // dnd-kit owns this wrapper's transform (drag position + reorder FLIP);
   // Framer Motion's animations inside AssignmentRow stay on a separate node
-  // so the two never fight over the same element's transform.
+  // so the two never fight over the same element's transform. The whole row
+  // is the drag target now (no separate handle glyph) — a small activation
+  // distance (set on the DndContext's sensor below) lets a plain click still
+  // reach the title/arrow buttons; only a real drag past that threshold
+  // starts a reorder, same trick ParentWeekBoard's rows use.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: instance.id,
   });
@@ -40,19 +44,22 @@ function SortableRow({
   return (
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       style={{
         transform: CSS.Transform.toString(transform),
         transition: transition ?? undefined,
         opacity: isDragging ? 0.5 : 1,
         zIndex: isDragging ? 10 : undefined,
         position: "relative",
+        cursor: isDragging ? "grabbing" : "grab",
+        touchAction: "none",
       }}
     >
       <AssignmentRow
         instance={instance}
         interactive
         prefersReducedMotion={prefersReducedMotion}
-        dragHandleProps={{ attributes, listeners }}
         onToggle={onToggle}
         onOpenDetails={onOpenDetails}
       />
@@ -65,7 +72,7 @@ export function DayColumn({
   isToday,
   interactive,
   instances,
-  accentColor,
+  studentName,
   prefersReducedMotion,
   celebrated,
   onCelebrate,
@@ -77,7 +84,7 @@ export function DayColumn({
   isToday: boolean;
   interactive: boolean;
   instances: StudentInstance[];
-  accentColor: string;
+  studentName: string;
   prefersReducedMotion: boolean;
   celebrated: boolean;
   onCelebrate: () => void;
@@ -85,7 +92,7 @@ export function DayColumn({
   onOpenDetails: (instance: StudentInstance) => void;
   onReorderOpen: (orderedIds: string[]) => void;
 }) {
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [showTakeover, setShowTakeover] = useState(false);
   const wasAllDone = useRef<boolean | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -98,7 +105,7 @@ export function DayColumn({
     // Fire the day-complete moment exactly on the transition into "all done",
     // not on every render where it's already true (§6 step 5).
     if (allDone && wasAllDone.current === false && !celebrated) {
-      setShowConfetti(true);
+      setShowTakeover(true);
       onCelebrate();
     }
     wasAllDone.current = allDone;
@@ -141,11 +148,11 @@ export function DayColumn({
         >
           {formatDayLabel(day)}
         </span>
-        {showConfetti && (
-          <ConfettiBurst
-            color={accentColor}
+        {showTakeover && (
+          <DayCompleteTakeover
+            studentName={studentName}
             reducedMotion={prefersReducedMotion}
-            onDone={() => setShowConfetti(false)}
+            onDone={() => setShowTakeover(false)}
           />
         )}
       </div>
