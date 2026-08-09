@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { addDays, mondayOf, parseISODate, toISODate } from "@/lib/dates";
+import { mondayOf, parseISODate, startOfUTCDay, toISODate } from "@/lib/dates";
 import { EndCondition, Frequency } from "@/generated/prisma/enums";
+import { materializeSeries } from "@/lib/materialize";
 
 const REPEAT_TO_FREQUENCY: Record<string, Frequency> = {
   weekdays: Frequency.weekdays,
@@ -36,9 +37,12 @@ export async function createAssignment(formData: FormData) {
   // Each series/instance belongs to exactly one student (§3), so selecting
   // multiple students fans out an independent copy per student — each kid
   // completes, rolls, and gets reviewed on their own, per §5/§6.
+  const today = startOfUTCDay(new Date());
+  const materializeFrom = startDate < today ? startDate : today;
+
   await Promise.all(
-    studentIds.map((studentId) =>
-      prisma.assignmentSeries.create({
+    studentIds.map(async (studentId) => {
+      const series = await prisma.assignmentSeries.create({
         data: {
           title,
           details: details || null,
@@ -60,23 +64,12 @@ export async function createAssignment(formData: FormData) {
                 },
               }
             : undefined,
-          // Materializing the full recurrence horizon is Phase 2's job (§3). For now,
-          // create the first occurrence so the week grid has something to show.
-          instances: {
-            create: {
-              title,
-              details: details || null,
-              studentId,
-              subjectId,
-              createdBy: "parent",
-              dueDate: startDate,
-              originalDueDate: startDate,
-              requiresReview,
-            },
-          },
         },
-      })
-    )
+      });
+      // §3's materialization rule: generate the rolling 60-day horizon of
+      // instances from the series definition rather than hand-creating one.
+      await materializeSeries(prisma, series.id, materializeFrom);
+    })
   );
 
   redirect(`/parent?week=${toISODate(mondayOf(startDate))}`);

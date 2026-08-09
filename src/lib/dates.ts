@@ -16,6 +16,10 @@ export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * DAY_MS);
 }
 
+export function startOfUTCDay(date: Date): Date {
+  return parseISODate(toISODate(date));
+}
+
 export const WEEKDAYS = [
   { code: "mon", label: "Monday" },
   { code: "tue", label: "Tuesday" },
@@ -25,6 +29,8 @@ export const WEEKDAYS = [
   { code: "sat", label: "Saturday" },
   { code: "sun", label: "Sunday" },
 ] as const;
+
+export type WeekdayCode = (typeof WEEKDAYS)[number]["code"];
 
 export function mondayOf(date: Date): Date {
   const utcDay = date.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
