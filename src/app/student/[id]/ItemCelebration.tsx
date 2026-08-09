@@ -21,6 +21,12 @@ function randomFlight() {
     glyph: CRITTERS[Math.floor(Math.random() * CRITTERS.length)],
     drift: (Math.random() - 0.5) * 220, // px, horizontal wander while it rises
     spin: (Math.random() - 0.5) * 50, // deg
+    sparkles: Array.from({ length: SPARKLE_COUNT }, () => ({
+      dx: (Math.random() - 0.5) * 110, // px, scattered off the critter's own path
+      dy: (Math.random() - 0.5) * 90,
+      size: 1.3 + Math.random() * 1.3, // rem — each sparkle its own size, not a smooth taper
+      spin: (Math.random() - 0.5) * 70, // deg, its own little twirl
+    })),
   };
 }
 
@@ -40,7 +46,7 @@ export function ItemCelebration({
   origin: { x: number; y: number };
   onDone: () => void;
 }) {
-  const [{ glyph, drift, spin }] = useState(randomFlight);
+  const [{ glyph, drift, spin, sparkles }] = useState(randomFlight);
 
   useEffect(() => {
     // The last trailing sparkle starts at (SPARKLE_COUNT-1)*stagger and then
@@ -71,23 +77,29 @@ export function ItemCelebration({
   // hydration-mismatch risk in reaching for `document.body` straight away.
   return createPortal(
     <>
-      {Array.from({ length: SPARKLE_COUNT }, (_, i) => {
+      {sparkles.map((s, i) => {
         // i=0 trails closest to the critter (least delay); each step back
         // fades a little more than the last, so the trail reads as fading
         // into the distance — but gently, so the whole trail stays visible,
-        // not just the first sparkle. Each one pops bigger than its resting
-        // size before shrinking and fading out — a "twinkle," not a fade.
+        // not just the first sparkle. Each sparkle also rides its own
+        // scattered offset off the critter's exact path (not the path
+        // itself), so the trail reads as a loose scatter of sparkle instead
+        // of beads on a string, and pops bigger than its resting size
+        // before shrinking and fading — a "twinkle," not a fade.
         const fade = 1 - i * 0.09;
+        const sparkleLeft = left.map((v) => v + s.dx);
+        const sparkleTop = top.map((v) => v + s.dy);
         return (
           <motion.div
             key={i}
             aria-hidden
-            initial={{ left: left[0], top: top[0], scale: 0, opacity: 0 }}
+            initial={{ left: sparkleLeft[0], top: sparkleTop[0], scale: 0, opacity: 0, rotate: 0 }}
             animate={{
-              left,
-              top,
+              left: sparkleLeft,
+              top: sparkleTop,
               scale: [0, 1.5, 0.6, 0],
               opacity: [0, fade, fade * 0.65, 0],
+              rotate: [0, s.spin, s.spin, s.spin],
             }}
             transition={{
               duration: FLIGHT_DURATION,
@@ -97,7 +109,7 @@ export function ItemCelebration({
             }}
             style={{
               position: "fixed",
-              fontSize: "1.9rem",
+              fontSize: `${s.size}rem`,
               lineHeight: 1,
               pointerEvents: "none",
               zIndex: 9998,
