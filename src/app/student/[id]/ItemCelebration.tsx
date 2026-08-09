@@ -6,8 +6,16 @@ import { motion } from "framer-motion";
 
 // Emoji instead of shipped image assets — no external file to source, host,
 // or license, and it's already crisp at any size/theme. A fresh random pick
-// every completion is the point (§6: "a different fun gif every time").
-const CRITTERS = ["🐱", "🚀", "🦄", "🐝", "🦖", "🎈", "🌈", "⭐️", "🐬", "🦋", "🐙", "🍕", "🐸", "🎪"];
+// every completion is the point (§6: "a different fun gif every time") — a
+// big, wide-ranging pool so it rarely repeats and always feels a little
+// surprising, not just a fixed "critter" set.
+const CRITTERS = [
+  "🐱", "🐶", "🐰", "🦁", "🐯", "🐨", "🐷", "🐮", "🐸", "🐙", "🦋", "🐝", "🦖", "🐬", "🦉", "🐢", "🐳", "🦈", "🦒",
+  "🐿️", "🦄",
+  "🍕", "🍜", "🍳", "🍎", "🍔", "🍩", "🍦", "🍓", "🌮", "🍪",
+  "🌈", "⭐️", "🌸", "🌻", "🌵", "☀️", "❄️", "🔥",
+  "🎈", "🎪", "🚀", "🥾", "🎒", "🥸", "⚽️", "🎨", "🎸", "🚲", "🏀", "🎯", "🎁", "🚗", "✈️", "⛵️", "🏰", "🎲", "🇺🇸",
+];
 const SPARKLE = "✨";
 
 const GLYPH_HALF = 26; // half the ~52px (3.25rem) glyph box, to center it on `origin`
