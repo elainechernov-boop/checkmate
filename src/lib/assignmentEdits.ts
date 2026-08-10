@@ -16,6 +16,10 @@ export interface InstanceEditableFields {
   subjectId?: string | null;
   dueDate?: Date;
   requiresReview?: boolean;
+  // §12
+  isTimeSensitive?: boolean;
+  scheduledTime?: string | null;
+  reminderMinutesBefore?: number | null;
 }
 
 export interface SeriesEditableFields {
@@ -24,6 +28,10 @@ export interface SeriesEditableFields {
   subjectId?: string | null;
   requiresReview?: boolean;
   estimatedMinutes?: number | null;
+  // §12
+  isTimeSensitive?: boolean;
+  scheduledTime?: string | null;
+  reminderMinutesBefore?: number | null;
   recurrence?: {
     frequency?: Frequency;
     daysOfWeek?: string | null;
@@ -37,6 +45,10 @@ export interface PromoteToSeriesFields {
   subjectId: string | null;
   requiresReview: boolean;
   estimatedMinutes: number | null;
+  // §12
+  isTimeSensitive: boolean;
+  scheduledTime: string | null;
+  reminderMinutesBefore: number | null;
   recurrence: {
     frequency: Frequency;
     daysOfWeek: string | null;
@@ -123,6 +135,13 @@ export async function editSeriesThisAndFollowing(
         endCount,
         estimatedMinutes: changes.estimatedMinutes !== undefined ? changes.estimatedMinutes : series.estimatedMinutes,
         requiresReview: changes.requiresReview !== undefined ? changes.requiresReview : series.requiresReview,
+        isTimeSensitive:
+          changes.isTimeSensitive !== undefined ? changes.isTimeSensitive : series.isTimeSensitive,
+        scheduledTime: changes.scheduledTime !== undefined ? changes.scheduledTime : series.scheduledTime,
+        reminderMinutesBefore:
+          changes.reminderMinutesBefore !== undefined
+            ? changes.reminderMinutesBefore
+            : series.reminderMinutesBefore,
         recurrence: series.recurrence
           ? {
               create: {
@@ -201,6 +220,9 @@ export async function promoteInstanceToSeries(
         endCount: fields.endCount,
         estimatedMinutes: fields.estimatedMinutes,
         requiresReview: fields.requiresReview,
+        isTimeSensitive: fields.isTimeSensitive,
+        scheduledTime: fields.scheduledTime,
+        reminderMinutesBefore: fields.reminderMinutesBefore,
         recurrence: { create: fields.recurrence },
       },
     });

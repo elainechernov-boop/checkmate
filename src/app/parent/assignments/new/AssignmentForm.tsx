@@ -21,10 +21,18 @@ const END_OPTIONS = [
   { value: "afterNCount", label: "After N times" },
 ];
 
+// §12: 10 / 30 / 60 minutes ahead of the assignment's own scheduledTime.
+const REMINDER_OPTIONS = [
+  { value: "10", label: "10 minutes before" },
+  { value: "30", label: "30 minutes before" },
+  { value: "60", label: "1 hour before" },
+];
+
 export function AssignmentForm({ students, subjects }: { students: Student[]; subjects: Subject[] }) {
   const [repeat, setRepeat] = useState("none");
   const [endCondition, setEndCondition] = useState("never");
   const [studentIds, setStudentIds] = useState<string[]>(students[0] ? [students[0].id] : []);
+  const [timeSensitive, setTimeSensitive] = useState(false);
   const showDaysOfWeek = repeat === "weekly" || repeat === "biweekly";
 
   function toggleStudent(id: string) {
@@ -115,6 +123,45 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
           required
           className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
         />
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={timeSensitive}
+            onChange={(event) => setTimeSensitive(event.target.checked)}
+          />
+          This happens at a set time (e.g. an online class) — highlight it and remind me
+        </label>
+
+        {timeSensitive && (
+          <div className="mt-2 flex items-end gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[#6B6B6B]">Time</label>
+              <input
+                type="time"
+                name="scheduledTime"
+                required
+                className="mt-1 rounded border border-[#E1E3E6] px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[#6B6B6B]">Remind</label>
+              <select
+                name="reminderMinutesBefore"
+                defaultValue="10"
+                className="mt-1 rounded border border-[#E1E3E6] px-3 py-2"
+              >
+                {REMINDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       <div>

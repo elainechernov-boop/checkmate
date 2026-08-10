@@ -154,6 +154,8 @@ Features:
 
 Grades/scoring, file attachments, curriculum links, time tracking, mobile/tablet layout, notifications, real-time live updates (the 60-second refresh is enough), multi-family accounts, charter fund/order tracking, review requirements on student-created tasks.
 
+(§12, added post-v1, covers one narrow slice of "notifications" — an in-app reminder popup for assignments with a fixed clock time. True OS-level push notifications, delivered when Checkmate isn't open, remain out of scope.)
+
 ---
 
 ## 11. Build plan with Claude Code
@@ -199,3 +201,20 @@ Grades/scoring, file attachments, curriculum links, time tracking, mobile/tablet
 
 ### Putting it on every Mac
 On each machine (yours and the homeschool MacBook Air): open the Railway URL in Safari, enter the family password once, then **File → Add to Dock**. Checkmate now sits in the Dock with its own icon and opens in a chromeless window — indistinguishable from a native app in daily use. Nothing to install, nothing to update; every Mac always runs the latest version.
+
+---
+
+## 12. Time-sensitive assignments & reminders (post-v1)
+
+Most assignments are due sometime that day — missing the day is what §5's roll-forward exists to make visible. A few assignments instead happen at a fixed clock time (an online Latin class once a week, a co-op meeting), where missing the *moment* is the real risk. This section adds a narrow, opt-in escalation for exactly that case, layered on top of §3-§6 without changing them for ordinary assignments.
+
+**Marking an assignment time-sensitive.** In the New Assignment sheet (§4) and the edit sheet's fields, an optional "This happens at a set time" toggle reveals a clock-time picker and a reminder lead — 10 minutes before / 30 minutes before / 1 hour before. Like `requiresReview`, this lives on the series so a recurring class carries it every week, copies down onto each materialized instance, and is overridable per occurrence under the same "this only / this and following / all" rules as everything else in §4.
+
+**Data model additions (§3).**
+- `AssignmentSeries` and `AssignmentInstance` both gain: `isTimeSensitive` (Bool, default false), `scheduledTime` (nullable string, `"HH:MM"` 24-hour, interpreted as local wall-clock time — the app doesn't model real timezones, matching how `dueDate` is already a plain calendar date with no time component), `reminderMinutesBefore` (nullable Int: 10 / 30 / 60).
+
+**In the student view (§6).** A time-sensitive item pins to the top of its day's open items — above the student's own drag-order, below only that day's rolled-forward debts — and is not draggable, so it can't be buried by accident or reorder. Column ordering becomes: rolled → **time-sensitive** → open → pendingReview → completed. Its scheduled time shows beneath the title in the same amber already reserved for roll marks and "Show Mom" (§9's two-color budget is unchanged — no new color is introduced for this).
+
+**The reminder popup.** While the student's tab is open, a lightweight background check (separate from the 60-second data refresh) watches today's still-open time-sensitive items. When the wall clock enters the reminder window — opening `reminderMinutesBefore` minutes ahead of `scheduledTime` and staying open until 15 minutes after, so a student who opens the app a little late still gets nudged rather than silently missing it — a full-screen takeover interrupts whatever they're doing ("🕐 Latin starts in 10 minutes — go get ready!"), requiring a single tap to acknowledge and dismiss rather than auto-fading like the completion/day-complete moments. It fires at most once per item per day (tracked client-side) and never for an item that's already done, pending review, or excused.
+
+This is in-app only, per the tradeoff in §10's note: it requires Checkmate to be open on the student's machine at the time, not a true OS-level push notification delivered while the app is closed.

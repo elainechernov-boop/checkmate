@@ -26,6 +26,12 @@ export async function createAssignment(formData: FormData) {
   const endDateRaw = String(formData.get("endDate") ?? "");
   const endCountRaw = String(formData.get("endCount") ?? "");
   const requiresReview = formData.get("requiresReview") === "on";
+  // §12: presence of a scheduledTime is what makes an assignment
+  // time-sensitive — the form only renders/requires the field once the
+  // toggle is on, so there's no separate boolean to read here.
+  const scheduledTimeRaw = String(formData.get("scheduledTime") ?? "").trim();
+  const isTimeSensitive = !!scheduledTimeRaw;
+  const reminderMinutesBeforeRaw = String(formData.get("reminderMinutesBefore") ?? "");
 
   if (!title || studentIds.length === 0 || !subjectId || !dueDateRaw) {
     throw new Error("Title, at least one student, subject, and due date are required.");
@@ -55,6 +61,9 @@ export async function createAssignment(formData: FormData) {
           endCount: endCondition === EndCondition.afterNCount && endCountRaw ? Number(endCountRaw) : null,
           estimatedMinutes: estimatedMinutesRaw ? Number(estimatedMinutesRaw) : null,
           requiresReview,
+          isTimeSensitive,
+          scheduledTime: isTimeSensitive ? scheduledTimeRaw : null,
+          reminderMinutesBefore: isTimeSensitive && reminderMinutesBeforeRaw ? Number(reminderMinutesBeforeRaw) : null,
           recurrence: frequency
             ? {
                 create: {

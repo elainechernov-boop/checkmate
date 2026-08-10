@@ -213,4 +213,40 @@ describe("materializeSeries", () => {
     });
     expect(after.every((i) => i.dueDate!.getUTCDay() === 1)).toBe(true);
   });
+
+  it("§12: copies isTimeSensitive/scheduledTime/reminderMinutesBefore onto materialized instances, and keeps them in sync on resync", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+
+    const series = await prisma.assignmentSeries.create({
+      data: {
+        title: "Latin class",
+        studentId: student.id,
+        subjectId: subject.id,
+        createdBy: "parent",
+        startDate: parseISODate("2026-08-03"),
+        endCondition: EndCondition.onDate,
+        endDate: parseISODate("2026-08-07"),
+        isTimeSensitive: true,
+        scheduledTime: "15:00",
+        reminderMinutesBefore: 10,
+        recurrence: { create: { frequency: Frequency.weekdays, interval: 1 } },
+      },
+    });
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+
+    const created = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id } });
+    expect(created.length).toBeGreaterThan(0);
+    expect(created.every((i) => i.isTimeSensitive && i.scheduledTime === "15:00" && i.reminderMinutesBefore === 10)).toBe(
+      true
+    );
+
+    // Changing the series' time and re-syncing updates every still-editable
+    // future instance to match (same rule requiresReview already follows).
+    await prisma.assignmentSeries.update({ where: { id: series.id }, data: { scheduledTime: "16:30" } });
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+
+    const resynced = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id } });
+    expect(resynced.every((i) => i.scheduledTime === "16:30")).toBe(true);
+  });
 });

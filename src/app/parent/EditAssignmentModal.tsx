@@ -16,6 +16,13 @@ export type EditableInstance = AssignmentInstance & {
     | null;
 };
 
+// §12: 10 / 30 / 60 minutes ahead of the assignment's own scheduledTime.
+const REMINDER_OPTIONS = [
+  { value: "10", label: "10 minutes before" },
+  { value: "30", label: "30 minutes before" },
+  { value: "60", label: "1 hour before" },
+];
+
 const REPEAT_OPTIONS = [
   { value: "none", label: "Does not repeat" },
   { value: "weekdays", label: "Every school day" },
@@ -72,6 +79,7 @@ function EditForm({
   const [scope, setScope] = useState<(typeof SCOPE_OPTIONS)[number]["value"]>("only");
   const [repeat, setRepeat] = useState<string>(instance.series?.recurrence?.frequency ?? "none");
   const [endCondition, setEndCondition] = useState<string>(instance.series?.endCondition ?? "never");
+  const [timeSensitive, setTimeSensitive] = useState(instance.isTimeSensitive);
   const [deleting, setDeleting] = useState(false);
 
   const showRepeatSection = !isSeries || scope !== "only";
@@ -189,6 +197,46 @@ function EditForm({
           />
         </div>
       )}
+
+      <div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={timeSensitive}
+            onChange={(event) => setTimeSensitive(event.target.checked)}
+          />
+          This happens at a set time (e.g. an online class) — highlight it and remind me
+        </label>
+
+        {timeSensitive && (
+          <div className="mt-2 flex items-end gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[#6B6B6B]">Time</label>
+              <input
+                type="time"
+                name="scheduledTime"
+                required
+                defaultValue={instance.scheduledTime ?? ""}
+                className="mt-1 rounded border border-[#E1E3E6] px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[#6B6B6B]">Remind</label>
+              <select
+                name="reminderMinutesBefore"
+                defaultValue={String(instance.reminderMinutesBefore ?? 10)}
+                className="mt-1 rounded border border-[#E1E3E6] px-3 py-2"
+              >
+                {REMINDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
 
       {showRepeatSection && (
         <div>

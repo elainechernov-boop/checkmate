@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CreatedBy, InstanceStatus } from "@/generated/prisma/enums";
 import { toISODate, formatComingUpDate } from "@/lib/dates";
+import { formatScheduledTime } from "@/lib/reminders";
 import { getSubjectColor } from "@/lib/subjectColors";
 import { COLORS } from "@/lib/theme";
 import { Modal } from "@/components/Modal";
@@ -63,6 +64,14 @@ export function AssignmentDetailsModal({
                   Due
                 </dt>
                 <dd>{formatComingUpDate(instance.dueDate)}</dd>
+              </>
+            )}
+            {instance.isTimeSensitive && instance.scheduledTime && (
+              <>
+                <dt className="font-medium" style={{ color: COLORS.text }}>
+                  Time
+                </dt>
+                <dd>{formatScheduledTime(instance.scheduledTime)}</dd>
               </>
             )}
             {instance.series?.estimatedMinutes != null && (

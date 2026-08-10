@@ -9,7 +9,8 @@ import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
-import { isSoundMuted, playCompletionTick, setSoundMuted } from "@/lib/completionSound";
+import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
+import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
 import { approveReviewViaPasscode, reorderOpenItems, toggleInstance } from "./actions";
 import { moveProjectTaskAction } from "./projectActions";
 import { DayColumn } from "./DayColumn";
@@ -19,9 +20,14 @@ import { ItemCelebration } from "./ItemCelebration";
 import { NewProjectModal } from "./NewProjectModal";
 import { PlanTaskModal } from "./PlanTaskModal";
 import { ProjectsBand } from "./ProjectsBand";
+import { ReminderTakeover } from "./ReminderTakeover";
 import type { StudentInstance, StudentProject } from "./types";
 
 const REFRESH_INTERVAL_MS = 60_000;
+// §12: independent of the 60s data refresh above — this only ever reads
+// already-loaded local state against the wall clock, so it can check far
+// more often without hitting the server.
+const REMINDER_CHECK_INTERVAL_MS = 20_000;
 
 export function StudentWeekView({
   student,
@@ -57,6 +63,7 @@ export function StudentWeekView({
   const [itemCelebration, setItemCelebration] = useState<{ key: number; origin: { x: number; y: number } } | null>(
     null
   );
+  const [reminderInstance, setReminderInstance] = useState<StudentInstance | null>(null);
 
   const todayISO = toISODate(today);
   const celebratedKey = `checkmate:celebrated:${student.id}:${todayISO}`;
@@ -122,6 +129,33 @@ export function StudentWeekView({
     }, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [router]);
+
+  // §12: watches today's still-open time-sensitive items against the wall
+  // clock and fires the reminder takeover once one enters its window (see
+  // lib/reminders.ts). Checked immediately on mount — a student opening the
+  // app mid-window shouldn't have to wait out a full interval tick — then
+  // again on its own cadence, independent of the 60s data refresh above.
+  useEffect(() => {
+    function checkReminders() {
+      if (reminderInstance) return; // one at a time; re-checks once this one is dismissed
+      const now = new Date();
+      const due = localInstances.find(
+        (instance) =>
+          instance.dueDate &&
+          toISODate(instance.dueDate) === todayISO &&
+          isReminderDue(instance, now) &&
+          !hasBeenReminded(student.id, instance.id, todayISO)
+      );
+      if (!due) return;
+      markReminded(student.id, due.id, todayISO);
+      playReminderChime();
+      setReminderInstance(due);
+    }
+
+    checkReminders();
+    const interval = window.setInterval(checkReminders, REMINDER_CHECK_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [localInstances, todayISO, reminderInstance, student.id]);
 
   const days = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(monday, i)), [monday]);
   const weekHasAnyItems = localInstances.length > 0;
@@ -405,6 +439,15 @@ export function StudentWeekView({
           key={itemCelebration.key}
           origin={itemCelebration.origin}
           onDone={() => setItemCelebration(null)}
+        />
+      )}
+
+      {reminderInstance?.scheduledTime && (
+        <ReminderTakeover
+          title={reminderInstance.title}
+          scheduledTime={reminderInstance.scheduledTime}
+          reducedMotion={prefersReducedMotion}
+          onDismiss={() => setReminderInstance(null)}
         />
       )}
     </main>

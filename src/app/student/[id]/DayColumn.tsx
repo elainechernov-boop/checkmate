@@ -170,13 +170,18 @@ export function DayColumn({
   // only ever governs today's own open-item reorder.
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: toISODate(day) });
 
-  const { rolled, open, pendingReview, completed } = bucketDayInstances(instances);
-  const allDone = instances.length > 0 && open.length === 0 && pendingReview.length === 0 && rolled.length === 0;
-  const totalRows = rolled.length + open.length + pendingReview.length + completed.length;
-  // The column's true bottom-to-top order (rolled -> open -> pendingReview
-  // -> completed, §6) regardless of which bucket a row is rendered from —
-  // only this one row skips its trailing divider.
-  const orderedRows = [...rolled, ...open, ...pendingReview, ...completed];
+  const { rolled, timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
+  const allDone =
+    instances.length > 0 &&
+    open.length === 0 &&
+    timeSensitive.length === 0 &&
+    pendingReview.length === 0 &&
+    rolled.length === 0;
+  const totalRows = rolled.length + timeSensitive.length + open.length + pendingReview.length + completed.length;
+  // The column's true bottom-to-top order (rolled -> time-sensitive -> open
+  // -> pendingReview -> completed, §6/§12) regardless of which bucket a row
+  // is rendered from — only this one row skips its trailing divider.
+  const orderedRows = [...rolled, ...timeSensitive, ...open, ...pendingReview, ...completed];
   const lastRowId = orderedRows.length > 0 ? orderedRows[orderedRows.length - 1].id : null;
 
   useEffect(() => {
@@ -280,6 +285,10 @@ export function DayColumn({
         )}
 
         {rolled.map(plainRow)}
+        {/* §12: pinned above the student's own drag-order, and — like
+            rolled — rendered as plain (non-sortable) rows so it can't be
+            dragged out of place. */}
+        {timeSensitive.map(plainRow)}
 
         {interactive && open.length > 0 ? (
           // Explicit `id` makes dnd-kit's internal aria-describedby id

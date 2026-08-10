@@ -218,6 +218,9 @@ export async function materializeSeries(
           details: series.details,
           subjectId: series.subjectId,
           requiresReview: series.requiresReview,
+          isTimeSensitive: series.isTimeSensitive,
+          scheduledTime: series.scheduledTime,
+          reminderMinutesBefore: series.reminderMinutesBefore,
         },
       });
     } else {
@@ -233,6 +236,9 @@ export async function materializeSeries(
           dueDate: date,
           originalDueDate: date,
           requiresReview: series.requiresReview,
+          isTimeSensitive: series.isTimeSensitive,
+          scheduledTime: series.scheduledTime,
+          reminderMinutesBefore: series.reminderMinutesBefore,
         },
       });
     }

@@ -17,6 +17,7 @@ import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
 import { getSubjectColor } from "@/lib/subjectColors";
+import { formatScheduledTime } from "@/lib/reminders";
 import { COLORS } from "@/lib/theme";
 import {
   approveReviewAction,
@@ -444,6 +445,12 @@ function DraggableRow({
           {metaText && (
             <span className="block" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
               {metaText}
+            </span>
+          )}
+          {/* §12: parent's own quiet confirmation that a time/reminder is set. */}
+          {instance.isTimeSensitive && instance.scheduledTime && (
+            <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+              🕐 {formatScheduledTime(instance.scheduledTime)}
             </span>
           )}
           {isPendingReview && (

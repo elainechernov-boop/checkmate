@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { playCompletionTick } from "@/lib/completionSound";
 import { formatRollMark } from "@/lib/instanceGrouping";
+import { formatScheduledTime } from "@/lib/reminders";
 import { COLORS } from "@/lib/theme";
 import { ApprovalPasscodePopover } from "./ApprovalPasscodePopover";
 import type { StudentInstance } from "./types";
@@ -187,6 +188,15 @@ export function AssignmentRow({
             </span>
           )}
         </span>
+
+        {/* §12: the same amber already reserved for roll marks / "Show Mom"
+            (§9's two-color budget) — a time-sensitive item's own clock time,
+            shown regardless of the subject/project meta line below it. */}
+        {instance.isTimeSensitive && instance.scheduledTime && (
+          <span className="whitespace-nowrap" style={{ color: COLORS.amber, fontSize: "0.7rem", fontWeight: 600 }}>
+            🕐 {formatScheduledTime(instance.scheduledTime)}
+          </span>
+        )}
 
         {metaText && (
           <span

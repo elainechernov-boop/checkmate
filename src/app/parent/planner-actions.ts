@@ -126,6 +126,12 @@ export async function updateAssignment(formData: FormData) {
   const estimatedMinutes = estimatedMinutesRaw ? Number(estimatedMinutesRaw) : null;
   const dueDateRaw = String(formData.get("dueDate") ?? "");
   const requiresReview = formData.get("requiresReview") === "on";
+  // §12: same "presence of scheduledTime means time-sensitive" rule as
+  // the New Assignment form (see assignments/new/actions.ts).
+  const scheduledTimeRaw = String(formData.get("scheduledTime") ?? "").trim();
+  const isTimeSensitive = !!scheduledTimeRaw;
+  const reminderMinutesBeforeRaw = String(formData.get("reminderMinutesBefore") ?? "");
+  const reminderMinutesBefore = isTimeSensitive && reminderMinutesBeforeRaw ? Number(reminderMinutesBeforeRaw) : null;
   const repeat = String(formData.get("repeat") ?? "none");
   const daysOfWeek = formData.getAll("daysOfWeek").map(String);
   const endCondition = String(formData.get("endCondition") ?? EndCondition.never) as EndCondition;
@@ -154,6 +160,9 @@ export async function updateAssignment(formData: FormData) {
         subjectId,
         requiresReview,
         estimatedMinutes,
+        isTimeSensitive,
+        scheduledTime: isTimeSensitive ? scheduledTimeRaw : null,
+        reminderMinutesBefore,
         recurrence,
         endCondition,
         endDate: endCondition === EndCondition.onDate && endDateRaw ? parseISODate(endDateRaw) : null,
@@ -166,6 +175,9 @@ export async function updateAssignment(formData: FormData) {
         details,
         dueDate: dueDateRaw ? parseISODate(dueDateRaw) : undefined,
         requiresReview,
+        isTimeSensitive,
+        scheduledTime: isTimeSensitive ? scheduledTimeRaw : null,
+        reminderMinutesBefore,
       });
     }
   } else if (scope === "following") {
@@ -175,6 +187,9 @@ export async function updateAssignment(formData: FormData) {
       details,
       estimatedMinutes,
       requiresReview,
+      isTimeSensitive,
+      scheduledTime: isTimeSensitive ? scheduledTimeRaw : null,
+      reminderMinutesBefore,
       recurrence,
     });
   } else if (scope === "all") {
@@ -184,6 +199,9 @@ export async function updateAssignment(formData: FormData) {
       details,
       estimatedMinutes,
       requiresReview,
+      isTimeSensitive,
+      scheduledTime: isTimeSensitive ? scheduledTimeRaw : null,
+      reminderMinutesBefore,
       recurrence,
     });
   } else {
@@ -193,6 +211,9 @@ export async function updateAssignment(formData: FormData) {
       details,
       dueDate: dueDateRaw ? parseISODate(dueDateRaw) : undefined,
       requiresReview,
+      isTimeSensitive,
+      scheduledTime: isTimeSensitive ? scheduledTimeRaw : null,
+      reminderMinutesBefore,
     });
   }
 

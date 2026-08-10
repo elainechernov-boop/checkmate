@@ -127,6 +127,14 @@ model AssignmentSeries {
   // "Show me the work" — a completed instance needs parent sign-off (§5)
   requiresReview   Boolean @default(false)
 
+  // §12: a fixed clock time (an online class, a co-op meeting) — pins the
+  // materialized instance to the top of its day and drives the reminder
+  // popup. scheduledTime is "HH:MM" 24-hour local wall-clock time (no
+  // timezone modeled, matching dueDate's own plain-calendar-date treatment).
+  isTimeSensitive       Boolean @default(false)
+  scheduledTime         String?
+  reminderMinutesBefore Int?
+
   instances AssignmentInstance[]
 
   createdAt DateTime @default(now())
@@ -172,6 +180,11 @@ model AssignmentInstance {
   status          InstanceStatus @default(open)
   // copied from series; settable per one-off
   requiresReview  Boolean        @default(false)
+  // §12: copied from series (same pattern as requiresReview above), settable
+  // per one-off / per-instance override.
+  isTimeSensitive       Boolean @default(false)
+  scheduledTime         String?
+  reminderMinutesBefore Int?
   completedAt     DateTime?
   // the later of completedAt/reviewedAt feeds the attendance log
   reviewedAt      DateTime?
