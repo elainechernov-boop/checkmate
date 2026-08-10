@@ -190,17 +190,28 @@ export async function materializeSeries(
   const futureOccurrences = allOccurrences.filter((date) => date >= asOf);
   const futureKeys = new Set(futureOccurrences.map(toISODate));
 
+  // Matched by originalDueDate, not the current dueDate — §5's roll-forward
+  // advances dueDate (and bumps rolledCount) but deliberately leaves
+  // originalDueDate alone precisely so it keeps identifying which series
+  // occurrence an instance belongs to. Keying off dueDate here would treat
+  // every already-rolled instance as sitting on a date its series never
+  // generated: "stale," to be deleted and silently recreated fresh at its
+  // original date, erasing the roll (this was a real bug — materializeSeries
+  // was never re-run after creation until extendAllMaterializationHorizons
+  // started doing so on every page load).
   const existingFutureInstances = await prisma.assignmentInstance.findMany({
-    where: { seriesId, dueDate: { gte: asOf } },
+    where: { seriesId, originalDueDate: { gte: asOf } },
   });
-  const existingByDate = new Map(existingFutureInstances.map((instance) => [toISODate(instance.dueDate!), instance]));
+  const existingByDate = new Map(
+    existingFutureInstances.map((instance) => [toISODate(instance.originalDueDate!), instance])
+  );
 
   const staleIds = existingFutureInstances
     .filter(
       (instance) =>
         !instance.isOverride &&
         instance.status !== InstanceStatus.done &&
-        !futureKeys.has(toISODate(instance.dueDate!))
+        !futureKeys.has(toISODate(instance.originalDueDate!))
     )
     .map((instance) => instance.id);
   if (staleIds.length > 0) {
@@ -242,5 +253,25 @@ export async function materializeSeries(
         },
       });
     }
+  }
+}
+
+/**
+ * Keeps every series' rolling 60-day window actually rolling. materializeSeries
+ * on its own only re-runs when a series is created or edited — a
+ * long-running series (a school-year-long Latin class, say) would silently
+ * stop producing new instances once real time outran the last horizon it
+ * was materialized against, with no edit ever happening to refresh it. This
+ * is called on every page load (same pattern as rollOverdueInstances, and
+ * just as harmless to re-run when there's nothing new to do) so the horizon
+ * keeps advancing purely from the family opening the app day to day.
+ */
+export async function extendAllMaterializationHorizons(
+  prisma: MaterializablePrisma,
+  asOf: Date = startOfUTCDay(new Date())
+): Promise<void> {
+  const seriesList = await prisma.assignmentSeries.findMany({ select: { id: true } });
+  for (const series of seriesList) {
+    await materializeSeries(prisma, series.id, asOf);
   }
 }

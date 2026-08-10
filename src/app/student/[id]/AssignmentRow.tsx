@@ -74,6 +74,7 @@ export function AssignmentRow({
   const rollMark = formatRollMark(instance.rolledCount);
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
+  const isTimeSensitive = instance.isTimeSensitive && !!instance.scheduledTime;
 
   // Subject + estimated time, small and quiet underneath the title — more
   // useful to a kid than a color they'd have to memorize (§9 tried a
@@ -115,8 +116,26 @@ export function AssignmentRow({
 
   return (
     <div
-      className="relative flex items-start gap-2 py-1.5 text-sm"
-      style={{ borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}` }}
+      className="relative flex items-start gap-2 rounded-sm py-1.5 text-sm"
+      style={{
+        borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}`,
+        // §12: the whole row carries the highlight, not just its time
+        // badge — amber wash + left accent, still within §9's two-color
+        // budget (student accent + this one amber for roll marks/"Show
+        // Mom"/time-sensitive, nothing else). Negative margins bleed the
+        // highlight to the day column's own edges instead of just insetting
+        // within the row's own text.
+        ...(isTimeSensitive
+          ? {
+              background: "rgba(181, 69, 27, 0.07)",
+              boxShadow: `inset 3px 0 0 ${COLORS.amber}`,
+              marginLeft: "-0.5rem",
+              marginRight: "-0.5rem",
+              paddingLeft: "0.5rem",
+              paddingRight: "0.5rem",
+            }
+          : undefined),
+      }}
     >
       {/* No checkbox, no dot, no drag handle — the word itself is the
           completion control (TeuxDeux's model, §6 north star), and the

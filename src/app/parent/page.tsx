@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { WorkSampleCategory } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
+import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
 import { loadAttendanceRange, summarizeAttendance } from "@/lib/attendance";
@@ -25,6 +26,10 @@ export default async function ParentPage({
 }) {
   const { week } = await searchParams;
   const today = getToday();
+  // Same self-extending horizon as the student page (see materialize.ts) —
+  // covering this entry point too so a long-running series keeps
+  // generating even on days only Parent Mode gets opened.
+  await extendAllMaterializationHorizons(prisma, today);
   // Keeps Parent Mode's board correct even if the parent looks before either
   // kid has opened their own page today (§5's roll is a shared-DB effect,
   // not something scoped to whoever happens to trigger it first).

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { addDays, defaultWeekStart, getToday, isDebugToday, parseISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
 import { StudentWeekView } from "./StudentWeekView";
 
@@ -18,6 +19,11 @@ export default async function StudentPage({
   if (!student) notFound();
 
   const today = getToday();
+  // Keeps every series' rolling 60-day materialization window actually
+  // rolling as real days pass, not just when a series is edited (see
+  // materialize.ts) — runs before the roll below so a freshly-materialized
+  // today's instance is never missed by it.
+  await extendAllMaterializationHorizons(prisma, today);
   // §5's daily auto-roll — runs on every load (not just "the first" one) so
   // it stays correct regardless of who opens the app first each day; it's a
   // no-op once nothing is overdue, so re-running it is harmless.

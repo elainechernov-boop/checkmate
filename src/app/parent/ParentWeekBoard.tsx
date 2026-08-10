@@ -418,6 +418,7 @@ function DraggableRow({
   // instead of just what's been planned.
   const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
   const rollMark = instance.status === InstanceStatus.open ? formatRollMark(instance.rolledCount) : null;
+  const isTimeSensitive = instance.isTimeSensitive && !!instance.scheduledTime;
 
   // Subject + estimated time underneath the title, matching the student
   // view's meta line (§9) so a parent gets the same at-a-glance context.
@@ -428,8 +429,23 @@ function DraggableRow({
 
   return (
     <div
-      className="flex flex-col gap-1 px-1 py-0.5"
-      style={{ borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}` }}
+      className="flex flex-col gap-1 rounded-sm px-1 py-0.5"
+      style={{
+        borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}`,
+        // §12: mirrors the student view's whole-row highlight (not just the
+        // amber time text below) — bleeds to the day cell's own edges the
+        // same way, still within §9's two-color budget.
+        ...(isTimeSensitive
+          ? {
+              background: "rgba(181, 69, 27, 0.07)",
+              boxShadow: `inset 3px 0 0 ${COLORS.amber}`,
+              marginLeft: "-0.75rem",
+              marginRight: "-0.75rem",
+              paddingLeft: "0.85rem",
+              paddingRight: "0.75rem",
+            }
+          : undefined),
+      }}
     >
       <div
         ref={setNodeRef}
