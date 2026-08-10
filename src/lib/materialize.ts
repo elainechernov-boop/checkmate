@@ -39,6 +39,10 @@ export function parseDaysOfWeek(csv: string | null): WeekdayCode[] {
  *    shifted) — a field-trip Tuesday just means no Latin that week.
  * End conditions (never/onDate/afterNCount) are applied to the resulting
  * (post skip/omit) sequence, since those are what actually happen.
+ *
+ * `daily`'s interval also powers §7's "Every other day" student-project
+ * recurrence (interval 2) — weekdays has no such control in either UI, so it
+ * always steps by 1 regardless of `interval`.
  */
 export function computeOccurrenceDates(
   series: SeriesOccurrenceInput,
@@ -81,7 +85,7 @@ export function computeOccurrenceDates(
 
       if (isCandidateDay && !isBlocked(cursor)) {
         results.push(cursor);
-        cursor = addDays(cursor, 1);
+        cursor = addDays(cursor, frequency === Frequency.daily ? safeInterval : 1);
         continue;
       }
       // Not a candidate day, or blocked: skip forward to the next day and

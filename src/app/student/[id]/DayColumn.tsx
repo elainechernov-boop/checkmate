@@ -5,6 +5,7 @@ import {
   DndContext,
   PointerSensor,
   closestCenter,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -23,12 +24,14 @@ function SortableRow({
   instance,
   prefersReducedMotion,
   isLast,
+  accentColor,
   onToggle,
   onOpenDetails,
 }: {
   instance: StudentInstance;
   prefersReducedMotion: boolean;
   isLast: boolean;
+  accentColor: string;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
   // Open-bucket rows are never pendingReview (§6's ordering), so this
@@ -65,6 +68,7 @@ function SortableRow({
         interactive
         prefersReducedMotion={prefersReducedMotion}
         isLast={isLast}
+        accentColor={accentColor}
         onToggle={onToggle}
         onOpenDetails={onOpenDetails}
       />
@@ -104,6 +108,11 @@ export function DayColumn({
   const [showTakeover, setShowTakeover] = useState(false);
   const wasAllDone = useRef<boolean | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // §7 drag-to-day: this whole column is one drop target in the outer,
+  // band-level DndContext (StudentWeekView) that a Projects-band backlog
+  // task can land on — entirely separate from the DndContext below, which
+  // only ever governs today's own open-item reorder.
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: toISODate(day) });
 
   const { rolled, open, pendingReview, completed } = bucketDayInstances(instances);
   const allDone = instances.length > 0 && open.length === 0 && pendingReview.length === 0 && rolled.length === 0;
@@ -142,6 +151,7 @@ export function DayColumn({
         interactive={interactive && instance.status !== InstanceStatus.excused}
         prefersReducedMotion={prefersReducedMotion}
         isLast={instance.id === lastRowId}
+        accentColor={accentColor}
         onToggle={(origin) => onToggle(instance, origin)}
         onOpenDetails={() => onOpenDetails(instance)}
         // Available even on a non-today column — a pendingReview item holds
@@ -154,10 +164,12 @@ export function DayColumn({
 
   return (
     <div
-      className="rounded border bg-white/60 p-3"
+      ref={setDroppableRef}
+      className="rounded border p-3 transition-colors"
       style={{
-        borderColor: isToday ? COLORS.text : COLORS.hairline,
+        borderColor: isOver ? accentColor : isToday ? COLORS.text : COLORS.hairline,
         borderWidth: isToday ? 1.5 : 1,
+        background: isOver ? "#F1F2F4" : "rgba(255,255,255,0.6)",
       }}
     >
       <div className="relative flex items-start justify-between">
@@ -221,6 +233,7 @@ export function DayColumn({
                   instance={instance}
                   prefersReducedMotion={prefersReducedMotion}
                   isLast={instance.id === lastRowId}
+                  accentColor={accentColor}
                   onToggle={(origin) => onToggle(instance, origin)}
                   onOpenDetails={() => onOpenDetails(instance)}
                 />

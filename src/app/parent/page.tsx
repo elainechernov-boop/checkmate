@@ -57,6 +57,9 @@ export default async function ParentPage({
           <Link href="/parent/subjects" className="px-1 text-[#6B6B6B] hover:underline">
             Subjects
           </Link>
+          <Link href="/parent/projects" className="px-1 text-[#6B6B6B] hover:underline">
+            Projects
+          </Link>
           <Link
             href="/parent/assignments/new"
             className="rounded bg-[#161616] px-3 py-1.5 text-white hover:bg-[#333]"

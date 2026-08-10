@@ -29,13 +29,16 @@ export default async function StudentPage({
   const comingUpStart = addDays(today, 1);
   const comingUpEnd = addDays(today, 14);
 
-  const [weekInstances, comingUp] = await Promise.all([
+  const instanceInclude = {
+    subject: { select: { id: true, name: true } },
+    series: { select: { estimatedMinutes: true } },
+    project: { select: { id: true, name: true } },
+  } as const;
+
+  const [weekInstances, comingUp, projects] = await Promise.all([
     prisma.assignmentInstance.findMany({
       where: { studentId: id, dueDate: { gte: monday, lt: weekEnd } },
-      include: {
-        subject: { select: { id: true, name: true } },
-        series: { select: { estimatedMinutes: true } },
-      },
+      include: instanceInclude,
       orderBy: { createdAt: "asc" },
     }),
     prisma.assignmentInstance.findMany({
@@ -44,11 +47,19 @@ export default async function StudentPage({
         dueDate: { gte: comingUpStart, lte: comingUpEnd },
         status: { not: "done" },
       },
-      include: {
-        subject: { select: { id: true, name: true } },
-        series: { select: { estimatedMinutes: true } },
-      },
+      include: instanceInclude,
       orderBy: { dueDate: "asc" },
+    }),
+    prisma.project.findMany({
+      where: { studentId: id, status: { not: "archived" } },
+      include: {
+        instances: {
+          where: { dueDate: null },
+          include: instanceInclude,
+          orderBy: { createdAt: "asc" },
+        },
+      },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -59,6 +70,7 @@ export default async function StudentPage({
       today={today}
       instances={weekInstances}
       comingUp={comingUp}
+      projects={projects.map(({ instances, ...project }) => ({ ...project, backlogTasks: instances }))}
       skipCelebratedGuard={isDebugToday()}
     />
   );

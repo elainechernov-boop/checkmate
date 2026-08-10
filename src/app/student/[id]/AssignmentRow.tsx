@@ -26,6 +26,7 @@ export function AssignmentRow({
   interactive,
   prefersReducedMotion,
   isLast,
+  accentColor,
   onToggle,
   onOpenDetails,
   onApproveViaPasscode,
@@ -34,6 +35,10 @@ export function AssignmentRow({
   interactive: boolean;
   prefersReducedMotion: boolean;
   isLast: boolean;
+  // The owning student's accent color — used for a project task's name line
+  // in place of the subject/time line (§7: "theirs at a glance, without a
+  // second visual system").
+  accentColor?: string;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
   onApproveViaPasscode?: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
@@ -62,11 +67,14 @@ export function AssignmentRow({
 
   // Subject + estimated time, small and quiet underneath the title — more
   // useful to a kid than a color they'd have to memorize (§9 tried a
-  // subject-colored tick; a name reads instantly, a color doesn't).
+  // subject-colored tick; a name reads instantly, a color doesn't). A
+  // project task shows its project's name here instead, in the student's
+  // own accent color (§7) — never both at once, since a project series
+  // never carries a subject (§3).
   const estMinutes = instance.series?.estimatedMinutes ?? null;
-  const metaText = [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null]
-    .filter(Boolean)
-    .join(" · ");
+  const metaText = instance.project
+    ? instance.project.name
+    : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null].filter(Boolean).join(" · ");
 
   function handleTitleClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
@@ -176,7 +184,10 @@ export function AssignmentRow({
         </span>
 
         {metaText && (
-          <span className="whitespace-nowrap" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
+          <span
+            className="whitespace-nowrap"
+            style={{ color: instance.project ? (accentColor ?? COLORS.mutedFaint) : COLORS.mutedFaint, fontSize: "0.7rem" }}
+          >
             {metaText}
           </span>
         )}

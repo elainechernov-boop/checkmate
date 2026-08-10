@@ -4,17 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, setSoundMuted } from "@/lib/completionSound";
 import { approveReviewViaPasscode, reorderOpenItems, toggleInstance } from "./actions";
+import { moveProjectTaskAction } from "./projectActions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
 import { AssignmentDetailsModal } from "./AssignmentDetailsModal";
 import { ItemCelebration } from "./ItemCelebration";
-import type { StudentInstance } from "./types";
+import { NewProjectModal } from "./NewProjectModal";
+import { PlanTaskModal } from "./PlanTaskModal";
+import { ProjectsBand } from "./ProjectsBand";
+import type { StudentInstance, StudentProject } from "./types";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -24,6 +29,7 @@ export function StudentWeekView({
   today,
   instances,
   comingUp,
+  projects,
   skipCelebratedGuard,
 }: {
   student: Student;
@@ -31,15 +37,21 @@ export function StudentWeekView({
   today: Date;
   instances: StudentInstance[];
   comingUp: StudentInstance[];
+  projects: StudentProject[];
   skipCelebratedGuard: boolean;
 }) {
   const router = useRouter();
   const prefersReducedMotion = !!useReducedMotion();
+  const bandSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const [localInstances, setLocalInstances] = useState(instances);
   const [syncedInstances, setSyncedInstances] = useState(instances);
+  const [localProjects, setLocalProjects] = useState(projects);
+  const [syncedProjects, setSyncedProjects] = useState(projects);
   const [comingUpOpen, setComingUpOpen] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+  const [planTaskId, setPlanTaskId] = useState<string | null>(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [celebratedToday, setCelebratedToday] = useState(true); // avoid a flash before the effect below settles
   const [itemCelebration, setItemCelebration] = useState<{ key: number; origin: { x: number; y: number } } | null>(
@@ -55,6 +67,10 @@ export function StudentWeekView({
   if (instances !== syncedInstances) {
     setSyncedInstances(instances);
     setLocalInstances(instances);
+  }
+  if (projects !== syncedProjects) {
+    setSyncedProjects(projects);
+    setLocalProjects(projects);
   }
 
   // §5 step 3: "the full completion sequence... plays on the student's
@@ -109,6 +125,12 @@ export function StudentWeekView({
 
   const days = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(monday, i)), [monday]);
   const weekHasAnyItems = localInstances.length > 0;
+  // A backlog task needs somewhere to be dropped, even on an otherwise
+  // silent week (§9's "an empty week shows nothing at all" is about there
+  // being nothing to plan, not about hiding valid drop targets).
+  const hasBacklogTasks = localProjects.some((p) => p.backlogTasks.length > 0);
+  const planTask = localProjects.flatMap((p) => p.backlogTasks).find((t) => t.id === planTaskId) ?? null;
+  const planTaskProject = planTask ? localProjects.find((p) => p.id === planTask.projectId) ?? null : null;
   // The week view is Mon-Sat (§6) — on a Sunday there's no column that
   // equals "today" at all, so nothing is interactive. Say so plainly
   // (this is a fact about the real today, not about whichever week is
@@ -182,6 +204,50 @@ export function StudentWeekView({
     );
   }
 
+  /**
+   * §7 drag-to-day: a Projects-band backlog task dropped on a day column.
+   * This DndContext is deliberately separate from each day's own
+   * today-only reorder DndContext (DayColumn) — the two never register the
+   * same draggable/droppable, so they can't interfere with each other.
+   */
+  async function handleBandDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    const taskId = String(active.id);
+    const dateISO = String(over.id);
+    const targetDay = days.find((day) => toISODate(day) === dateISO);
+    if (!targetDay) return;
+
+    let task: StudentInstance | null = null;
+    for (const project of localProjects) {
+      const found = project.backlogTasks.find((t) => t.id === taskId);
+      if (found) {
+        task = found;
+        break;
+      }
+    }
+    if (!task) return;
+    const scheduledTask = task;
+
+    setLocalProjects((current) =>
+      current.map((p) =>
+        p.id === scheduledTask.projectId ? { ...p, backlogTasks: p.backlogTasks.filter((t) => t.id !== taskId) } : p
+      )
+    );
+    setLocalInstances((current) => [...current, { ...scheduledTask, dueDate: targetDay, originalDueDate: targetDay }]);
+
+    try {
+      await moveProjectTaskAction(student.id, taskId, dateISO);
+    } catch {
+      setLocalProjects((current) =>
+        current.map((p) =>
+          p.id === scheduledTask.projectId ? { ...p, backlogTasks: [...p.backlogTasks, scheduledTask] } : p
+        )
+      );
+      setLocalInstances((current) => current.filter((i) => i.id !== taskId));
+    }
+  }
+
   function toggleMute() {
     const next = !muted;
     setMuted(next);
@@ -235,33 +301,43 @@ export function StudentWeekView({
         </p>
       )}
 
-      {weekHasAnyItems && (
-        <div className="mt-8 grid grid-cols-6 gap-6">
-          {days.map((day) => {
-            const dayISO = toISODate(day);
-            const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
-            const isToday = dayISO === todayISO;
-            return (
-              <DayColumn
-                key={dayISO}
-                day={day}
-                isToday={isToday}
-                interactive={isToday}
-                instances={dayInstances}
-                studentName={student.name}
-                accentColor={student.accentColor}
-                prefersReducedMotion={prefersReducedMotion}
-                celebrated={celebratedToday}
-                onCelebrate={handleCelebrate}
-                onToggle={handleToggle}
-                onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
-                onReorderOpen={handleReorderOpen}
-                onApproveViaPasscode={handleApproveViaPasscode}
-              />
-            );
-          })}
-        </div>
-      )}
+      <DndContext sensors={bandSensors} onDragEnd={handleBandDragEnd}>
+        {(weekHasAnyItems || hasBacklogTasks) && (
+          <div className="mt-8 grid grid-cols-6 gap-6">
+            {days.map((day) => {
+              const dayISO = toISODate(day);
+              const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
+              const isToday = dayISO === todayISO;
+              return (
+                <DayColumn
+                  key={dayISO}
+                  day={day}
+                  isToday={isToday}
+                  interactive={isToday}
+                  instances={dayInstances}
+                  studentName={student.name}
+                  accentColor={student.accentColor}
+                  prefersReducedMotion={prefersReducedMotion}
+                  celebrated={celebratedToday}
+                  onCelebrate={handleCelebrate}
+                  onToggle={handleToggle}
+                  onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
+                  onReorderOpen={handleReorderOpen}
+                  onApproveViaPasscode={handleApproveViaPasscode}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        <ProjectsBand
+          studentId={student.id}
+          accentColor={student.accentColor}
+          projects={localProjects}
+          onPlanTask={(task) => setPlanTaskId(task.id)}
+          onNewProject={() => setNewProjectOpen(true)}
+        />
+      </DndContext>
 
       <ComingUpPanel
         open={comingUpOpen}
@@ -271,8 +347,25 @@ export function StudentWeekView({
       />
 
       <AssignmentDetailsModal
+        studentId={student.id}
         instance={selectedInstance}
         onClose={() => setSelectedInstanceId(null)}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      <PlanTaskModal
+        task={planTask}
+        studentId={student.id}
+        defaultUntilDate={planTaskProject?.targetDate ?? null}
+        today={today}
+        onClose={() => setPlanTaskId(null)}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      <NewProjectModal
+        studentId={student.id}
+        open={newProjectOpen}
+        onClose={() => setNewProjectOpen(false)}
         prefersReducedMotion={prefersReducedMotion}
       />
 

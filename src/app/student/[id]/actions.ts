@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { getToday, toISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { recomputeProjectStatus } from "@/lib/projects";
 import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
 import { approveReview } from "@/lib/reviewActions";
 import { secretsMatch } from "@/lib/session";
@@ -42,6 +43,8 @@ export async function toggleInstance(instanceId: string): Promise<{ status: Inst
       ...(nextStatus !== InstanceStatus.open ? { returnNote: null } : {}),
     },
   });
+
+  if (updated.projectId) await recomputeProjectStatus(prisma, updated.projectId);
 
   revalidatePath(`/student/${instance.studentId}`);
   return { status: updated.status };
