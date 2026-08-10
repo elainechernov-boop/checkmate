@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate --schema prisma/postgresql && next build",
     "start": "prisma migrate deploy && next start -H 0.0.0.0",
     "lint": "eslint",
     "postinstall": "prisma generate",
