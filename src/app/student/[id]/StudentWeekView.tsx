@@ -7,7 +7,7 @@ import { useReducedMotion } from "framer-motion";
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { addDays, toISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
@@ -67,6 +67,7 @@ export function StudentWeekView({
 
   const todayISO = toISODate(today);
   const celebratedKey = `checkmate:celebrated:${student.id}:${todayISO}`;
+  const isCurrentWeek = toISODate(monday) === toISODate(defaultWeekStart(today));
 
   // Reset local (optimistic) state when the server hands us a fresh
   // `instances` prop (a week change or the 60s refresh) — done during
@@ -350,6 +351,11 @@ export function StudentWeekView({
         >
           ← Prev week
         </Link>
+        {!isCurrentWeek && (
+          <Link href={`/student/${student.id}`} className="px-1 hover:underline" style={{ color: COLORS.muted }}>
+            📅 Today
+          </Link>
+        )}
         <Link
           href={`/student/${student.id}?week=${toISODate(addDays(monday, 7))}`}
           className="px-1 hover:underline"

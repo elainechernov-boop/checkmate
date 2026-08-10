@@ -15,8 +15,9 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
-import { addDays, formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
 import { getSubjectColor } from "@/lib/subjectColors";
+import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime } from "@/lib/reminders";
 import { COLORS } from "@/lib/theme";
 import {
@@ -68,6 +69,7 @@ export function ParentWeekBoard({
   const todayISO = toISODate(today);
   const prevWeek = toISODate(addDays(monday, -7));
   const nextWeek = toISODate(addDays(monday, 7));
+  const isCurrentWeek = toISODate(monday) === toISODate(defaultWeekStart(today));
   const selectedInstance = instances.find((i) => i.id === selectedInstanceId) ?? null;
 
   /** §5 "field trips and off days" — reached from each card's own day
@@ -90,6 +92,11 @@ export function ParentWeekBoard({
         <Link href={`/parent?week=${prevWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
           ← Prev week
         </Link>
+        {!isCurrentWeek && (
+          <Link href="/parent" className="px-1 text-[#6B6B6B] hover:underline">
+            📅 Today
+          </Link>
+        )}
         <Link href={`/parent?week=${nextWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
           Next week →
         </Link>
@@ -406,6 +413,11 @@ function DraggableRow({
     id: instance.id,
   });
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
+  // Mirrors the student view's own read of "done" (§6) — struck through and
+  // muted, so the parent board shows at a glance what's actually finished
+  // instead of just what's been planned.
+  const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
+  const rollMark = instance.status === InstanceStatus.open ? formatRollMark(instance.rolledCount) : null;
 
   // Subject + estimated time underneath the title, matching the student
   // view's meta line (§9) so a parent gets the same at-a-glance context.
@@ -441,7 +453,23 @@ function DraggableRow({
           style={{ width: 2, background: getSubjectColor(instance.subject?.name), flexShrink: 0 }}
         />
         <span className="min-w-0 flex-1">
-          <span className="block break-words">{instance.title}</span>
+          <span className="flex items-start gap-1.5">
+            <span
+              className="block break-words"
+              style={
+                isDone
+                  ? { color: COLORS.muted, textDecorationLine: "line-through" }
+                  : undefined
+              }
+            >
+              {instance.title}
+            </span>
+            {rollMark && (
+              <span className="mt-0.5 shrink-0" style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
+                {rollMark}
+              </span>
+            )}
+          </span>
           {metaText && (
             <span className="block" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
               {metaText}
