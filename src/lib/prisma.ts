@@ -3,7 +3,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 function createClient(): PrismaClient {
-  const databaseUrl = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+  // Trimmed for the same reason as prisma.config.ts — a stray space/tab in
+  // a host-dashboard-pasted value would otherwise silently defeat this.
+  const databaseUrl = (process.env.DATABASE_URL ?? "file:./prisma/dev.db").trim();
   const isPostgres = /^postgres(ql)?:\/\//.test(databaseUrl);
   const adapter = isPostgres
     ? new PrismaPg(databaseUrl)

@@ -10,7 +10,10 @@ import { defineConfig } from "prisma/config";
 // the real Postgres URL, or its result may be cached across builds; either
 // way, a silently sqlite-flavored client would crash the deployed app the
 // moment it tries a real query.
-const databaseUrl = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+// Trimmed defensively — a stray leading/trailing space or tab (an easy
+// mistake when pasting a value into a host's dashboard) would otherwise
+// silently defeat the provider sniff below and fall through to sqlite.
+const databaseUrl = (process.env.DATABASE_URL ?? "file:./prisma/dev.db").trim();
 const isPostgres = /^postgres(ql)?:\/\//.test(databaseUrl);
 const provider = isPostgres ? "postgresql" : "sqlite";
 
