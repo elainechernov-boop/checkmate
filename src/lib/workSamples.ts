@@ -80,7 +80,9 @@ export async function evaluateWorkSampleEligibility(
     : null;
 
   const dayRow = completionDate
-    ? await prisma.schoolDay.findUnique({ where: { date: startOfUTCDay(completionDate) } })
+    ? await prisma.schoolDay.findUnique({
+        where: { date_studentId: { date: startOfUTCDay(completionDate), studentId: instance.studentId } },
+      })
     : null;
 
   return checkWorkSampleEligibility({

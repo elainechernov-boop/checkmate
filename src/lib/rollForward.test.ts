@@ -37,8 +37,8 @@ describe("rollOverdueInstances (§5 daily auto-roll)", () => {
     const friday = parseISODate("2026-08-07");
     const saturday = parseISODate("2026-08-08");
     const monday = parseISODate("2026-08-10");
-    await markSchoolDay(prisma, saturday, "offDay");
-    await markSchoolDay(prisma, parseISODate("2026-08-09"), "offDay"); // Sunday
+    await markSchoolDay(prisma, student.id, saturday, "offDay");
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-09"), "offDay"); // Sunday
 
     const item = await makeOpenInstance(student.id, subject.id, "Reading", friday);
 

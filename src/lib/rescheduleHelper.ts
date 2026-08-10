@@ -19,16 +19,21 @@ type ReschedulablePrisma = Pick<PrismaClient, "assignmentInstance" | "schoolDay"
  * series is omitted outright) — what's left over here is exactly the
  * standalone and individually-overridden instances nothing else will move.
  */
-export async function findReschedulableInstances(prisma: ReschedulablePrisma, date: Date) {
+export async function findReschedulableInstances(prisma: ReschedulablePrisma, studentId: string, date: Date) {
   return prisma.assignmentInstance.findMany({
-    where: { dueDate: date, status: InstanceStatus.open },
+    where: { studentId, dueDate: date, status: InstanceStatus.open },
     include: { student: { select: { id: true, name: true } } },
   });
 }
 
-async function nextSchoolDayAfter(prisma: ReschedulablePrisma, date: Date, maxLookaheadDays = 60): Promise<Date> {
+async function nextSchoolDayAfter(
+  prisma: ReschedulablePrisma,
+  studentId: string,
+  date: Date,
+  maxLookaheadDays = 60
+): Promise<Date> {
   const horizonEnd = addDays(date, maxLookaheadDays);
-  const map = await loadSchoolDayMap(prisma, addDays(date, 1), horizonEnd);
+  const map = await loadSchoolDayMap(prisma, studentId, addDays(date, 1), horizonEnd);
   let cursor = addDays(date, 1);
   while (isBlockedDay(map, cursor)) {
     if (cursor >= horizonEnd) {
@@ -41,10 +46,11 @@ async function nextSchoolDayAfter(prisma: ReschedulablePrisma, date: Date, maxLo
 
 export async function applyRescheduleHelper(
   prisma: ReschedulablePrisma,
+  studentId: string,
   date: Date,
   strategy: RescheduleStrategy
 ): Promise<void> {
-  const instances = await findReschedulableInstances(prisma, date);
+  const instances = await findReschedulableInstances(prisma, studentId, date);
   if (instances.length === 0) return;
 
   if (strategy.mode === "chosenDate") {
@@ -55,7 +61,7 @@ export async function applyRescheduleHelper(
   }
 
   if (strategy.mode === "nextSchoolDay") {
-    const target = await nextSchoolDayAfter(prisma, date);
+    const target = await nextSchoolDayAfter(prisma, studentId, date);
     for (const instance of instances) {
       await rescheduleInstance(prisma, instance.id, target);
     }
@@ -67,10 +73,10 @@ export async function applyRescheduleHelper(
   // fall back to piling everyone onto the next school day instead.
   const monday = mondayOf(date);
   const weekDays = Array.from({ length: 6 }, (_, i) => addDays(monday, i));
-  const map = await loadSchoolDayMap(prisma, monday, addDays(monday, 5));
+  const map = await loadSchoolDayMap(prisma, studentId, monday, addDays(monday, 5));
   const dateISO = toISODate(date);
   const candidates = weekDays.filter((day) => toISODate(day) !== dateISO && !isBlockedDay(map, day));
-  const targets = candidates.length > 0 ? candidates : [await nextSchoolDayAfter(prisma, date)];
+  const targets = candidates.length > 0 ? candidates : [await nextSchoolDayAfter(prisma, studentId, date)];
 
   for (let index = 0; index < instances.length; index++) {
     const target = targets[index % targets.length];

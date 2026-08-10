@@ -51,17 +51,17 @@ export function ParentWeekBoard({
   monday,
   today,
   instances,
-  schoolDayTypes,
+  schoolDayTypesByStudent,
 }: {
   students: Student[];
   subjects: { id: string; name: string }[];
   monday: Date;
   today: Date;
   instances: EditableInstance[];
-  schoolDayTypes: Record<string, SchoolDayType>;
+  schoolDayTypesByStudent: Record<string, Record<string, SchoolDayType>>;
 }) {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
-  const [helperDate, setHelperDate] = useState<string | null>(null);
+  const [helper, setHelper] = useState<{ studentId: string; dateISO: string } | null>(null);
   const [reschedulable, setReschedulable] = useState<ReschedulableItem[]>([]);
   const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i));
   const todayISO = toISODate(today);
@@ -70,14 +70,16 @@ export function ParentWeekBoard({
   const selectedInstance = instances.find((i) => i.id === selectedInstanceId) ?? null;
 
   /** §5 "field trips and off days" — reached from each card's own day
-   * header now (not a separate strip); re-materializing the calendar may
-   * leave standalone instances behind, which is when the Reschedule Helper
-   * opens. */
-  async function handleDayTypeChange(dateISO: string, type: SchoolDayType) {
-    const result = await setDayType(dateISO, type);
+   * header now (not a separate strip), and scoped to just that one
+   * student (§5's per-kid sick days/field trips — the family-wide academic
+   * calendar lives on /parent/calendar instead). Re-materializing that
+   * student's series may leave standalone instances behind, which is when
+   * the Reschedule Helper opens. */
+  async function handleDayTypeChange(studentId: string, dateISO: string, type: SchoolDayType) {
+    const result = await setDayType(studentId, dateISO, type);
     if (result.reschedulable.length > 0) {
       setReschedulable(result.reschedulable);
-      setHelperDate(dateISO);
+      setHelper({ studentId, dateISO });
     }
   }
 
@@ -109,9 +111,9 @@ export function ParentWeekBoard({
           days={days}
           todayISO={todayISO}
           instances={instances.filter((i) => i.studentId === student.id)}
-          schoolDayTypes={schoolDayTypes}
+          schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
           onEdit={setSelectedInstanceId}
-          onDayTypeChange={handleDayTypeChange}
+          onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
         />
       ))}
 
@@ -123,10 +125,11 @@ export function ParentWeekBoard({
       />
 
       <RescheduleHelperModal
-        open={!!helperDate}
-        dateISO={helperDate}
+        open={!!helper}
+        studentId={helper?.studentId ?? null}
+        dateISO={helper?.dateISO ?? null}
         items={reschedulable}
-        onClose={() => setHelperDate(null)}
+        onClose={() => setHelper(null)}
       />
     </>
   );

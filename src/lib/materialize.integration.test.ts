@@ -21,7 +21,7 @@ describe("materializeSeries", () => {
   it("creates instances for a weekdays series and skips a marked offDay", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma);
-    await markSchoolDay(prisma, parseISODate("2026-08-05"), SchoolDayType.offDay);
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-05"), SchoolDayType.offDay);
 
     const series = await prisma.assignmentSeries.create({
       data: {
@@ -54,7 +54,7 @@ describe("materializeSeries", () => {
   it("omits a field-trip Tuesday from a weekly Tue/Thu series", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma, { name: "Latin" });
-    await markSchoolDay(prisma, parseISODate("2026-08-04"), SchoolDayType.fieldTrip);
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-04"), SchoolDayType.fieldTrip);
 
     const series = await prisma.assignmentSeries.create({
       data: {

@@ -33,7 +33,7 @@ export default async function ParentPage({
   const monday = week ? parseISODate(week) : defaultWeekStart(today);
   const weekEnd = addDays(monday, 6);
 
-  const [students, subjects, instances, schoolDayMap] = await Promise.all([
+  const [students, subjects, instances] = await Promise.all([
     prisma.student.findMany({ orderBy: { name: "asc" } }),
     prisma.subject.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.assignmentInstance.findMany({
@@ -53,11 +53,19 @@ export default async function ParentPage({
       },
       orderBy: { createdAt: "asc" },
     }),
-    loadSchoolDayMap(prisma, monday, weekEnd),
   ]);
-  // A Map doesn't survive the server→client serialization boundary — hand
-  // ParentWeekBoard a plain object instead.
-  const schoolDayTypes = Object.fromEntries(schoolDayMap);
+
+  // SchoolDay is per-student (§5) — one map per kid, keyed by their id. A
+  // Map doesn't survive the server→client serialization boundary either,
+  // so each student's map becomes a plain object.
+  const schoolDayTypesByStudent = Object.fromEntries(
+    await Promise.all(
+      students.map(async (student) => {
+        const map = await loadSchoolDayMap(prisma, student.id, monday, weekEnd);
+        return [student.id, Object.fromEntries(map)] as const;
+      })
+    )
+  );
 
   // §8 dashboard card: days until LP end, attendance claimed?, work samples
   // flagged per category — scoped to whichever learning period covers today.
@@ -101,7 +109,7 @@ export default async function ParentPage({
         monday={monday}
         today={today}
         instances={instances}
-        schoolDayTypes={schoolDayTypes}
+        schoolDayTypesByStudent={schoolDayTypesByStudent}
       />
 
       {currentLP ? (

@@ -21,6 +21,6 @@ export async function makeSubject(prisma: PrismaClient, overrides: Partial<{ nam
   });
 }
 
-export async function markSchoolDay(prisma: PrismaClient, date: Date, type: SchoolDayType) {
-  return prisma.schoolDay.create({ data: { date, type } });
+export async function markSchoolDay(prisma: PrismaClient, studentId: string, date: Date, type: SchoolDayType) {
+  return prisma.schoolDay.create({ data: { date, studentId, type } });
 }

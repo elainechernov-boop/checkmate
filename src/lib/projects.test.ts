@@ -63,7 +63,7 @@ describe("planProjectTask (§7 Plan-it)", () => {
     const student = await makeStudent(prisma);
     const project = await createProject(prisma, student.id, "Learn Clair de Lune", parseISODate("2026-08-14"));
     const task = await addBacklogTask(prisma, student.id, project.id, "Practice");
-    await markSchoolDay(prisma, parseISODate("2026-08-10"), "sick"); // would've been the 2nd occurrence
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-10"), "sick"); // would've been the 2nd occurrence
 
     await planProjectTask(prisma, student.id, task.id, {
       choice: "everyOtherDay",
@@ -123,8 +123,8 @@ describe("a scheduled backlog task rolls forward like any other open item", () =
     const scheduled = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: task.id } });
     expect(toISODate(scheduled.dueDate!)).toBe("2026-08-07");
 
-    await markSchoolDay(prisma, parseISODate("2026-08-08"), "offDay");
-    await markSchoolDay(prisma, parseISODate("2026-08-09"), "offDay");
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-08"), "offDay");
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-09"), "offDay");
     const result = await rollOverdueInstances(prisma, student.id, parseISODate("2026-08-10"));
 
     expect(result.rolledCount).toBe(1);

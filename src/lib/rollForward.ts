@@ -20,7 +20,7 @@ export async function rollOverdueInstances(
   asOf: Date = startOfUTCDay(new Date())
 ): Promise<{ rolledCount: number }> {
   const today = startOfUTCDay(asOf);
-  const schoolDayMap = await loadSchoolDayMap(prisma, today, today);
+  const schoolDayMap = await loadSchoolDayMap(prisma, studentId, today, today);
   if (isBlockedDay(schoolDayMap, today)) return { rolledCount: 0 };
 
   const overdue = await prisma.assignmentInstance.findMany({

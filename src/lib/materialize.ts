@@ -169,7 +169,7 @@ export async function materializeSeries(
   if (!series) return;
 
   const horizonEnd = addDays(asOf, MATERIALIZATION_HORIZON_DAYS);
-  const schoolDayMap: SchoolDayMap = await loadSchoolDayMap(prisma, series.startDate, horizonEnd);
+  const schoolDayMap: SchoolDayMap = await loadSchoolDayMap(prisma, series.studentId, series.startDate, horizonEnd);
   const isBlocked = (date: Date) => isBlockedDay(schoolDayMap, date);
 
   const occurrenceInput: SeriesOccurrenceInput = {

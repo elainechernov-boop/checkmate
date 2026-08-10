@@ -41,7 +41,7 @@ export async function loadAttendanceRange(
   const rangeEnd = startOfUTCDay(end);
 
   const [schoolDays, completedInstances] = await Promise.all([
-    prisma.schoolDay.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } } }),
+    prisma.schoolDay.findMany({ where: { studentId, date: { gte: rangeStart, lte: rangeEnd } } }),
     prisma.assignmentInstance.findMany({
       where: {
         studentId,
@@ -79,22 +79,25 @@ export async function loadAttendanceRange(
 /** One day's "confirm present" click (§8) — the month grid's one-click toggle. */
 export async function setAttendanceClaimed(
   prisma: Pick<PrismaClient, "schoolDay">,
+  studentId: string,
   date: Date,
   claimed: boolean
 ): Promise<void> {
   const day = startOfUTCDay(date);
   await prisma.schoolDay.upsert({
-    where: { date: day },
+    where: { date_studentId: { date: day, studentId } },
     update: { attendanceClaimed: claimed },
-    create: { date: day, attendanceClaimed: claimed },
+    create: { date: day, studentId, attendanceClaimed: claimed },
   });
 }
 
 /** The LP-level "claimed" checkbox (§8) — bulk-sets every day in the
- * period at once; touching offDay/holiday/sick days too is harmless, since
- * `summarizeAttendance` never counts them regardless of this flag. */
+ * period at once, for one student; touching offDay/holiday/sick days too
+ * is harmless, since `summarizeAttendance` never counts them regardless of
+ * this flag. */
 export async function setLearningPeriodAttendanceClaimed(
   prisma: Pick<PrismaClient, "schoolDay" | "$transaction">,
+  studentId: string,
   start: Date,
   end: Date,
   claimed: boolean
@@ -107,9 +110,9 @@ export async function setLearningPeriodAttendanceClaimed(
   await prisma.$transaction(
     dates.map((date) =>
       prisma.schoolDay.upsert({
-        where: { date },
+        where: { date_studentId: { date, studentId } },
         update: { attendanceClaimed: claimed },
-        create: { date, attendanceClaimed: claimed },
+        create: { date, studentId, attendanceClaimed: claimed },
       })
     )
   );

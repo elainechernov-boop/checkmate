@@ -52,7 +52,7 @@ describe("flagWorkSample eligibility (§8)", () => {
     const subject = await makeSubject({ name: "Handwriting", isFaithIntegrated: true, workSampleCategory: "languageArts" });
     const instance = await makeDoneInstance(student.id, subject.id, parseISODate("2026-08-10"));
     await makeLP(parseISODate("2026-08-01"), parseISODate("2026-08-20"));
-    await setAttendanceClaimed(prisma, parseISODate("2026-08-10"), true);
+    await setAttendanceClaimed(prisma, student.id, parseISODate("2026-08-10"), true);
 
     await expect(flagWorkSample(prisma, instance.id, null, false)).rejects.toThrow(WorkSampleIneligibleError);
     const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instance.id } });
@@ -64,7 +64,7 @@ describe("flagWorkSample eligibility (§8)", () => {
     const subject = await makeSubject({ name: "Scouts", workSampleCategory: "none" });
     const instance = await makeDoneInstance(student.id, subject.id, parseISODate("2026-08-10"));
     await makeLP(parseISODate("2026-08-01"), parseISODate("2026-08-20"));
-    await setAttendanceClaimed(prisma, parseISODate("2026-08-10"), true);
+    await setAttendanceClaimed(prisma, student.id, parseISODate("2026-08-10"), true);
 
     await expect(flagWorkSample(prisma, instance.id, null, false)).rejects.toThrow(WorkSampleIneligibleError);
   });
@@ -89,7 +89,7 @@ describe("flagWorkSample eligibility (§8)", () => {
     const subject = await makeSubject();
     const instance = await makeDoneInstance(student.id, subject.id, parseISODate("2026-08-10"));
     await makeLP(parseISODate("2026-08-01"), parseISODate("2026-08-20"));
-    await setAttendanceClaimed(prisma, parseISODate("2026-08-10"), true);
+    await setAttendanceClaimed(prisma, student.id, parseISODate("2026-08-10"), true);
 
     await flagWorkSample(prisma, instance.id, null, false);
     const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instance.id } });
@@ -101,7 +101,7 @@ describe("flagWorkSample eligibility (§8)", () => {
     const subject = await makeSubject();
     const instance = await makeDoneInstance(student.id, subject.id, parseISODate("2026-08-10"));
     await makeLP(parseISODate("2026-08-01"), parseISODate("2026-08-20"));
-    await setAttendanceClaimed(prisma, parseISODate("2026-08-10"), true);
+    await setAttendanceClaimed(prisma, student.id, parseISODate("2026-08-10"), true);
     await flagWorkSample(prisma, instance.id, "great work", false);
 
     await unflagWorkSample(prisma, instance.id);

@@ -5,6 +5,7 @@ import {
   DndContext,
   PointerSensor,
   closestCenter,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
@@ -71,6 +72,61 @@ function SortableRow({
         accentColor={accentColor}
         onToggle={onToggle}
         onOpenDetails={onOpenDetails}
+      />
+    </div>
+  );
+}
+
+function DraggableProjectRow({
+  instance,
+  interactive,
+  prefersReducedMotion,
+  isLast,
+  accentColor,
+  onToggle,
+  onOpenDetails,
+  onApproveViaPasscode,
+}: {
+  instance: StudentInstance;
+  interactive: boolean;
+  prefersReducedMotion: boolean;
+  isLast: boolean;
+  accentColor: string;
+  onToggle: (origin: { x: number; y: number }) => void;
+  onOpenDetails: () => void;
+  onApproveViaPasscode: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
+}) {
+  // §7: "move between days" is the student's own project task's right on
+  // any day, not just today's own reorder (SortableRow above, which only
+  // ever governs today's cell). This is a plain cross-day draggable in the
+  // outer, band-level DndContext StudentWeekView owns — the same mechanism
+  // a Projects-band backlog task already uses to land on a day in the
+  // first place (see BacklogTaskRow in ProjectsBand.tsx).
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: instance.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : undefined,
+        position: "relative",
+        cursor: isDragging ? "grabbing" : "grab",
+        touchAction: "none",
+      }}
+    >
+      <AssignmentRow
+        instance={instance}
+        interactive={interactive}
+        prefersReducedMotion={prefersReducedMotion}
+        isLast={isLast}
+        accentColor={accentColor}
+        onToggle={onToggle}
+        onOpenDetails={onOpenDetails}
+        onApproveViaPasscode={onApproveViaPasscode}
       />
     </div>
   );
@@ -144,22 +200,33 @@ export function DayColumn({
   }
 
   function plainRow(instance: StudentInstance) {
-    return (
-      <AssignmentRow
-        key={instance.id}
-        instance={instance}
-        interactive={interactive && instance.status !== InstanceStatus.excused}
-        prefersReducedMotion={prefersReducedMotion}
-        isLast={instance.id === lastRowId}
-        accentColor={accentColor}
-        onToggle={(origin) => onToggle(instance, origin)}
-        onOpenDetails={() => onOpenDetails(instance)}
-        // Available even on a non-today column — a pendingReview item holds
-        // its original day rather than rolling (§5), but parent approval
-        // isn't gated by the student-only "today only" interactivity rule.
-        onApproveViaPasscode={(passcode, origin) => onApproveViaPasscode(instance, passcode, origin)}
-      />
-    );
+    const rowInteractive = interactive && instance.status !== InstanceStatus.excused;
+    const rowProps = {
+      instance,
+      interactive: rowInteractive,
+      prefersReducedMotion,
+      isLast: instance.id === lastRowId,
+      accentColor,
+      onToggle: (origin: { x: number; y: number }) => onToggle(instance, origin),
+      onOpenDetails: () => onOpenDetails(instance),
+      // Available even on a non-today column — a pendingReview item holds
+      // its original day rather than rolling (§5), but parent approval
+      // isn't gated by the student-only "today only" interactivity rule.
+      onApproveViaPasscode: (passcode: string, origin: { x: number; y: number }) =>
+        onApproveViaPasscode(instance, passcode, origin),
+    };
+
+    // Own project task, still open (or rolled, which is still status
+    // "open") — draggable to another day regardless of which day this is,
+    // the bug this fixes (§7's "move between days" wasn't reachable once a
+    // task left the backlog for anywhere but today). Today's own open
+    // items already get this via SortableRow instead, so this only ever
+    // fires for a non-today cell.
+    if (!interactive && instance.project && instance.status === InstanceStatus.open) {
+      return <DraggableProjectRow key={instance.id} {...rowProps} />;
+    }
+
+    return <AssignmentRow key={instance.id} {...rowProps} />;
   }
 
   return (

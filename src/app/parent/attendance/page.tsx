@@ -74,6 +74,7 @@ export default async function AttendancePage({
               {summary.presentCount}/{summary.schoolDayCount} school days present
             </p>
             <form action={toggleLearningPeriodClaimed}>
+              <input type="hidden" name="studentId" value={student.id} />
               <input type="hidden" name="learningPeriodId" value={lp.id} />
               <input type="hidden" name="claimed" value={String(summary.allClaimed)} />
               <button
@@ -96,6 +97,7 @@ export default async function AttendancePage({
               const label = day.claimed ? "Present" : day.countable ? (day.autoSuggested ? "Suggested" : "—") : day.type;
               return (
                 <form key={dateISO} action={toggleAttendanceDay}>
+                  <input type="hidden" name="studentId" value={student.id} />
                   <input type="hidden" name="dateISO" value={dateISO} />
                   <input type="hidden" name="claimed" value={String(day.claimed)} />
                   <button

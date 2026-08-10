@@ -15,24 +15,28 @@ export function isBlockedDay(map: SchoolDayMap, date: Date): boolean {
 
 export async function loadSchoolDayMap(
   prisma: Pick<PrismaClient, "schoolDay">,
+  studentId: string,
   start: Date,
   end: Date
 ): Promise<SchoolDayMap> {
   const rows = await prisma.schoolDay.findMany({
-    where: { date: { gte: start, lte: end } },
+    where: { studentId, date: { gte: start, lte: end } },
   });
   return new Map(rows.map((row) => [toISODate(row.date), row.type]));
 }
 
-/** Parent Mode's day-type change (§5 "field trips and off days"). */
+/** Parent Mode's day-type change (§5 "field trips and off days") — for one
+ * student. The family-wide academic calendar (§8) is just this, called
+ * once per student instead of once overall (see calendar/actions.ts). */
 export async function setSchoolDayType(
   prisma: Pick<PrismaClient, "schoolDay">,
+  studentId: string,
   date: Date,
   type: SchoolDayType
 ): Promise<void> {
   await prisma.schoolDay.upsert({
-    where: { date },
+    where: { date_studentId: { date, studentId } },
     update: { type },
-    create: { date, type },
+    create: { date, studentId, type },
   });
 }

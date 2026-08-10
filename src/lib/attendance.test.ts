@@ -54,10 +54,10 @@ describe("loadAttendanceRange (§8 auto-suggest)", () => {
     const student = await makeStudent(prisma);
     const start = parseISODate("2026-08-10");
     const end = parseISODate("2026-08-14");
-    await markSchoolDay(prisma, parseISODate("2026-08-11"), "offDay");
-    await markSchoolDay(prisma, parseISODate("2026-08-12"), "sick");
-    await markSchoolDay(prisma, parseISODate("2026-08-13"), "holiday");
-    await markSchoolDay(prisma, parseISODate("2026-08-14"), "fieldTrip");
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-11"), "offDay");
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-12"), "sick");
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-13"), "holiday");
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-14"), "fieldTrip");
 
     const days = await loadAttendanceRange(prisma, student.id, start, end);
     const summary = summarizeAttendance(days);
@@ -69,7 +69,7 @@ describe("loadAttendanceRange (§8 auto-suggest)", () => {
   it("never counts a Sunday, even if its SchoolDay row is explicitly typed schoolDay", async () => {
     const student = await makeStudent(prisma);
     const sunday = parseISODate("2026-08-09");
-    await markSchoolDay(prisma, sunday, "schoolDay");
+    await markSchoolDay(prisma, student.id, sunday, "schoolDay");
 
     const days = await loadAttendanceRange(prisma, student.id, sunday, sunday);
     expect(days[0].countable).toBe(false);
@@ -78,12 +78,12 @@ describe("loadAttendanceRange (§8 auto-suggest)", () => {
   it("a day's claimed flag is exactly its persisted attendanceClaimed value", async () => {
     const student = await makeStudent(prisma);
     const day = parseISODate("2026-08-10");
-    await setAttendanceClaimed(prisma, day, true);
+    await setAttendanceClaimed(prisma, student.id, day, true);
 
     const days = await loadAttendanceRange(prisma, student.id, day, day);
     expect(days[0].claimed).toBe(true);
 
-    await setAttendanceClaimed(prisma, day, false);
+    await setAttendanceClaimed(prisma, student.id, day, false);
     const daysAfter = await loadAttendanceRange(prisma, student.id, day, day);
     expect(daysAfter[0].claimed).toBe(false);
   });
@@ -98,7 +98,7 @@ describe("setLearningPeriodAttendanceClaimed (§8 per-LP claimed checkbox)", () 
     let days = await loadAttendanceRange(prisma, student.id, start, end);
     expect(summarizeAttendance(days).allClaimed).toBe(false);
 
-    await setLearningPeriodAttendanceClaimed(prisma, start, end, true);
+    await setLearningPeriodAttendanceClaimed(prisma, student.id, start, end, true);
     days = await loadAttendanceRange(prisma, student.id, start, end);
     expect(summarizeAttendance(days).allClaimed).toBe(true);
     expect(summarizeAttendance(days).presentCount).toBe(3);

@@ -16,11 +16,13 @@ export interface ReschedulableItem {
  * parent just marked off/field-trip/sick. */
 export function RescheduleHelperModal({
   open,
+  studentId,
   dateISO,
   items,
   onClose,
 }: {
   open: boolean;
+  studentId: string | null;
   dateISO: string | null;
   items: ReschedulableItem[];
   onClose: () => void;
@@ -29,10 +31,10 @@ export function RescheduleHelperModal({
   const [pending, setPending] = useState(false);
 
   async function run(mode: "nextSchoolDay" | "chosenDate" | "distribute") {
-    if (!dateISO || pending) return;
+    if (!studentId || !dateISO || pending) return;
     if (mode === "chosenDate" && !chosenDate) return;
     setPending(true);
-    await applyReschedule(dateISO, mode, mode === "chosenDate" ? chosenDate : undefined);
+    await applyReschedule(studentId, dateISO, mode, mode === "chosenDate" ? chosenDate : undefined);
     setPending(false);
     setChosenDate("");
     onClose();

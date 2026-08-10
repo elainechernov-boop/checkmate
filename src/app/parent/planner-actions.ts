@@ -60,18 +60,20 @@ export async function returnReviewAction(instanceId: string, note: string) {
 }
 
 /**
- * §5 "field trips and off days." Changing a day's type re-materializes
- * every series so series-generated occurrences on it correctly disappear
- * (daily/weekdays already lands on the next valid day per §3; a
+ * §5 "field trips and off days" — for one student (the family-wide
+ * academic calendar is calendar/actions.ts's applyDayTypeRange, which just
+ * calls this once per student). Changing a day's type re-materializes that
+ * student's own series so series-generated occurrences on it correctly
+ * disappear (daily/weekdays already lands on the next valid day per §3; a
  * weekly-on-specific-day occurrence is simply omitted) — then reports back
  * whatever's left over (standalone or individually-moved instances) so the
  * client can decide whether to open the Reschedule Helper.
  */
-export async function setDayType(dateISO: string, type: SchoolDayType) {
+export async function setDayType(studentId: string, dateISO: string, type: SchoolDayType) {
   const date = parseISODate(dateISO);
-  await setSchoolDayType(prisma, date, type);
+  await setSchoolDayType(prisma, studentId, date, type);
 
-  const seriesList = await prisma.assignmentSeries.findMany({ select: { id: true } });
+  const seriesList = await prisma.assignmentSeries.findMany({ where: { studentId }, select: { id: true } });
   for (const series of seriesList) {
     await materializeSeries(prisma, series.id);
   }
@@ -82,7 +84,7 @@ export async function setDayType(dateISO: string, type: SchoolDayType) {
     return { reschedulable: [] as { id: string; title: string; studentName: string }[] };
   }
 
-  const remaining = await findReschedulableInstances(prisma, date);
+  const remaining = await findReschedulableInstances(prisma, studentId, date);
   return {
     reschedulable: remaining.map((instance) => ({
       id: instance.id,
@@ -93,6 +95,7 @@ export async function setDayType(dateISO: string, type: SchoolDayType) {
 }
 
 export async function applyReschedule(
+  studentId: string,
   dateISO: string,
   mode: "nextSchoolDay" | "chosenDate" | "distribute",
   chosenDateISO?: string
@@ -100,6 +103,7 @@ export async function applyReschedule(
   const date = parseISODate(dateISO);
   await applyRescheduleHelper(
     prisma,
+    studentId,
     date,
     mode === "chosenDate" ? { mode, date: parseISODate(chosenDateISO ?? dateISO) } : { mode }
   );

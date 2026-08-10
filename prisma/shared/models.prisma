@@ -68,6 +68,7 @@ model Student {
   projects            Project[]
   assignmentSeries    AssignmentSeries[]
   assignmentInstances AssignmentInstance[]
+  schoolDays          SchoolDay[]
 }
 
 model Subject {
@@ -193,12 +194,22 @@ model AssignmentInstance {
 }
 
 // The school calendar (§3, §8)
+// Per-student (§5's field trips/off/sick days and §8's attendance are both
+// tracked per kid) — the family-wide academic calendar (§8 "import Blue
+// Ridge's calendar once") is just every student getting the same date+type
+// written at once, not a separate shared row, so every read here is a
+// plain per-student lookup with no null-studentId fallback to special-case.
 model SchoolDay {
   id                String        @id @default(cuid())
-  date              DateTime      @unique
+  date              DateTime
+  studentId         String
+  student           Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
   type              SchoolDayType @default(schoolDay)
   attendanceClaimed Boolean       @default(false)
   activityNote      String?
+
+  @@unique([date, studentId])
+  @@index([studentId])
 }
 
 model LearningPeriod {

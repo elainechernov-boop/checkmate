@@ -9,22 +9,24 @@ import { setAttendanceClaimed, setLearningPeriodAttendanceClaimed } from "@/lib/
  * *current* state so the button flips it, rather than trusting a client
  * guess of what "checked" should mean. */
 export async function toggleAttendanceDay(formData: FormData) {
+  const studentId = String(formData.get("studentId") ?? "");
   const dateISO = String(formData.get("dateISO") ?? "");
   const currentlyClaimed = String(formData.get("claimed") ?? "") === "true";
-  if (!dateISO) return;
-  await setAttendanceClaimed(prisma, parseISODate(dateISO), !currentlyClaimed);
+  if (!studentId || !dateISO) return;
+  await setAttendanceClaimed(prisma, studentId, parseISODate(dateISO), !currentlyClaimed);
   revalidatePath("/parent/attendance");
   revalidatePath("/parent");
 }
 
 /** The LP-level "claimed" checkbox (§8) — bulk-flips every day in the period. */
 export async function toggleLearningPeriodClaimed(formData: FormData) {
+  const studentId = String(formData.get("studentId") ?? "");
   const learningPeriodId = String(formData.get("learningPeriodId") ?? "");
   const currentlyAllClaimed = String(formData.get("claimed") ?? "") === "true";
-  if (!learningPeriodId) return;
+  if (!studentId || !learningPeriodId) return;
 
   const lp = await prisma.learningPeriod.findUniqueOrThrow({ where: { id: learningPeriodId } });
-  await setLearningPeriodAttendanceClaimed(prisma, lp.startDate, lp.endDate, !currentlyAllClaimed);
+  await setLearningPeriodAttendanceClaimed(prisma, studentId, lp.startDate, lp.endDate, !currentlyAllClaimed);
   revalidatePath("/parent/attendance");
   revalidatePath("/parent");
 }

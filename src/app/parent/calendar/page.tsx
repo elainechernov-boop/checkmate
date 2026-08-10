@@ -35,15 +35,28 @@ function shiftMonth(start: Date, delta: number): string {
   return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-  const { month } = await searchParams;
+export default async function CalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; studentId?: string }>;
+}) {
+  const { month, studentId: studentIdParam } = await searchParams;
   const start = monthStartFromParam(month, new Date());
   const monthEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
   const gridStart = addDays(start, -start.getUTCDay());
   const gridEnd = addDays(monthEnd, 6 - monthEnd.getUTCDay());
 
+  const students = await prisma.student.findMany({ orderBy: { name: "asc" } });
+  const student = students.find((s) => s.id === studentIdParam) ?? students[0] ?? null;
+
+  // SchoolDay is per-student (§5) — the bulk tool below writes the same
+  // date+type for every student at once, so any one student's calendar is
+  // representative of the shared parts; this view picks one to display,
+  // same pattern as the attendance page.
   const [schoolDays, learningPeriods] = await Promise.all([
-    prisma.schoolDay.findMany({ where: { date: { gte: gridStart, lte: gridEnd } } }),
+    student
+      ? prisma.schoolDay.findMany({ where: { studentId: student.id, date: { gte: gridStart, lte: gridEnd } } })
+      : Promise.resolve([]),
     prisma.learningPeriod.findMany({ orderBy: { startDate: "asc" } }),
   ]);
   const typeByDate = new Map(schoolDays.map((d) => [toISODate(d.date), d.type]));
@@ -62,11 +75,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <h1 className="mt-4 text-2xl font-medium">School calendar</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
         Enter Blue Ridge&rsquo;s academic calendar once (§8) — mark off days, field trips, sick days, and holidays below,
-        and define learning periods for attendance and work-sample tracking.
+        and define learning periods for attendance and work-sample tracking. This sets every student&rsquo;s calendar
+        at once; for a single kid&rsquo;s sick day or field trip, use the day header on their own week board instead.
       </p>
 
       <section className="mt-8 rounded border border-[#E1E3E6] bg-white p-4">
-        <h2 className="text-sm font-medium">Mark a day or range</h2>
+        <h2 className="text-sm font-medium">Mark a day or range for everyone</h2>
         <form action={applyDayTypeRange} className="mt-2 flex flex-wrap items-end gap-3 text-sm">
           <div>
             <label className="block text-xs text-[#6B6B6B]">From</label>
@@ -94,16 +108,44 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
       <section className="mt-8">
         <div className="flex items-center justify-between">
-          <Link href={`/parent/calendar?month=${shiftMonth(start, -1)}`} className="text-sm text-[#6B6B6B] hover:underline">
+          <Link
+            href={`/parent/calendar?month=${shiftMonth(start, -1)}${student ? `&studentId=${student.id}` : ""}`}
+            className="text-sm text-[#6B6B6B] hover:underline"
+          >
             ← Prev month
           </Link>
           <h2 className="text-lg font-medium">
             {MONTH_LONG[start.getUTCMonth()]} {start.getUTCFullYear()}
           </h2>
-          <Link href={`/parent/calendar?month=${shiftMonth(start, 1)}`} className="text-sm text-[#6B6B6B] hover:underline">
+          <Link
+            href={`/parent/calendar?month=${shiftMonth(start, 1)}${student ? `&studentId=${student.id}` : ""}`}
+            className="text-sm text-[#6B6B6B] hover:underline"
+          >
             Next month →
           </Link>
         </div>
+
+        {/* SchoolDay rows are per-student now — the grid below shows one
+            student's calendar at a time (they're identical unless someone's
+            own week-board toggle gave them an individual override). */}
+        {students.length > 1 && (
+          <form method="get" className="mt-3 flex items-center gap-2 text-sm">
+            <input type="hidden" name="month" value={`${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, "0")}`} />
+            <label className="text-xs" style={{ color: COLORS.muted }}>
+              Viewing
+            </label>
+            <select name="studentId" defaultValue={student?.id} className="rounded border border-[#E1E3E6] px-2 py-1">
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}&rsquo;s calendar
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="rounded border border-[#E1E3E6] px-2 py-1 hover:border-[#A9ACB2]">
+              View
+            </button>
+          </form>
+        )}
 
         <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs" style={{ color: COLORS.muted }}>
           {WEEKDAY_LABELS.map((label) => (

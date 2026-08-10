@@ -49,7 +49,7 @@ describe("findReschedulableInstances", () => {
       },
     });
 
-    const found = await findReschedulableInstances(prisma, tuesday);
+    const found = await findReschedulableInstances(prisma, student.id, tuesday);
     expect(found.map((i) => i.id)).toEqual([open.id]);
   });
 });
@@ -60,11 +60,11 @@ describe("applyRescheduleHelper", () => {
     const subject = await makeSubject(prisma);
     const tuesday = parseISODate("2026-08-11");
     const wednesday = parseISODate("2026-08-12");
-    await markSchoolDay(prisma, tuesday, "fieldTrip");
-    await markSchoolDay(prisma, wednesday, "sick");
+    await markSchoolDay(prisma, student.id, tuesday, "fieldTrip");
+    await markSchoolDay(prisma, student.id, wednesday, "sick");
     const item = await makeOpenInstance(student.id, subject.id, "Latin", tuesday);
 
-    await applyRescheduleHelper(prisma, tuesday, { mode: "nextSchoolDay" });
+    await applyRescheduleHelper(prisma, student.id, tuesday, { mode: "nextSchoolDay" });
 
     const moved = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: item.id } });
     expect(toISODate(moved.dueDate!)).toBe("2026-08-13"); // Thursday — Wednesday is also blocked
@@ -77,7 +77,7 @@ describe("applyRescheduleHelper", () => {
     const a = await makeOpenInstance(student.id, subject.id, "Latin", tuesday);
     const b = await makeOpenInstance(student.id, subject.id, "History", tuesday);
 
-    await applyRescheduleHelper(prisma, tuesday, { mode: "chosenDate", date: parseISODate("2026-08-20") });
+    await applyRescheduleHelper(prisma, student.id, tuesday, { mode: "chosenDate", date: parseISODate("2026-08-20") });
 
     for (const id of [a.id, b.id]) {
       const moved = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id } });
@@ -89,12 +89,12 @@ describe("applyRescheduleHelper", () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma);
     const tuesday = parseISODate("2026-08-11"); // week of Mon 8/10
-    await markSchoolDay(prisma, tuesday, "fieldTrip");
+    await markSchoolDay(prisma, student.id, tuesday, "fieldTrip");
     const a = await makeOpenInstance(student.id, subject.id, "A", tuesday);
     const b = await makeOpenInstance(student.id, subject.id, "B", tuesday);
     const c = await makeOpenInstance(student.id, subject.id, "C", tuesday);
 
-    await applyRescheduleHelper(prisma, tuesday, { mode: "distribute" });
+    await applyRescheduleHelper(prisma, student.id, tuesday, { mode: "distribute" });
 
     const [movedA, movedB, movedC] = await Promise.all(
       [a.id, b.id, c.id].map((id) => prisma.assignmentInstance.findUniqueOrThrow({ where: { id } }))
@@ -107,7 +107,8 @@ describe("applyRescheduleHelper", () => {
   });
 
   it("does nothing when there's nothing reschedulable that day", async () => {
+    const student = await makeStudent(prisma);
     const tuesday = parseISODate("2026-08-11");
-    await expect(applyRescheduleHelper(prisma, tuesday, { mode: "nextSchoolDay" })).resolves.toBeUndefined();
+    await expect(applyRescheduleHelper(prisma, student.id, tuesday, { mode: "nextSchoolDay" })).resolves.toBeUndefined();
   });
 });

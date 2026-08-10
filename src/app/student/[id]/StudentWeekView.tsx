@@ -205,12 +205,16 @@ export function StudentWeekView({
   }
 
   /**
-   * §7 drag-to-day: a Projects-band backlog task dropped on a day column.
-   * This DndContext is deliberately separate from each day's own
-   * today-only reorder DndContext (DayColumn) — the two never register the
-   * same draggable/droppable, so they can't interfere with each other.
+   * §7 drag-to-day, covering both ends of a project task's life: a
+   * Projects-band backlog task dropped on a day column for the first time,
+   * and an *already-scheduled* project task dragged onto a different day to
+   * move it — DayColumn's own draggable-project-row (for non-today cells;
+   * today's own reorder DndContext handles today's rows separately, so the
+   * two never register the same draggable/droppable). Parent-assigned rows
+   * never register as draggables here at all, so there's nothing to guard
+   * against a student moving those.
    */
-  async function handleBandDragEnd(event: DragEndEvent) {
+  async function handleWeekDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
     const taskId = String(active.id);
@@ -218,33 +222,59 @@ export function StudentWeekView({
     const targetDay = days.find((day) => toISODate(day) === dateISO);
     if (!targetDay) return;
 
-    let task: StudentInstance | null = null;
+    let backlogTask: StudentInstance | null = null;
     for (const project of localProjects) {
       const found = project.backlogTasks.find((t) => t.id === taskId);
       if (found) {
-        task = found;
+        backlogTask = found;
         break;
       }
     }
-    if (!task) return;
-    const scheduledTask = task;
 
-    setLocalProjects((current) =>
-      current.map((p) =>
-        p.id === scheduledTask.projectId ? { ...p, backlogTasks: p.backlogTasks.filter((t) => t.id !== taskId) } : p
-      )
+    if (backlogTask) {
+      const scheduledTask = backlogTask;
+      setLocalProjects((current) =>
+        current.map((p) =>
+          p.id === scheduledTask.projectId ? { ...p, backlogTasks: p.backlogTasks.filter((t) => t.id !== taskId) } : p
+        )
+      );
+      setLocalInstances((current) => [
+        ...current,
+        { ...scheduledTask, dueDate: targetDay, originalDueDate: targetDay },
+      ]);
+
+      try {
+        await moveProjectTaskAction(student.id, taskId, dateISO);
+      } catch {
+        setLocalProjects((current) =>
+          current.map((p) =>
+            p.id === scheduledTask.projectId ? { ...p, backlogTasks: [...p.backlogTasks, scheduledTask] } : p
+          )
+        );
+        setLocalInstances((current) => current.filter((i) => i.id !== taskId));
+      }
+      return;
+    }
+
+    // Not in any backlog — an already-scheduled project task being moved to
+    // a different day instead.
+    const scheduled = localInstances.find((i) => i.id === taskId);
+    if (!scheduled || !scheduled.dueDate || toISODate(scheduled.dueDate) === dateISO) return;
+    const previousDueDate = scheduled.dueDate;
+    const previousOriginalDueDate = scheduled.originalDueDate;
+
+    setLocalInstances((current) =>
+      current.map((i) => (i.id === taskId ? { ...i, dueDate: targetDay, originalDueDate: targetDay } : i))
     );
-    setLocalInstances((current) => [...current, { ...scheduledTask, dueDate: targetDay, originalDueDate: targetDay }]);
 
     try {
       await moveProjectTaskAction(student.id, taskId, dateISO);
     } catch {
-      setLocalProjects((current) =>
-        current.map((p) =>
-          p.id === scheduledTask.projectId ? { ...p, backlogTasks: [...p.backlogTasks, scheduledTask] } : p
+      setLocalInstances((current) =>
+        current.map((i) =>
+          i.id === taskId ? { ...i, dueDate: previousDueDate, originalDueDate: previousOriginalDueDate } : i
         )
       );
-      setLocalInstances((current) => current.filter((i) => i.id !== taskId));
     }
   }
 
@@ -301,7 +331,7 @@ export function StudentWeekView({
         </p>
       )}
 
-      <DndContext sensors={bandSensors} onDragEnd={handleBandDragEnd}>
+      <DndContext sensors={bandSensors} onDragEnd={handleWeekDragEnd}>
         {(weekHasAnyItems || hasBacklogTasks) && (
           <div className="mt-8 grid grid-cols-6 gap-6">
             {days.map((day) => {

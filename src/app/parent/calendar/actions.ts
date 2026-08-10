@@ -17,7 +17,11 @@ async function rematerializeAllSeries() {
 }
 
 /** §8 "import/enter Blue Ridge's academic calendar once" — a single day is
- * just a range where start equals end, so this is the one tool for both. */
+ * just a range where start equals end, so this is the one tool for both.
+ * SchoolDay is per-student (§5's ad-hoc field trips/sick days need to be
+ * settable for just one kid — see ParentWeekBoard.tsx's own day-type
+ * toggle), so the family-wide academic calendar this page sets up is
+ * simply the same date+type written for every student at once. */
 export async function applyDayTypeRange(formData: FormData) {
   const startISO = String(formData.get("startDate") ?? "");
   const endISO = String(formData.get("endDate") ?? "");
@@ -28,8 +32,11 @@ export async function applyDayTypeRange(formData: FormData) {
   const end = parseISODate(endISO);
   if (end < start) return;
 
+  const students = await prisma.student.findMany({ select: { id: true } });
   for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
-    await setSchoolDayType(prisma, cursor, type);
+    for (const student of students) {
+      await setSchoolDayType(prisma, student.id, cursor, type);
+    }
   }
   await rematerializeAllSeries();
   revalidatePath("/parent/calendar");
