@@ -2,6 +2,9 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, Frequency } from "@/generated/prisma/enums";
 import {
+  deleteAllInSeries,
+  deleteInstanceOnly,
+  deleteSeriesThisAndFollowing,
   editAllInSeries,
   editInstanceOnly,
   editSeriesThisAndFollowing,
@@ -308,5 +311,92 @@ describe("promoteInstanceToSeries (adding repetition to a one-off item)", () => 
         endCount: null,
       })
     ).rejects.toThrow();
+  });
+});
+
+describe("deleteInstanceOnly", () => {
+  it("removes exactly the one row, whatever its status", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+    });
+    await prisma.assignmentInstance.update({ where: { id: wednesday.id }, data: { status: "done" } });
+
+    await deleteInstanceOnly(prisma, wednesday.id);
+
+    const gone = await prisma.assignmentInstance.findUnique({ where: { id: wednesday.id } });
+    expect(gone).toBeNull();
+    const siblings = await prisma.assignmentInstance.count({ where: { seriesId: series.id } });
+    expect(siblings).toBeGreaterThan(0); // the rest of the series is untouched
+  });
+});
+
+describe("deleteSeriesThisAndFollowing", () => {
+  it("caps the series and removes future not-yet-resolved instances, keeping done ones", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+    });
+    const thursday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-06") },
+    });
+    await prisma.assignmentInstance.update({ where: { id: thursday.id }, data: { status: "done" } });
+
+    await deleteSeriesThisAndFollowing(prisma, wednesday.id);
+
+    const capped = await prisma.assignmentSeries.findUniqueOrThrow({ where: { id: series.id } });
+    expect(capped.endCondition).toBe(EndCondition.onDate);
+    expect(toISODate(capped.endDate!)).toBe("2026-08-04"); // day before the split
+
+    const remaining = await prisma.assignmentInstance.findMany({
+      where: { seriesId: series.id },
+      orderBy: { dueDate: "asc" },
+    });
+    // Mon/Tue survive (before the split), Wed is gone (the split itself),
+    // Thu survives because it was already done, nothing beyond that.
+    expect(remaining.map((i) => toISODate(i.dueDate!))).toEqual(["2026-08-03", "2026-08-04", "2026-08-06"]);
+  });
+
+  it("deletes the whole series when the split is at (or before) its start", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const monday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-03") },
+    });
+
+    await deleteSeriesThisAndFollowing(prisma, monday.id);
+
+    const gone = await prisma.assignmentSeries.findUnique({ where: { id: series.id } });
+    expect(gone).toBeNull();
+    const instances = await prisma.assignmentInstance.count({ where: { seriesId: series.id } });
+    expect(instances).toBe(0);
+  });
+});
+
+describe("deleteAllInSeries", () => {
+  it("deletes the series entirely when nothing in it is resolved", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+
+    await deleteAllInSeries(prisma, series.id);
+
+    const gone = await prisma.assignmentSeries.findUnique({ where: { id: series.id } });
+    expect(gone).toBeNull();
+    const instances = await prisma.assignmentInstance.count({ where: { seriesId: series.id } });
+    expect(instances).toBe(0);
+  });
+
+  it("keeps the series (capped) and any done instances when some work is already complete", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const monday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-03") },
+    });
+    await prisma.assignmentInstance.update({ where: { id: monday.id }, data: { status: "done" } });
+
+    await deleteAllInSeries(prisma, series.id);
+
+    const capped = await prisma.assignmentSeries.findUniqueOrThrow({ where: { id: series.id } });
+    expect(capped.endCondition).toBe(EndCondition.onDate);
+
+    const remaining = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id } });
+    expect(remaining.map((i) => i.id)).toEqual([monday.id]);
   });
 });

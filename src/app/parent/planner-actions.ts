@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { parseISODate } from "@/lib/dates";
 import { EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
 import {
+  deleteAllInSeries,
+  deleteInstanceOnly,
+  deleteSeriesThisAndFollowing,
   editAllInSeries,
   editInstanceOnly,
   editSeriesThisAndFollowing,
@@ -187,6 +190,26 @@ export async function updateAssignment(formData: FormData) {
       dueDate: dueDateRaw ? parseISODate(dueDateRaw) : undefined,
       requiresReview,
     });
+  }
+
+  revalidatePath("/parent");
+}
+
+/**
+ * Delete, following the same scope pattern as edits (§4). Standalone
+ * instances ignore scope entirely — there's no series to widen the delete
+ * to. Completed work is never swept up by a "following"/"all" delete; see
+ * assignmentEdits.ts's DELETABLE_STATUSES.
+ */
+export async function deleteAssignment(instanceId: string, scope: "only" | "following" | "all") {
+  const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
+
+  if (!instance.seriesId || scope === "only") {
+    await deleteInstanceOnly(prisma, instanceId);
+  } else if (scope === "following") {
+    await deleteSeriesThisAndFollowing(prisma, instanceId);
+  } else {
+    await deleteAllInSeries(prisma, instance.seriesId);
   }
 
   revalidatePath("/parent");

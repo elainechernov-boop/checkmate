@@ -1,7 +1,14 @@
 import type { PrismaClient } from "@/generated/prisma/client";
-import { EndCondition, type Frequency } from "@/generated/prisma/enums";
+import { EndCondition, InstanceStatus, type Frequency } from "@/generated/prisma/enums";
 import { addDays, startOfUTCDay } from "./dates";
 import { materializeSeries } from "./materialize";
+
+// Deleting never touches a resolved instance (done/excused) even when the
+// scope is "this and following" or "all in series" — a completed
+// assignment is a real historical record (relevant to attendance later,
+// §8), and a bulk delete shouldn't be able to erase it by accident the way
+// a single explicit delete on that exact row still can.
+const DELETABLE_STATUSES = [InstanceStatus.open, InstanceStatus.pendingReview];
 
 export interface InstanceEditableFields {
   title?: string;
@@ -226,6 +233,84 @@ export async function rescheduleInstance(
       data: { dueDate: newDueDate, originalDueDate: newDueDate },
     });
   }
+}
+
+/** "This assignment only" — removes just the one row the parent picked,
+ * whatever its status. An explicit single-item delete is fully trusted. */
+export async function deleteInstanceOnly(
+  prisma: Pick<PrismaClient, "assignmentInstance">,
+  instanceId: string
+): Promise<void> {
+  await prisma.assignmentInstance.delete({ where: { id: instanceId } });
+}
+
+/** "This and following" — caps the series so it stops generating on/after
+ * this occurrence, and removes every not-yet-resolved instance from here
+ * on (done/excused instances stay, as historical record). */
+export async function deleteSeriesThisAndFollowing(
+  prisma: EditablePrisma,
+  instanceId: string
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const instance = await tx.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
+    if (!instance.seriesId || !instance.dueDate) {
+      await deleteInstanceOnly(tx, instanceId);
+      return;
+    }
+
+    const series = await tx.assignmentSeries.findUniqueOrThrow({ where: { id: instance.seriesId } });
+    const splitDate = startOfUTCDay(instance.dueDate);
+
+    if (splitDate <= startOfUTCDay(series.startDate)) {
+      // Deleting from the very first occurrence onward — nothing of the
+      // series survives it, so remove the series outright rather than
+      // leaving a permanently-capped, empty husk behind.
+      await tx.assignmentInstance.deleteMany({
+        where: { seriesId: series.id, status: { in: DELETABLE_STATUSES } },
+      });
+      const remaining = await tx.assignmentInstance.count({ where: { seriesId: series.id } });
+      if (remaining === 0) {
+        await tx.assignmentSeries.delete({ where: { id: series.id } });
+      } else {
+        await tx.assignmentSeries.update({
+          where: { id: series.id },
+          data: { endCondition: EndCondition.onDate, endDate: addDays(startOfUTCDay(series.startDate), -1) },
+        });
+      }
+      return;
+    }
+
+    await tx.assignmentSeries.update({
+      where: { id: series.id },
+      data: { endCondition: EndCondition.onDate, endDate: addDays(splitDate, -1) },
+    });
+    await tx.assignmentInstance.deleteMany({
+      where: { seriesId: series.id, dueDate: { gte: splitDate }, status: { in: DELETABLE_STATUSES } },
+    });
+  });
+}
+
+/** "All in series" — removes every not-yet-resolved instance in the
+ * series and, if nothing resolved is left behind, the series itself; a
+ * series with completed history stays around (capped so it can never
+ * generate again) so that history remains visible. */
+export async function deleteAllInSeries(
+  prisma: EditablePrisma,
+  seriesId: string
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const series = await tx.assignmentSeries.findUniqueOrThrow({ where: { id: seriesId } });
+    await tx.assignmentInstance.deleteMany({ where: { seriesId, status: { in: DELETABLE_STATUSES } } });
+    const remaining = await tx.assignmentInstance.count({ where: { seriesId } });
+    if (remaining === 0) {
+      await tx.assignmentSeries.delete({ where: { id: seriesId } });
+    } else {
+      await tx.assignmentSeries.update({
+        where: { id: seriesId },
+        data: { endCondition: EndCondition.onDate, endDate: addDays(startOfUTCDay(series.startDate), -1) },
+      });
+    }
+  });
 }
 
 /** Click-a-date quick-add (§4): title only, everything else refined later

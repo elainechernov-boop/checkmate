@@ -3,8 +3,9 @@
 import { useState } from "react";
 import type { AssignmentInstance, AssignmentSeries, RecurrenceRule } from "@/generated/prisma/client";
 import { toISODate, WEEKDAYS } from "@/lib/dates";
+import { COLORS } from "@/lib/theme";
 import { Modal } from "@/components/Modal";
-import { updateAssignment } from "./planner-actions";
+import { deleteAssignment, updateAssignment } from "./planner-actions";
 
 export type EditableInstance = AssignmentInstance & {
   subject: { id: string; name: string } | null;
@@ -71,6 +72,7 @@ function EditForm({
   const [scope, setScope] = useState<(typeof SCOPE_OPTIONS)[number]["value"]>("only");
   const [repeat, setRepeat] = useState<string>(instance.series?.recurrence?.frequency ?? "none");
   const [endCondition, setEndCondition] = useState<string>(instance.series?.endCondition ?? "never");
+  const [deleting, setDeleting] = useState(false);
 
   const showRepeatSection = !isSeries || scope !== "only";
   const showDueDate = !isSeries || scope === "only";
@@ -80,6 +82,24 @@ function EditForm({
   async function handleSubmit(formData: FormData) {
     await updateAssignment(formData);
     onSaved();
+  }
+
+  async function handleDelete() {
+    const message =
+      !isSeries || scope === "only"
+        ? "Delete this assignment? This can't be undone."
+        : scope === "following"
+          ? "Delete this and every future occurrence in this series? Completed work is kept. This can't be undone."
+          : "Delete this entire series? Completed work is kept. This can't be undone.";
+    if (!window.confirm(message)) return;
+
+    setDeleting(true);
+    try {
+      await deleteAssignment(instance.id, isSeries ? scope : "only");
+      onSaved();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -251,9 +271,24 @@ function EditForm({
         &ldquo;Show me the work&rdquo; — require sign-off before this counts as done
       </label>
 
-      <button type="submit" className="rounded bg-[#161616] px-4 py-2.5 text-white hover:bg-[#333]">
-        Save
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-sm font-medium"
+          style={{ color: COLORS.amber }}
+        >
+          Delete
+        </button>
+        <button
+          type="submit"
+          disabled={deleting}
+          className="flex-1 rounded bg-[#161616] px-4 py-2.5 text-white hover:bg-[#333]"
+        >
+          Save
+        </button>
+      </div>
     </form>
   );
 }
