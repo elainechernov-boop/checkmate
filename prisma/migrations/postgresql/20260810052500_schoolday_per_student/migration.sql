@@ -6,6 +6,13 @@
 -- AddColumn (nullable for now — filled in by the backfill below)
 ALTER TABLE "SchoolDay" ADD COLUMN "studentId" TEXT;
 
+-- DropIndex (was unique on date alone) — must happen before the backfill
+-- below, which deliberately inserts more than one row per date (one per
+-- student); leaving this in place until "after" the insert, as an earlier
+-- version of this migration did, makes every backfill after the first
+-- student fail with a duplicate-key error.
+DROP INDEX "SchoolDay_date_key";
+
 -- Backfill: one row per (existing SchoolDay row x Student)
 INSERT INTO "SchoolDay" ("id", "date", "studentId", "type", "attendanceClaimed", "activityNote")
 SELECT
@@ -23,9 +30,6 @@ DELETE FROM "SchoolDay" WHERE "studentId" IS NULL;
 
 -- Now safe to require it.
 ALTER TABLE "SchoolDay" ALTER COLUMN "studentId" SET NOT NULL;
-
--- DropIndex (was unique on date alone)
-DROP INDEX "SchoolDay_date_key";
 
 -- AddForeignKey
 ALTER TABLE "SchoolDay" ADD CONSTRAINT "SchoolDay_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
