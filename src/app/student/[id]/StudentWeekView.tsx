@@ -336,6 +336,7 @@ export function StudentWeekView({
           projects={localProjects}
           onPlanTask={(task) => setPlanTaskId(task.id)}
           onNewProject={() => setNewProjectOpen(true)}
+          prefersReducedMotion={prefersReducedMotion}
         />
       </DndContext>
 
@@ -420,6 +421,13 @@ function StudentMenu() {
             style={{ color: COLORS.muted }}
           >
             ← Switch student
+          </Link>
+          <Link
+            href="/parent"
+            className="block px-3 py-1.5 text-sm hover:underline"
+            style={{ color: COLORS.muted }}
+          >
+            Parent Mode
           </Link>
         </div>
       )}

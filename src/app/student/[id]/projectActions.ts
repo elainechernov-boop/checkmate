@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import {
   addBacklogTask,
   createProject,
+  deleteProject,
   deleteProjectTask,
   editProjectTaskTitle,
   moveProjectTask,
@@ -59,5 +60,10 @@ export async function deleteProjectTaskAction(studentId: string, taskId: string)
 
 export async function editProjectTaskTitleAction(studentId: string, taskId: string, title: string) {
   await editProjectTaskTitle(prisma, studentId, taskId, title);
+  revalidatePath(`/student/${studentId}`);
+}
+
+export async function deleteProjectAction(studentId: string, projectId: string) {
+  await deleteProject(prisma, studentId, projectId);
   revalidatePath(`/student/${studentId}`);
 }

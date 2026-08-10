@@ -10,15 +10,22 @@ import { ApprovalPasscodePopover } from "./ApprovalPasscodePopover";
 import type { StudentInstance } from "./types";
 
 function strikeWidthFor(status: InstanceStatus): number {
+  // pendingReview no longer draws any strike at all (§5 "no strikethrough
+  // yet") — it gets a quiet fade instead (isFadedLook below), not a
+  // half-drawn line. Only a genuine "done" (or excused) is ever struck.
   if (status === InstanceStatus.done || status === InstanceStatus.excused) return 100;
-  if (status === InstanceStatus.pendingReview) return 30;
   return 0;
 }
 
-// Only a full "done" (or excused) look mutes the title text — pendingReview
-// shows its half-strike but stays normal-colored: §5 "no strikethrough yet."
+// Only a full "done" (or excused) look mutes the title text to full gray.
 function isMutedLook(status: InstanceStatus): boolean {
   return status === InstanceStatus.done || status === InstanceStatus.excused;
+}
+
+// pendingReview gets a slight fade instead of the old half-strike — "held,
+// waiting" rather than "half finished."
+function isFadedLook(status: InstanceStatus): boolean {
+  return status === InstanceStatus.pendingReview;
 }
 
 export function AssignmentRow({
@@ -59,6 +66,8 @@ export function AssignmentRow({
   const targetWidth = strikeWidthFor(resultingStatus);
   const currentMuted = isMutedLook(instance.status);
   const targetMuted = isMutedLook(resultingStatus);
+  const currentFaded = isFadedLook(instance.status);
+  const targetFaded = isFadedLook(resultingStatus);
   const duration = isForward && instance.requiresReview ? 0.15 : 0.28;
 
   const rollMark = formatRollMark(instance.rolledCount);
@@ -100,11 +109,12 @@ export function AssignmentRow({
   }
 
   const showMuted = animating ? targetMuted : currentMuted;
+  const showFaded = animating ? targetFaded : currentFaded;
   const showWidth = animating ? targetWidth : currentWidth;
 
   return (
     <div
-      className="relative flex items-center gap-2 py-1.5 text-sm"
+      className="relative flex items-start gap-2 py-1.5 text-sm"
       style={{ borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}` }}
     >
       {/* No checkbox, no dot, no drag handle — the word itself is the
@@ -120,24 +130,26 @@ export function AssignmentRow({
         className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
         style={{ cursor: interactive ? "pointer" : "default" }}
       >
-        <span className="flex min-w-0 items-center gap-2">
+        <span className="flex w-full min-w-0 items-start gap-2">
           <motion.span
-            className="relative block min-w-0 flex-1 truncate"
+            className="relative min-w-0 flex-1 line-clamp-2 break-words"
             animate={
               pulsing
                 ? prefersReducedMotion
                   ? { opacity: [1, 0.6, 1] }
                   : { scale: [1, 1.03, 1] }
-                : { scale: 1, opacity: 1 }
+                : { scale: 1, opacity: showFaded ? 0.6 : 1 }
             }
             transition={{ duration: prefersReducedMotion ? 0.15 : 0.22, ease: "easeOut" }}
             style={{ transformOrigin: "left center" }}
           >
-            {/* Titles are kept to a single line (truncated, not wrapped) —
-                the strike below is a simple width-animated line pinned to
-                this line's own vertical center, which only reads correctly
-                when there's exactly one line to pin it to. The full title
-                is still available via the details popup. */}
+            {/* Two lines max — long titles wrap instead of overflowing into
+                the next day column. The strike below used to be a single
+                width-animated line pinned to mid-height, which only read
+                correctly on one line; it's now a transparent duplicate of
+                the title with a native line-through decoration (so it wraps
+                and underlines identically, line for line) revealed
+                left-to-right via an animated clip-path instead. */}
             <motion.span
               initial={false}
               animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
@@ -147,34 +159,27 @@ export function AssignmentRow({
             </motion.span>
 
             {(currentWidth > 0 || targetWidth > 0) && (
-              // A plain `top: 50%` on a 1px-tall line lands on a fractional
-              // device pixel more often than not (e.g. 388.5px), which
-              // browsers anti-alias into a barely-visible blur rather than a
-              // crisp line — especially at the pendingReview half-strike's
-              // 30% width, where there's no full-width line elsewhere on the
-              // row to make the faintness read as "intentional." A 1.5px
-              // line plus an explicit centering transform survives that
-              // sub-pixel rounding.
               <motion.span
                 aria-hidden
                 initial={false}
-                animate={{ width: `${showWidth}%` }}
+                animate={{ clipPath: `inset(0 ${100 - showWidth}% 0 0)` }}
                 transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
+                className="absolute inset-0"
                 style={{
-                  position: "absolute",
-                  left: 0,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  height: 1.5,
-                  background: COLORS.text,
+                  color: "transparent",
+                  textDecorationLine: "line-through",
+                  textDecorationColor: COLORS.text,
+                  textDecorationThickness: "1.5px",
                 }}
-              />
+              >
+                {instance.title}
+              </motion.span>
             )}
           </motion.span>
 
           {rollMark && (
             <span
-              className="shrink-0"
+              className="mt-0.5 shrink-0"
               style={{ color: COLORS.amber, fontSize: "0.7rem" }}
               title={`Rolled ${instance.rolledCount} day(s)`}
             >
@@ -217,7 +222,7 @@ export function AssignmentRow({
             setPasscodeOpen(true);
           }}
           aria-label="Approve with parent passcode"
-          className="shrink-0 text-xs"
+          className="mt-0.5 shrink-0 text-xs"
           style={{ color: COLORS.muted }}
         >
           🔑
@@ -231,10 +236,10 @@ export function AssignmentRow({
           onOpenDetails();
         }}
         aria-label="View assignment details"
-        className="flex shrink-0 items-center rounded px-2 py-1 text-lg leading-none"
-        style={{ color: COLORS.muted }}
+        className="flex shrink-0 items-center rounded px-1.5 py-1 leading-none"
+        style={{ fontSize: "1rem" }}
       >
-        →
+        ➡️
       </button>
 
       {isPendingReview && onApproveViaPasscode && (

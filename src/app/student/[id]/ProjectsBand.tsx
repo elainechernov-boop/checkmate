@@ -1,13 +1,34 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ProjectStatus } from "@/generated/prisma/enums";
 import { formatComingUpDate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { addBacklogTaskAction, deleteProjectTaskAction, editProjectTaskTitleAction } from "./projectActions";
+import { ProjectDetailsModal } from "./ProjectDetailsModal";
+import { ProjectFinishedTakeover } from "./ProjectFinishedTakeover";
 import type { StudentInstance, StudentProject } from "./types";
+
+// §7's completion is auto-detected server-side the moment every task is
+// done (recomputeProjectStatus), but the celebration itself is a deliberate
+// button-press, not an ambush the instant a checkbox ticks — so "has this
+// already been celebrated" is tracked locally, the same way day-complete's
+// once-per-day guard is (StudentWeekView's celebratedToday), just keyed by
+// project instead of by date.
+function celebratedStorageKey(studentId: string): string {
+  return `checkmate:projects-celebrated:${studentId}`;
+}
+
+function loadCelebratedIds(studentId: string): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(celebratedStorageKey(studentId));
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
 
 /**
  * §7's Projects band — "TeuxDeux's undated 'someday' area, turned into a
@@ -23,15 +44,50 @@ export function ProjectsBand({
   projects,
   onPlanTask,
   onNewProject,
+  prefersReducedMotion,
 }: {
   studentId: string;
   accentColor: string;
   projects: StudentProject[];
   onPlanTask: (task: StudentInstance) => void;
   onNewProject: () => void;
+  prefersReducedMotion: boolean;
 }) {
-  const active = projects.filter((p) => p.status === ProjectStatus.active);
-  const finished = projects.filter((p) => p.status === ProjectStatus.completed);
+  const [celebratedIds, setCelebratedIds] = useState<Set<string>>(new Set());
+  const [celebratingProject, setCelebratingProject] = useState<StudentProject | null>(null);
+  const [detailsProjectId, setDetailsProjectId] = useState<string | null>(null);
+  const detailsProject = projects.find((p) => p.id === detailsProjectId) ?? null;
+
+  useEffect(() => {
+    // Browser-only read, deferred past hydration (same reasoning as
+    // StudentWeekView's celebratedToday effect).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCelebratedIds(loadCelebratedIds(studentId));
+  }, [studentId]);
+
+  // A project sitting at status "completed" but not yet celebrated stays in
+  // the active row — it's the "Project finished!" button's job to move it
+  // into the Finished stack, not a silent status flip.
+  const active = projects.filter(
+    (p) => p.status === ProjectStatus.active || (p.status === ProjectStatus.completed && !celebratedIds.has(p.id))
+  );
+  const finished = projects.filter((p) => p.status === ProjectStatus.completed && celebratedIds.has(p.id));
+
+  function handleFinish(project: StudentProject) {
+    setCelebratedIds((current) => {
+      const next = new Set(current);
+      next.add(project.id);
+      try {
+        window.localStorage.setItem(celebratedStorageKey(studentId), JSON.stringify(Array.from(next)));
+      } catch {
+        // localStorage unavailable (private browsing, etc.) — the
+        // celebration still plays for this session, it just won't stick.
+      }
+      return next;
+    });
+    setDetailsProjectId(null);
+    setCelebratingProject(project);
+  }
 
   return (
     <section className="mt-10">
@@ -59,12 +115,32 @@ export function ProjectsBand({
               studentId={studentId}
               accentColor={accentColor}
               onPlanTask={onPlanTask}
+              onOpenDetails={() => setDetailsProjectId(project.id)}
+              awaitingCelebration={project.status === ProjectStatus.completed}
             />
           ))}
         </div>
       )}
 
-      {finished.length > 0 && <FinishedStack projects={finished} />}
+      {finished.length > 0 && <FinishedStack projects={finished} onOpenDetails={setDetailsProjectId} />}
+
+      <ProjectDetailsModal
+        project={detailsProject}
+        studentId={studentId}
+        accentColor={accentColor}
+        readyToCelebrate={!!detailsProject && detailsProject.status === ProjectStatus.completed && !celebratedIds.has(detailsProject.id)}
+        onFinish={handleFinish}
+        onClose={() => setDetailsProjectId(null)}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      {celebratingProject && (
+        <ProjectFinishedTakeover
+          projectName={celebratingProject.name}
+          reducedMotion={prefersReducedMotion}
+          onDone={() => setCelebratingProject(null)}
+        />
+      )}
     </section>
   );
 }
@@ -74,11 +150,15 @@ function ProjectCard({
   studentId,
   accentColor,
   onPlanTask,
+  onOpenDetails,
+  awaitingCelebration,
 }: {
   project: StudentProject;
   studentId: string;
   accentColor: string;
   onPlanTask: (task: StudentInstance) => void;
+  onOpenDetails: () => void;
+  awaitingCelebration: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
@@ -102,13 +182,19 @@ function ProjectCard({
 
   return (
     <div className="w-56 shrink-0 rounded border p-3" style={{ borderColor: COLORS.hairline, background: "rgba(255,255,255,0.4)" }}>
-      <h3 className="truncate text-sm font-medium" style={{ color: COLORS.text }}>
+      <button type="button" onClick={onOpenDetails} className="block w-full truncate text-left text-sm font-medium hover:underline" style={{ color: COLORS.text }}>
         {project.name}
-      </h3>
-      {project.targetDate && (
-        <p className="text-xs" style={{ color: COLORS.mutedFaint }}>
-          by {formatComingUpDate(project.targetDate)}
-        </p>
+      </button>
+      {awaitingCelebration ? (
+        <button type="button" onClick={onOpenDetails} className="text-xs hover:underline" style={{ color: accentColor }}>
+          🎉 All done — open to finish!
+        </button>
+      ) : (
+        project.targetDate && (
+          <p className="text-xs" style={{ color: COLORS.mutedFaint }}>
+            by {formatComingUpDate(project.targetDate)}
+          </p>
+        )
       )}
 
       <div className="mt-2 flex flex-col">
@@ -226,7 +312,13 @@ function BacklogTaskRow({
 /** §7 project completion: "kept, not deleted" — a quiet, collapsed record
  * of things the student taught themselves, off to the side of the active
  * band above. */
-function FinishedStack({ projects }: { projects: StudentProject[] }) {
+function FinishedStack({
+  projects,
+  onOpenDetails,
+}: {
+  projects: StudentProject[];
+  onOpenDetails: (projectId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-4">
@@ -236,8 +328,15 @@ function FinishedStack({ projects }: { projects: StudentProject[] }) {
       {open && (
         <ul className="mt-2 flex flex-col gap-1">
           {projects.map((project) => (
-            <li key={project.id} className="text-xs" style={{ color: COLORS.muted, textDecoration: "line-through" }}>
-              {project.name}
+            <li key={project.id}>
+              <button
+                type="button"
+                onClick={() => onOpenDetails(project.id)}
+                className="text-xs hover:underline"
+                style={{ color: COLORS.muted, textDecoration: "line-through" }}
+              >
+                {project.name}
+              </button>
             </li>
           ))}
         </ul>

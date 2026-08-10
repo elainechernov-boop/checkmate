@@ -71,6 +71,22 @@ export async function createProject(
   });
 }
 
+/** A student deleting one of their own projects entirely — everything under
+ * it (series, whose RecurrenceRule cascades, and instances) goes too, same
+ * as Parent Mode's own delete (parent/projects/actions.ts), just
+ * ownership-checked instead of unrestricted. */
+export async function deleteProject(prisma: ProjectsPrisma, studentId: string, projectId: string): Promise<void> {
+  const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
+  if (project.studentId !== studentId) {
+    throw new ProjectPermissionError("Students may only delete their own projects.");
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.assignmentInstance.deleteMany({ where: { projectId } });
+    await tx.assignmentSeries.deleteMany({ where: { projectId } });
+    await tx.project.delete({ where: { id: projectId } });
+  });
+}
+
 /** A plain to-do line, undated until the student schedules it (§7). */
 export async function addBacklogTask(prisma: ProjectsPrisma, studentId: string, projectId: string, title: string) {
   const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });

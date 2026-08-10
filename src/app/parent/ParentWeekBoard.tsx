@@ -202,8 +202,10 @@ function StudentBoard({
 
   return (
     <section className="mt-10">
-      <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: student.accentColor }}>
-        {student.name}
+      <h2 className="text-sm font-medium uppercase tracking-wide">
+        <Link href={`/student/${student.id}`} className="hover:underline" style={{ color: student.accentColor }}>
+          {student.name}
+        </Link>
       </h2>
       {/* Explicit `id` makes dnd-kit's internal aria-describedby id
           deterministic — without it, dnd-kit derives it from a module-level
@@ -401,6 +403,13 @@ function DraggableRow({
   });
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
 
+  // Subject + estimated time underneath the title, matching the student
+  // view's meta line (§9) so a parent gets the same at-a-glance context.
+  const estMinutes = instance.series?.estimatedMinutes ?? null;
+  const metaText = [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div
       className="flex flex-col gap-1 px-1 py-0.5"
@@ -420,15 +429,26 @@ function DraggableRow({
           cursor: "pointer",
           touchAction: "none",
         }}
-        className="flex items-baseline gap-2 text-sm hover:bg-black/[0.03]"
+        className="flex items-start gap-2 text-sm hover:bg-black/[0.03]"
       >
         <span
           aria-hidden
-          className="mt-0.5 inline-block self-stretch"
+          className="mt-1 inline-block self-stretch"
           style={{ width: 2, background: getSubjectColor(instance.subject?.name), flexShrink: 0 }}
         />
-        <span>{instance.title}</span>
-        {isPendingReview && <span style={{ color: COLORS.amber, fontSize: "0.7rem" }}>✋ Show Mom</span>}
+        <span className="min-w-0 flex-1">
+          <span className="block break-words">{instance.title}</span>
+          {metaText && (
+            <span className="block" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
+              {metaText}
+            </span>
+          )}
+          {isPendingReview && (
+            <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+              ✋ Show Mom
+            </span>
+          )}
+        </span>
       </div>
 
       {instance.returnNote && (

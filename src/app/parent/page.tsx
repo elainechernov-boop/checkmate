@@ -7,6 +7,7 @@ import { loadSchoolDayMap } from "@/lib/schoolCalendar";
 import { loadAttendanceRange, summarizeAttendance } from "@/lib/attendance";
 import { getCurrentLearningPeriod, getWorkSampleCoverage } from "@/lib/hstReport";
 import { COLORS } from "@/lib/theme";
+import { ParentNavMenu } from "./ParentNavMenu";
 import { ParentWeekBoard } from "./ParentWeekBoard";
 
 const CATEGORY_LABEL: Record<WorkSampleCategory, string> = {
@@ -77,27 +78,13 @@ export default async function ParentPage({
     <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-medium">Parent Mode</h1>
-        <nav className="flex items-center gap-8 text-sm">
-          <Link href="/parent/students" className="px-1 text-[#6B6B6B] hover:underline">
-            Students
-          </Link>
-          <Link href="/parent/subjects" className="px-1 text-[#6B6B6B] hover:underline">
-            Subjects
-          </Link>
-          <Link href="/parent/projects" className="px-1 text-[#6B6B6B] hover:underline">
-            Projects
-          </Link>
-          <Link href="/parent/calendar" className="px-1 text-[#6B6B6B] hover:underline">
-            Calendar
-          </Link>
-          <Link href="/parent/attendance" className="px-1 text-[#6B6B6B] hover:underline">
-            Attendance
-          </Link>
-          <Link href="/parent/work-samples" className="px-1 text-[#6B6B6B] hover:underline">
-            Work samples
-          </Link>
-          <Link href="/parent/reports" className="px-1 text-[#6B6B6B] hover:underline">
-            Reports
+        <nav className="flex items-center gap-4 text-sm">
+          <ParentNavMenu />
+          <Link
+            href="/parent/projects"
+            className="rounded border border-[#161616] px-3 py-1.5 text-[#161616] hover:bg-[#161616] hover:text-white"
+          >
+            + New project
           </Link>
           <Link
             href="/parent/assignments/new"
@@ -108,13 +95,25 @@ export default async function ParentPage({
         </nav>
       </div>
 
+      <ParentWeekBoard
+        students={students}
+        subjects={subjects}
+        monday={monday}
+        today={today}
+        instances={instances}
+        schoolDayTypes={schoolDayTypes}
+      />
+
       {currentLP ? (
-        <section className="mt-6 grid grid-cols-2 gap-4">
+        <section className="mt-10 grid grid-cols-2 gap-4">
           {dashboardCards.map(({ student, attendance, coverage, daysUntilEnd }) => (
             <div key={student.id} className="rounded border border-[#E1E3E6] bg-white p-4 text-sm">
-              <p className="font-medium" style={{ color: student.accentColor }}>
+              {/* Clicking a student's own name is the way into their week
+                  view from Parent Mode, wherever that name appears — no
+                  separate "view" link needed. */}
+              <Link href={`/student/${student.id}`} className="font-medium hover:underline" style={{ color: student.accentColor }}>
                 {student.name}
-              </p>
+              </Link>
               <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
                 {currentLP.name} · {daysUntilEnd >= 0 ? `${daysUntilEnd} day(s) left` : "ended"}
               </p>
@@ -129,7 +128,7 @@ export default async function ParentPage({
           ))}
         </section>
       ) : (
-        <p className="mt-6 text-sm" style={{ color: COLORS.muted }}>
+        <p className="mt-10 text-sm" style={{ color: COLORS.muted }}>
           No learning period covers today —{" "}
           <Link href="/parent/calendar" className="underline">
             set one up
@@ -137,15 +136,6 @@ export default async function ParentPage({
           .
         </p>
       )}
-
-      <ParentWeekBoard
-        students={students}
-        subjects={subjects}
-        monday={monday}
-        today={today}
-        instances={instances}
-        schoolDayTypes={schoolDayTypes}
-      />
     </main>
   );
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatComingUpDate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
-import { deleteProjectAction, setProjectSubjectAction } from "./actions";
+import { createProjectForStudentAction, deleteProjectAction, setProjectSubjectAction } from "./actions";
 
 type ProjectRow = Awaited<ReturnType<typeof loadProjects>>[number];
 
@@ -35,6 +35,61 @@ export default async function ParentProjectsPage() {
       <p className="mt-1 text-sm text-[#6B6B6B]">
         Student-initiated projects (§7). Tag a subject to include a project&rsquo;s finished work in HST reports —
         untagged projects stay out of compliance reporting entirely.
+      </p>
+
+      {students.length > 0 && (
+        <form
+          action={createProjectForStudentAction}
+          className="mt-6 flex flex-wrap items-end gap-3 rounded border border-[#E1E3E6] bg-white p-4 text-sm"
+        >
+          <div>
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Student
+            </label>
+            <select
+              name="studentId"
+              required
+              defaultValue={students[0]?.id}
+              className="mt-1 rounded border px-2 py-1.5"
+              style={{ borderColor: COLORS.hairline }}
+            >
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-48 flex-1">
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Project name
+            </label>
+            <input
+              name="name"
+              required
+              placeholder="Learn Clair de Lune"
+              className="mt-1 w-full rounded border px-2 py-1.5"
+              style={{ borderColor: COLORS.hairline }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Target date (optional)
+            </label>
+            <input
+              type="date"
+              name="targetDate"
+              className="mt-1 rounded border px-2 py-1.5"
+              style={{ borderColor: COLORS.hairline }}
+            />
+          </div>
+          <button type="submit" className="rounded bg-[#161616] px-3 py-1.5 text-white hover:bg-[#333]">
+            + New project
+          </button>
+        </form>
+      )}
+      <p className="mt-2 text-xs" style={{ color: COLORS.mutedFaint }}>
+        Write in the name — the student adds and schedules the tasks themselves from their own Projects band.
       </p>
 
       {projects.length === 0 && <p className="mt-8 text-sm text-[#6B6B6B]">No student projects yet.</p>}
