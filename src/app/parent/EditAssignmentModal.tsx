@@ -180,7 +180,7 @@ function EditForm({
           type="number"
           name="estimatedMinutes"
           min={0}
-          defaultValue={instance.series?.estimatedMinutes ?? ""}
+          defaultValue={instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? ""}
           className="mt-1 w-32 rounded border border-[#E1E3E6] px-3 py-2"
         />
       </div>

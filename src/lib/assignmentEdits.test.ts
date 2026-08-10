@@ -83,6 +83,18 @@ describe("editInstanceOnly (§4 'this assignment only')", () => {
     expect(toISODate(updated.dueDate!)).toBe("2026-08-04");
     expect(toISODate(updated.originalDueDate!)).toBe("2026-08-04");
   });
+
+  it("persists estimatedMinutes on the instance itself — this was a real bug: estimatedMinutes only ever lived on the series, so 'this assignment only' (the default edit scope) had nowhere to save it and Save silently did nothing", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const monday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-03") },
+    });
+
+    await editInstanceOnly(prisma, monday.id, { estimatedMinutes: 25 });
+
+    const updated = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: monday.id } });
+    expect(updated.estimatedMinutes).toBe(25);
+  });
 });
 
 describe("editAllInSeries (§4 'all in series')", () => {

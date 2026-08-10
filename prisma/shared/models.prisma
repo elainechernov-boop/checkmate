@@ -185,6 +185,10 @@ model AssignmentInstance {
   isTimeSensitive       Boolean @default(false)
   scheduledTime         String?
   reminderMinutesBefore Int?
+  // Copied from series, same pattern — without this, a standalone instance
+  // (no series) or a "this assignment only" edit had nowhere to persist an
+  // estimated-minutes change at all (a real bug: Save silently did nothing).
+  estimatedMinutes Int?
   completedAt     DateTime?
   // the later of completedAt/reviewedAt feeds the attendance log
   reviewedAt      DateTime?

@@ -232,6 +232,7 @@ export async function materializeSeries(
           isTimeSensitive: series.isTimeSensitive,
           scheduledTime: series.scheduledTime,
           reminderMinutesBefore: series.reminderMinutesBefore,
+          estimatedMinutes: series.estimatedMinutes,
         },
       });
     } else {
@@ -250,6 +251,7 @@ export async function materializeSeries(
           isTimeSensitive: series.isTimeSensitive,
           scheduledTime: series.scheduledTime,
           reminderMinutesBefore: series.reminderMinutesBefore,
+          estimatedMinutes: series.estimatedMinutes,
         },
       });
     }

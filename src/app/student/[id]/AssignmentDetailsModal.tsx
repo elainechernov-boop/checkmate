@@ -74,12 +74,12 @@ export function AssignmentDetailsModal({
                 <dd>{formatScheduledTime(instance.scheduledTime)}</dd>
               </>
             )}
-            {instance.series?.estimatedMinutes != null && (
+            {(instance.estimatedMinutes ?? instance.series?.estimatedMinutes) != null && (
               <>
                 <dt className="font-medium" style={{ color: COLORS.text }}>
                   Est. time
                 </dt>
-                <dd>{instance.series.estimatedMinutes} min</dd>
+                <dd>{instance.estimatedMinutes ?? instance.series?.estimatedMinutes} min</dd>
               </>
             )}
             <dt className="font-medium" style={{ color: COLORS.text }}>

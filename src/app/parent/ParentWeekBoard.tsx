@@ -422,7 +422,7 @@ function DraggableRow({
 
   // Subject + estimated time underneath the title, matching the student
   // view's meta line (§9) so a parent gets the same at-a-glance context.
-  const estMinutes = instance.series?.estimatedMinutes ?? null;
+  const estMinutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
   const metaText = [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null]
     .filter(Boolean)
     .join(" · ");

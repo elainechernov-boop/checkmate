@@ -16,6 +16,7 @@ export interface InstanceEditableFields {
   subjectId?: string | null;
   dueDate?: Date;
   requiresReview?: boolean;
+  estimatedMinutes?: number | null;
   // §12
   isTimeSensitive?: boolean;
   scheduledTime?: string | null;

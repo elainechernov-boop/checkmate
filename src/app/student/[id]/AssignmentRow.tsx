@@ -82,7 +82,7 @@ export function AssignmentRow({
   // project task shows its project's name here instead, in the student's
   // own accent color (§7) — never both at once, since a project series
   // never carries a subject (§3).
-  const estMinutes = instance.series?.estimatedMinutes ?? null;
+  const estMinutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
   const metaText = instance.project
     ? instance.project.name
     : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null].filter(Boolean).join(" · ");

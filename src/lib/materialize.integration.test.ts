@@ -250,6 +250,45 @@ describe("materializeSeries", () => {
     const resynced = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id } });
     expect(resynced.every((i) => i.scheduledTime === "16:30")).toBe(true);
   });
+
+  it("copies estimatedMinutes from series onto instances, without clobbering a per-instance override", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+
+    const series = await prisma.assignmentSeries.create({
+      data: {
+        title: "Math worksheet",
+        studentId: student.id,
+        subjectId: subject.id,
+        createdBy: "parent",
+        startDate: parseISODate("2026-08-03"),
+        endCondition: EndCondition.onDate,
+        endDate: parseISODate("2026-08-07"),
+        estimatedMinutes: 30,
+        recurrence: { create: { frequency: Frequency.weekdays, interval: 1 } },
+      },
+    });
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+
+    const created = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id } });
+    expect(created.every((i) => i.estimatedMinutes === 30)).toBe(true);
+
+    // A per-instance override (isOverride) keeps its own value even after
+    // the series' own estimate changes and the series re-syncs.
+    const monday = created.find((i) => toISODate(i.dueDate!) === "2026-08-03")!;
+    await prisma.assignmentInstance.update({
+      where: { id: monday.id },
+      data: { estimatedMinutes: 45, isOverride: true },
+    });
+
+    await prisma.assignmentSeries.update({ where: { id: series.id }, data: { estimatedMinutes: 20 } });
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+
+    const afterResync = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id } });
+    const resyncedMonday = afterResync.find((i) => i.id === monday.id)!;
+    expect(resyncedMonday.estimatedMinutes).toBe(45); // untouched
+    expect(afterResync.filter((i) => i.id !== monday.id).every((i) => i.estimatedMinutes === 20)).toBe(true);
+  });
 });
 
 describe("extendAllMaterializationHorizons", () => {
