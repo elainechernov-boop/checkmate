@@ -139,12 +139,27 @@ export function AssignmentRow({
             </motion.span>
 
             {(currentWidth > 0 || targetWidth > 0) && (
+              // A plain `top: 50%` on a 1px-tall line lands on a fractional
+              // device pixel more often than not (e.g. 388.5px), which
+              // browsers anti-alias into a barely-visible blur rather than a
+              // crisp line — especially at the pendingReview half-strike's
+              // 30% width, where there's no full-width line elsewhere on the
+              // row to make the faintness read as "intentional." A 1.5px
+              // line plus an explicit centering transform survives that
+              // sub-pixel rounding.
               <motion.span
                 aria-hidden
                 initial={false}
                 animate={{ width: `${showWidth}%` }}
                 transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
-                style={{ position: "absolute", left: 0, top: "50%", height: 1, background: COLORS.text }}
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  height: 1.5,
+                  background: COLORS.text,
+                }}
               />
             )}
           </motion.span>
