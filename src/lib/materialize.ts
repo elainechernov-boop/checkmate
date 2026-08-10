@@ -80,8 +80,14 @@ export function computeOccurrenceDates(
   if (frequency === Frequency.daily || frequency === Frequency.weekdays) {
     let cursor = startDate;
     while (withinLimits(cursor) === "ok") {
-      const isCalendarWeekday = cursor.getUTCDay() !== 0 && cursor.getUTCDay() !== 6;
-      const isCandidateDay = frequency === Frequency.daily || isCalendarWeekday;
+      const isSunday = cursor.getUTCDay() === 0;
+      // The week view only ever renders Mon-Sat (§6) — a Sunday occurrence
+      // would be a real instance with nowhere to display or check it off,
+      // so Sunday is never a candidate day for either frequency. `weekdays`
+      // additionally excludes Saturday; `daily` (used by §7's "Every day" /
+      // "Every other day" project plans) still includes it.
+      const isCalendarWeekday = !isSunday && cursor.getUTCDay() !== 6;
+      const isCandidateDay = frequency === Frequency.daily ? !isSunday : isCalendarWeekday;
 
       if (isCandidateDay && !isBlocked(cursor)) {
         results.push(cursor);

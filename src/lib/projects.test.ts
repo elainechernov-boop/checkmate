@@ -42,16 +42,16 @@ describe("planProjectTask (§7 Plan-it)", () => {
     });
 
     // Every other calendar day from Aug 8 through Aug 21 (the target date),
-    // inclusive: 8, 10, 12, 14, 16, 18, 20 — the 21st isn't a step of 2 from
-    // the 8th, so the plan's last occurrence lands just inside the deadline.
+    // inclusive: 8, 10, 12, 14, then 16 is a Sunday (never a candidate day —
+    // the week view has no column for it) so it shifts to 17, then 19, 21.
     expect(instances.map((i) => toISODate(i.dueDate!))).toEqual([
       "2026-08-08",
       "2026-08-10",
       "2026-08-12",
       "2026-08-14",
-      "2026-08-16",
-      "2026-08-18",
-      "2026-08-20",
+      "2026-08-17",
+      "2026-08-19",
+      "2026-08-21",
     ]);
     // The original backlog placeholder is gone — replaced by the series' own instances.
     expect(instances.every((i) => i.seriesId)).toBe(true);
@@ -76,6 +76,17 @@ describe("planProjectTask (§7 Plan-it)", () => {
     });
     expect(instances.map((i) => toISODate(i.dueDate!))).not.toContain("2026-08-10");
     expect(toISODate(instances[0].dueDate!)).toBe("2026-08-08");
+  });
+
+  it("'Every day' never schedules onto a Sunday — the week view has no column for it", async () => {
+    const student = await makeStudent(prisma);
+    const project = await createProject(prisma, student.id, "Read every day", parseISODate("2026-08-16"));
+    const task = await addBacklogTask(prisma, student.id, project.id, "Read 15 minutes");
+
+    await planProjectTask(prisma, student.id, task.id, { choice: "everyDay", startDate: parseISODate("2026-08-10") });
+
+    const instances = await prisma.assignmentInstance.findMany({ where: { projectId: project.id } });
+    expect(instances.some((i) => i.dueDate!.getUTCDay() === 0)).toBe(false);
   });
 
   it("'Just once' sets a due date directly with no series", async () => {

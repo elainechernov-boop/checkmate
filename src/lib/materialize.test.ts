@@ -48,6 +48,40 @@ describe("computeOccurrenceDates", () => {
     expect(dates).toEqual(["2026-08-07", "2026-08-10"]); // Sat/Sun skipped, not shifted-into
   });
 
+  it("a daily series (§7's 'Every day') includes Saturday but never Sunday — the week view has no Sunday column", () => {
+    const series: SeriesOccurrenceInput = {
+      startDate: parseISODate("2026-08-07"), // Friday
+      recurrence: { frequency: Frequency.daily, daysOfWeek: null, interval: 1 },
+      endCondition: EndCondition.never,
+      endDate: null,
+      endCount: null,
+    };
+    const isBlocked = () => false;
+    const horizonEnd = parseISODate("2026-08-10"); // Monday
+
+    const dates = isoList(computeOccurrenceDates(series, isBlocked, horizonEnd));
+
+    expect(dates).toEqual(["2026-08-07", "2026-08-08", "2026-08-10"]); // Sat included, Sun skipped
+  });
+
+  it("an every-other-day series that would land on a Sunday shifts to Monday instead, then resumes its stride from there", () => {
+    const series: SeriesOccurrenceInput = {
+      startDate: parseISODate("2026-08-07"), // Friday
+      recurrence: { frequency: Frequency.daily, daysOfWeek: null, interval: 2 },
+      endCondition: EndCondition.never,
+      endDate: null,
+      endCount: null,
+    };
+    const isBlocked = () => false;
+    const horizonEnd = parseISODate("2026-08-14"); // the following Friday
+
+    const dates = isoList(computeOccurrenceDates(series, isBlocked, horizonEnd));
+
+    // Fri 7, then +2 would land on Sun 9 — not a candidate day, so it
+    // shifts forward one day to Mon 10 and strides by 2 again from there.
+    expect(dates).toEqual(["2026-08-07", "2026-08-10", "2026-08-12", "2026-08-14"]);
+  });
+
   it("omits a field-trip Tuesday from a weekly Tue/Thu series instead of shifting it", () => {
     // Tue Aug 4 is a field trip; Thu Aug 6 is a normal school day.
     const series: SeriesOccurrenceInput = {

@@ -1,9 +1,21 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { WorkSampleCategory } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
+import { loadAttendanceRange, summarizeAttendance } from "@/lib/attendance";
+import { getCurrentLearningPeriod, getWorkSampleCoverage } from "@/lib/hstReport";
+import { COLORS } from "@/lib/theme";
 import { ParentWeekBoard } from "./ParentWeekBoard";
+
+const CATEGORY_LABEL: Record<WorkSampleCategory, string> = {
+  math: "Math",
+  languageArts: "ELA",
+  science: "Science",
+  socialStudies: "Soc. Studies",
+  none: "—",
+};
 
 export default async function ParentPage({
   searchParams,
@@ -46,6 +58,21 @@ export default async function ParentPage({
   // ParentWeekBoard a plain object instead.
   const schoolDayTypes = Object.fromEntries(schoolDayMap);
 
+  // §8 dashboard card: days until LP end, attendance claimed?, work samples
+  // flagged per category — scoped to whichever learning period covers today.
+  const currentLP = await getCurrentLearningPeriod(prisma, today);
+  const dashboardCards = currentLP
+    ? await Promise.all(
+        students.map(async (student) => {
+          const days = await loadAttendanceRange(prisma, student.id, currentLP.startDate, currentLP.endDate);
+          const attendance = summarizeAttendance(days);
+          const coverage = await getWorkSampleCoverage(prisma, student.id, currentLP);
+          const daysUntilEnd = Math.round((currentLP.endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+          return { student, attendance, coverage, daysUntilEnd };
+        })
+      )
+    : [];
+
   return (
     <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
       <div className="flex items-center justify-between">
@@ -60,6 +87,18 @@ export default async function ParentPage({
           <Link href="/parent/projects" className="px-1 text-[#6B6B6B] hover:underline">
             Projects
           </Link>
+          <Link href="/parent/calendar" className="px-1 text-[#6B6B6B] hover:underline">
+            Calendar
+          </Link>
+          <Link href="/parent/attendance" className="px-1 text-[#6B6B6B] hover:underline">
+            Attendance
+          </Link>
+          <Link href="/parent/work-samples" className="px-1 text-[#6B6B6B] hover:underline">
+            Work samples
+          </Link>
+          <Link href="/parent/reports" className="px-1 text-[#6B6B6B] hover:underline">
+            Reports
+          </Link>
           <Link
             href="/parent/assignments/new"
             className="rounded bg-[#161616] px-3 py-1.5 text-white hover:bg-[#333]"
@@ -68,6 +107,36 @@ export default async function ParentPage({
           </Link>
         </nav>
       </div>
+
+      {currentLP ? (
+        <section className="mt-6 grid grid-cols-2 gap-4">
+          {dashboardCards.map(({ student, attendance, coverage, daysUntilEnd }) => (
+            <div key={student.id} className="rounded border border-[#E1E3E6] bg-white p-4 text-sm">
+              <p className="font-medium" style={{ color: student.accentColor }}>
+                {student.name}
+              </p>
+              <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
+                {currentLP.name} · {daysUntilEnd >= 0 ? `${daysUntilEnd} day(s) left` : "ended"}
+              </p>
+              <p className="mt-2">
+                {attendance.presentCount}/{attendance.schoolDayCount} days present ·{" "}
+                {attendance.allClaimed ? "claimed ✓" : "not claimed"}
+              </p>
+              <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
+                {coverage.map((c) => `${CATEGORY_LABEL[c.category]} ${c.flagged ? "✓" : "—"}`).join(" · ")}
+              </p>
+            </div>
+          ))}
+        </section>
+      ) : (
+        <p className="mt-6 text-sm" style={{ color: COLORS.muted }}>
+          No learning period covers today —{" "}
+          <Link href="/parent/calendar" className="underline">
+            set one up
+          </Link>
+          .
+        </p>
+      )}
 
       <ParentWeekBoard
         students={students}
