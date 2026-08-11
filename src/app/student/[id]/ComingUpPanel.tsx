@@ -44,7 +44,7 @@ export function ComingUpPanel({
           />
           <motion.aside
             key="panel"
-            className="fixed right-0 top-0 z-50 h-full w-80 overflow-y-auto p-6"
+            className="fixed right-0 top-0 z-50 h-full w-80 max-w-[88vw] overflow-y-auto p-6"
             style={{ background: COLORS.background, borderLeft: `1px solid ${COLORS.hairline}` }}
             initial={prefersReducedMotion ? { opacity: 0 } : { x: 40, opacity: 0 }}
             animate={prefersReducedMotion ? { opacity: 1 } : { x: 0, opacity: 1 }}

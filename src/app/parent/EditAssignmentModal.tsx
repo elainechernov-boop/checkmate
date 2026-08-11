@@ -9,6 +9,7 @@ import { deleteAssignment, updateAssignment } from "./planner-actions";
 
 export type EditableInstance = AssignmentInstance & {
   subject: { id: string; name: string } | null;
+  project: { id: string; name: string } | null;
   series:
     | (Pick<AssignmentSeries, "id" | "endCondition" | "endDate" | "endCount" | "estimatedMinutes"> & {
         recurrence: Pick<RecurrenceRule, "frequency" | "daysOfWeek" | "interval"> | null;

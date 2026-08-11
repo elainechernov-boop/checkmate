@@ -10,10 +10,16 @@ export default async function StudentPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; day?: string }>;
 }) {
   const { id } = await params;
-  const { week } = await searchParams;
+  const { week, day } = await searchParams;
+  // The mobile day pager's own boundary crossing (see StudentWeekView):
+  // ?day=0..5 says which column to land on when a swipe/arrow carried the
+  // student across a week edge — everything else (a plain week-nav click,
+  // a fresh visit) omits it and gets the smart "today, else Monday" default.
+  const parsedDay = day !== undefined ? Number(day) : NaN;
+  const requestedDayIndex = Number.isInteger(parsedDay) && parsedDay >= 0 && parsedDay <= 5 ? parsedDay : null;
 
   const student = await prisma.student.findUnique({ where: { id } });
   if (!student) notFound();
@@ -78,6 +84,7 @@ export default async function StudentPage({
       comingUp={comingUp}
       projects={projects.map(({ instances, ...project }) => ({ ...project, backlogTasks: instances }))}
       skipCelebratedGuard={isDebugToday()}
+      requestedDayIndex={requestedDayIndex}
     />
   );
 }

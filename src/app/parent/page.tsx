@@ -22,9 +22,15 @@ const CATEGORY_LABEL: Record<WorkSampleCategory, string> = {
 export default async function ParentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; day?: string }>;
 }) {
-  const { week } = await searchParams;
+  const { week, day } = await searchParams;
+  // The mobile day pager's own boundary crossing (see ParentWeekBoard):
+  // ?day=0..5 says which column to land on when a swipe/arrow carried the
+  // parent across a week edge — everything else omits it and gets the
+  // smart "today, else Monday" default.
+  const parsedDay = day !== undefined ? Number(day) : NaN;
+  const requestedDayIndex = Number.isInteger(parsedDay) && parsedDay >= 0 && parsedDay <= 5 ? parsedDay : null;
   const today = getToday();
   // Same self-extending horizon as the student page (see materialize.ts) —
   // covering this entry point too so a long-running series keeps
@@ -45,6 +51,7 @@ export default async function ParentPage({
       where: { dueDate: { gte: monday, lt: weekEnd } },
       include: {
         subject: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
         series: {
           select: {
             id: true,
@@ -88,10 +95,10 @@ export default async function ParentPage({
     : [];
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-medium">Parent Mode</h1>
-        <nav className="flex items-center gap-4 text-sm">
+    <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-medium lg:text-2xl">Parent Mode</h1>
+        <nav className="flex flex-wrap items-center gap-3 text-sm lg:gap-4">
           <ParentNavMenu />
           <Link
             href="/parent/projects"
@@ -115,10 +122,11 @@ export default async function ParentPage({
         today={today}
         instances={instances}
         schoolDayTypesByStudent={schoolDayTypesByStudent}
+        requestedDayIndex={requestedDayIndex}
       />
 
       {currentLP ? (
-        <section className="mt-10 grid grid-cols-2 gap-4">
+        <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {dashboardCards.map(({ student, attendance, coverage, daysUntilEnd }) => (
             <div key={student.id} className="rounded border border-[#E1E3E6] bg-white p-4 text-sm">
               {/* Clicking a student's own name is the way into their week

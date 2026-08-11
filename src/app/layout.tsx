@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Checkmate",
   description: "The family's homeschool assignment tracker.",
+};
+
+// Without this, mobile Safari renders the page at a fixed ~980px virtual
+// viewport and shrinks it to fit — every layout below would render but at
+// unreadable scale. This makes the phone's own screen width the layout
+// width instead, which the responsive breakpoints below assume.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 // Every page here reads live, frequently-changing data straight from the

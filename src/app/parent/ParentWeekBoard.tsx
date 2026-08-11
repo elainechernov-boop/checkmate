@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useReducedMotion } from "framer-motion";
 import {
   DndContext,
   PointerSensor,
@@ -30,6 +32,16 @@ import {
 } from "./planner-actions";
 import { EditAssignmentModal, type EditableInstance } from "./EditAssignmentModal";
 import { RescheduleHelperModal, type ReschedulableItem } from "./RescheduleHelperModal";
+import { SwipeDayPager } from "@/components/SwipeDayPager";
+import { DayPagerControls } from "@/components/DayPagerControls";
+
+const DAY_SHORT_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function defaultDayIndex(days: Date[], todayISO: string, isCurrentWeek: boolean): number {
+  if (!isCurrentWeek) return 0;
+  const index = days.findIndex((day) => toISODate(day) === todayISO);
+  return index === -1 ? 0 : index;
+}
 
 const TYPE_OPTIONS: { value: SchoolDayType; label: string }[] = [
   { value: "schoolDay", label: "School day" },
@@ -47,6 +59,16 @@ const TYPE_TAG: Record<SchoolDayType, string | null> = {
   holiday: "Holiday",
 };
 
+/** A day's load indicator (§3's "used for the daily load indicator"),
+ * shown underneath its box rather than inside it — a summary of the box,
+ * not one more row competing with the assignments themselves. */
+function formatTotalMinutes(totalMinutes: number): string {
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+}
+
 export function ParentWeekBoard({
   students,
   subjects,
@@ -54,6 +76,7 @@ export function ParentWeekBoard({
   today,
   instances,
   schoolDayTypesByStudent,
+  requestedDayIndex,
 }: {
   students: Student[];
   subjects: { id: string; name: string }[];
@@ -61,7 +84,11 @@ export function ParentWeekBoard({
   today: Date;
   instances: EditableInstance[];
   schoolDayTypesByStudent: Record<string, Record<string, SchoolDayType>>;
+  // Set only when a mobile swipe/arrow carried the parent across a week
+  // edge (see page.tsx) — otherwise null, and the smart default applies.
+  requestedDayIndex: number | null;
 }) {
+  const router = useRouter();
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [helper, setHelper] = useState<{ studentId: string; dateISO: string } | null>(null);
   const [reschedulable, setReschedulable] = useState<ReschedulableItem[]>([]);
@@ -71,6 +98,37 @@ export function ParentWeekBoard({
   const nextWeek = toISODate(addDays(monday, 7));
   const isCurrentWeek = toISODate(monday) === toISODate(defaultWeekStart(today));
   const selectedInstance = instances.find((i) => i.id === selectedInstanceId) ?? null;
+
+  // The mobile pager's day, shared across every student's board below (a
+  // parent planning "today" wants to see every kid's today at once, not
+  // page through them independently) — same render-time resync pattern
+  // StudentWeekView uses for its own mobile day index.
+  const [mobileDayIndex, setMobileDayIndex] = useState(
+    () => requestedDayIndex ?? defaultDayIndex(days, todayISO, isCurrentWeek)
+  );
+  const [syncedMonday, setSyncedMonday] = useState(monday);
+  if (toISODate(monday) !== toISODate(syncedMonday)) {
+    setSyncedMonday(monday);
+    setMobileDayIndex(requestedDayIndex ?? defaultDayIndex(days, todayISO, isCurrentWeek));
+  }
+
+  function goToDayIndex(index: number) {
+    setMobileDayIndex(index);
+  }
+  function goToPrevDay() {
+    if (mobileDayIndex > 0) {
+      setMobileDayIndex(mobileDayIndex - 1);
+    } else {
+      router.push(`/parent?week=${prevWeek}&day=5`);
+    }
+  }
+  function goToNextDay() {
+    if (mobileDayIndex < 5) {
+      setMobileDayIndex(mobileDayIndex + 1);
+    } else {
+      router.push(`/parent?week=${nextWeek}&day=0`);
+    }
+  }
 
   /** §5 "field trips and off days" — reached from each card's own day
    * header now (not a separate strip), and scoped to just that one
@@ -102,6 +160,22 @@ export function ParentWeekBoard({
         </Link>
       </div>
 
+      {/* Below `lg`, six columns per student don't fit — everyone's board
+          instead shows just the one day the pager is on, in step across
+          students, so a parent scanning "today" for both kids swipes once. */}
+      {students.length > 0 && (
+        <div className="lg:hidden">
+          <DayPagerControls
+            activeIndex={mobileDayIndex}
+            labels={DAY_SHORT_LABELS}
+            accentColor={COLORS.text}
+            onSelect={goToDayIndex}
+            onPrev={goToPrevDay}
+            onNext={goToNextDay}
+          />
+        </div>
+      )}
+
       {students.length === 0 && (
         <p className="mt-10 text-sm text-[#6B6B6B]">
           Add a student to start planning.{" "}
@@ -122,6 +196,9 @@ export function ParentWeekBoard({
           schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
           onEdit={setSelectedInstanceId}
           onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
+          mobileDayIndex={mobileDayIndex}
+          onSwipeLeft={goToNextDay}
+          onSwipeRight={goToPrevDay}
         />
       ))}
 
@@ -151,6 +228,9 @@ function StudentBoard({
   schoolDayTypes,
   onEdit,
   onDayTypeChange,
+  mobileDayIndex,
+  onSwipeLeft,
+  onSwipeRight,
 }: {
   student: Student;
   days: Date[];
@@ -159,10 +239,14 @@ function StudentBoard({
   schoolDayTypes: Record<string, SchoolDayType>;
   onEdit: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
+  mobileDayIndex: number;
+  onSwipeLeft: () => void;
+  onSwipeRight: () => void;
 }) {
   // A small activation distance lets a plain click still open the edit
   // modal — only a real drag (past this threshold) starts a reorder/reschedule.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const prefersReducedMotion = !!useReducedMotion();
 
   const byDay = new Map<string, EditableInstance[]>();
   for (const day of days) byDay.set(toISODate(day), []);
@@ -229,7 +313,7 @@ function StudentBoard({
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <div className="mt-3 grid grid-cols-6 gap-4">
+        <div className="mt-3 hidden grid-cols-6 gap-4 lg:grid">
           {days.map((day) => {
             const dateISO = toISODate(day);
             return (
@@ -249,6 +333,34 @@ function StudentBoard({
           })}
         </div>
       </DndContext>
+
+      {(() => {
+        const day = days[mobileDayIndex];
+        const dateISO = toISODate(day);
+        return (
+          <div className="mt-3 lg:hidden">
+            <SwipeDayPager
+              dayKey={dateISO}
+              onSwipeLeft={onSwipeLeft}
+              onSwipeRight={onSwipeRight}
+              prefersReducedMotion={prefersReducedMotion}
+            >
+              <DayCell
+                studentId={student.id}
+                day={day}
+                dateISO={dateISO}
+                isToday={dateISO === todayISO}
+                accentColor={student.accentColor}
+                dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
+                instances={byDay.get(dateISO) ?? []}
+                onEdit={onEdit}
+                onDayTypeChange={onDayTypeChange}
+                enableDrag={false}
+              />
+            </SwipeDayPager>
+          </div>
+        );
+      })()}
     </section>
   );
 }
@@ -263,6 +375,7 @@ function DayCell({
   instances,
   onEdit,
   onDayTypeChange,
+  enableDrag = true,
 }: {
   studentId: string;
   day: Date;
@@ -273,6 +386,11 @@ function DayCell({
   instances: EditableInstance[];
   onEdit: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
+  // The mobile day pager (single day, swipe-driven) passes false: reorder
+  // and cross-day-reschedule drags need the desktop grid's per-student
+  // DndContext and would otherwise contend with the pager's own swipe
+  // gesture for the same touch (see StaticRow).
+  enableDrag?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: dateISO });
   const [adding, setAdding] = useState(false);
@@ -280,6 +398,18 @@ function DayCell({
   const [editingType, setEditingType] = useState(false);
   const submittedRef = useRef(false);
   const tag = TYPE_TAG[dayType];
+
+  // §3's estimatedMinutes, summed for the day — assignment work and project
+  // work kept as two separate totals (project time isn't schoolwork load
+  // the same way, §7) rather than one blended number.
+  let assignmentMinutes = 0;
+  let projectMinutes = 0;
+  for (const instance of instances) {
+    const minutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
+    if (minutes == null) continue;
+    if (instance.project) projectMinutes += minutes;
+    else assignmentMinutes += minutes;
+  }
 
   function submitQuickAdd() {
     if (submittedRef.current) return;
@@ -302,123 +432,139 @@ function DayCell({
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      className="min-h-[100px] rounded border p-3 transition-colors"
-      style={{
-        borderColor: isOver ? COLORS.text : COLORS.hairline,
-        background: isOver ? "#F1F2F4" : "white",
-      }}
-    >
-      {/* §5 "field trips and off days" — click the date itself to change
-          the day's type, matching the student view's two-line date/weekday
-          treatment (§9). */}
-      {editingType ? (
-        <select
-          autoFocus
-          value={dayType}
-          onChange={(event) => {
-            setEditingType(false);
-            onDayTypeChange(dateISO, event.target.value as SchoolDayType);
-          }}
-          onBlur={() => setEditingType(false)}
-          className="w-full rounded border px-1.5 py-1 text-xs"
-          style={{ borderColor: COLORS.hairline, color: COLORS.text }}
-        >
-          {TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setEditingType(true)}
-          className="text-left leading-tight"
-          title="Click to mark this day off, a field trip, sick, or a holiday"
-        >
-          <span
-            className="block font-medium uppercase"
-            style={{ color: COLORS.muted, fontSize: "0.55rem", letterSpacing: "0.05em" }}
-          >
-            {formatDayDateLine(day)}
-          </span>
-          <span
-            className="block font-bold uppercase"
-            style={{
-              color: isToday ? accentColor : tag ? COLORS.amber : COLORS.text,
-              fontSize: isToday ? "1.05rem" : "0.85rem",
-              fontStretch: "condensed",
+    <div className="flex flex-col">
+      <div
+        ref={setNodeRef}
+        className="min-h-[100px] rounded border p-3 transition-colors"
+        style={{
+          borderColor: isOver ? COLORS.text : COLORS.hairline,
+          background: isOver ? "#F1F2F4" : "white",
+        }}
+      >
+        {/* §5 "field trips and off days" — click the date itself to change
+            the day's type, matching the student view's two-line date/weekday
+            treatment (§9). */}
+        {editingType ? (
+          <select
+            autoFocus
+            value={dayType}
+            onChange={(event) => {
+              setEditingType(false);
+              onDayTypeChange(dateISO, event.target.value as SchoolDayType);
             }}
+            onBlur={() => setEditingType(false)}
+            className="w-full rounded border px-1.5 py-1 text-xs"
+            style={{ borderColor: COLORS.hairline, color: COLORS.text }}
           >
-            {formatDayWeekdayName(day)}
-          </span>
-          {tag && (
-            <span className="block" style={{ color: COLORS.amber, fontSize: "0.65rem" }}>
-              {tag}
+            {TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingType(true)}
+            className="text-left leading-tight"
+            title="Click to mark this day off, a field trip, sick, or a holiday"
+          >
+            <span
+              className="block font-medium uppercase"
+              style={{ color: COLORS.muted, fontSize: "0.55rem", letterSpacing: "0.05em" }}
+            >
+              {formatDayDateLine(day)}
             </span>
-          )}
-        </button>
+            <span
+              className="block font-bold uppercase"
+              style={{
+                color: isToday ? accentColor : tag ? COLORS.amber : COLORS.text,
+                fontSize: isToday ? "1.05rem" : "0.85rem",
+                fontStretch: "condensed",
+              }}
+            >
+              {formatDayWeekdayName(day)}
+            </span>
+            {tag && (
+              <span className="block" style={{ color: COLORS.amber, fontSize: "0.65rem" }}>
+                {tag}
+              </span>
+            )}
+          </button>
+        )}
+
+        {enableDrag ? (
+          <SortableContext items={instances.map((instance) => instance.id)} strategy={verticalListSortingStrategy}>
+            <div className="mt-2 flex flex-col">
+              {instances.map((instance, index) => (
+                <DraggableRow
+                  key={instance.id}
+                  instance={instance}
+                  isLast={index === instances.length - 1}
+                  onClick={() => onEdit(instance.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        ) : (
+          <div className="mt-2 flex flex-col">
+            {instances.map((instance, index) => (
+              <StaticRow
+                key={instance.id}
+                instance={instance}
+                isLast={index === instances.length - 1}
+                onClick={() => onEdit(instance.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {adding ? (
+          <input
+            autoFocus
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            onBlur={submitQuickAdd}
+            onKeyDown={handleKeyDown}
+            placeholder="Assignment title"
+            className="mt-2 w-full rounded border border-[#E1E3E6] px-2 py-1 text-sm outline-none"
+          />
+        ) : (
+          <button
+            onClick={() => {
+              submittedRef.current = false;
+              setAdding(true);
+            }}
+            className="mt-2 text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
+          >
+            + Add
+          </button>
+        )}
+      </div>
+      {assignmentMinutes > 0 && (
+        <p className="mt-1 text-center text-xs" style={{ color: COLORS.mutedFaint }}>
+          {formatTotalMinutes(assignmentMinutes)} total
+        </p>
       )}
-
-      <SortableContext items={instances.map((instance) => instance.id)} strategy={verticalListSortingStrategy}>
-        <div className="mt-2 flex flex-col">
-          {instances.map((instance, index) => (
-            <DraggableRow
-              key={instance.id}
-              instance={instance}
-              isLast={index === instances.length - 1}
-              onClick={() => onEdit(instance.id)}
-            />
-          ))}
-        </div>
-      </SortableContext>
-
-      {adding ? (
-        <input
-          autoFocus
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={submitQuickAdd}
-          onKeyDown={handleKeyDown}
-          placeholder="Assignment title"
-          className="mt-2 w-full rounded border border-[#E1E3E6] px-2 py-1 text-sm outline-none"
-        />
-      ) : (
-        <button
-          onClick={() => {
-            submittedRef.current = false;
-            setAdding(true);
-          }}
-          className="mt-2 text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
-        >
-          + Add
-        </button>
+      {projectMinutes > 0 && (
+        <p className="text-center text-xs" style={{ color: COLORS.mutedFaint }}>
+          {formatTotalMinutes(projectMinutes)} project time
+        </p>
       )}
     </div>
   );
 }
 
-function DraggableRow({
-  instance,
-  isLast,
-  onClick,
-}: {
-  instance: EditableInstance;
-  isLast: boolean;
-  onClick: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: instance.id,
-  });
+/** The visual content shared by both row variants below — everything
+ * except the outer element that carries (or doesn't carry) dnd-kit's
+ * sortable wiring. */
+function RowContents({ instance }: { instance: EditableInstance }) {
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   // Mirrors the student view's own read of "done" (§6) — struck through and
   // muted, so the parent board shows at a glance what's actually finished
   // instead of just what's been planned.
   const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
   const rollMark = instance.status === InstanceStatus.open ? formatRollMark(instance.rolledCount) : null;
-  const isTimeSensitive = instance.isTimeSensitive && !!instance.scheduledTime;
 
   // Subject + estimated time underneath the title, matching the student
   // view's meta line (§9) so a parent gets the same at-a-glance context.
@@ -426,6 +572,63 @@ function DraggableRow({
   const metaText = [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null]
     .filter(Boolean)
     .join(" · ");
+
+  return (
+    <>
+      <span
+        aria-hidden
+        className="mt-1 inline-block self-stretch"
+        style={{ width: 2, background: getSubjectColor(instance.subject?.name), flexShrink: 0 }}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-start gap-1.5">
+          <span
+            className="block break-words"
+            style={isDone ? { color: COLORS.muted, textDecorationLine: "line-through" } : undefined}
+          >
+            {instance.title}
+          </span>
+          {rollMark && (
+            <span className="mt-0.5 shrink-0" style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
+              {rollMark}
+            </span>
+          )}
+        </span>
+        {metaText && (
+          <span className="block" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
+            {metaText}
+          </span>
+        )}
+        {/* §12: parent's own quiet confirmation that a time/reminder is set. */}
+        {instance.isTimeSensitive && instance.scheduledTime && (
+          <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+            🕐 {formatScheduledTime(instance.scheduledTime)}
+          </span>
+        )}
+        {isPendingReview && (
+          <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+            ✋ Show Mom
+          </span>
+        )}
+      </span>
+    </>
+  );
+}
+
+/** The outer frame shared by both row variants: the time-sensitive
+ * highlight wash, the return note, and the review controls — everything
+ * that sits around the row itself rather than inside its drag surface. */
+function RowFrame({
+  instance,
+  isLast,
+  children,
+}: {
+  instance: EditableInstance;
+  isLast: boolean;
+  children: ReactNode;
+}) {
+  const isPendingReview = instance.status === InstanceStatus.pendingReview;
+  const isTimeSensitive = instance.isTimeSensitive && !!instance.scheduledTime;
 
   return (
     <div
@@ -447,6 +650,37 @@ function DraggableRow({
           : undefined),
       }}
     >
+      {children}
+
+      {instance.returnNote && (
+        <p className="pl-3 text-xs" style={{ color: COLORS.muted }}>
+          {instance.returnNote}
+        </p>
+      )}
+
+      {/* §5 step 2/4 — approve/return from Parent Mode. Kept outside the
+          draggable node above (no drag listeners here) so these buttons
+          never race dnd-kit's pointer handling. */}
+      {isPendingReview && <ReviewControls instanceId={instance.id} />}
+    </div>
+  );
+}
+
+function DraggableRow({
+  instance,
+  isLast,
+  onClick,
+}: {
+  instance: EditableInstance;
+  isLast: boolean;
+  onClick: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: instance.id,
+  });
+
+  return (
+    <RowFrame instance={instance} isLast={isLast}>
       <div
         ref={setNodeRef}
         {...attributes}
@@ -463,59 +697,33 @@ function DraggableRow({
         }}
         className="flex items-start gap-2 text-sm hover:bg-black/[0.03]"
       >
-        <span
-          aria-hidden
-          className="mt-1 inline-block self-stretch"
-          style={{ width: 2, background: getSubjectColor(instance.subject?.name), flexShrink: 0 }}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-start gap-1.5">
-            <span
-              className="block break-words"
-              style={
-                isDone
-                  ? { color: COLORS.muted, textDecorationLine: "line-through" }
-                  : undefined
-              }
-            >
-              {instance.title}
-            </span>
-            {rollMark && (
-              <span className="mt-0.5 shrink-0" style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
-                {rollMark}
-              </span>
-            )}
-          </span>
-          {metaText && (
-            <span className="block" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
-              {metaText}
-            </span>
-          )}
-          {/* §12: parent's own quiet confirmation that a time/reminder is set. */}
-          {instance.isTimeSensitive && instance.scheduledTime && (
-            <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
-              🕐 {formatScheduledTime(instance.scheduledTime)}
-            </span>
-          )}
-          {isPendingReview && (
-            <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
-              ✋ Show Mom
-            </span>
-          )}
-        </span>
+        <RowContents instance={instance} />
       </div>
+    </RowFrame>
+  );
+}
 
-      {instance.returnNote && (
-        <p className="pl-3 text-xs" style={{ color: COLORS.muted }}>
-          {instance.returnNote}
-        </p>
-      )}
-
-      {/* §5 step 2/4 — approve/return from Parent Mode. Kept outside the
-          draggable node above (no drag listeners here) so these buttons
-          never race dnd-kit's pointer handling. */}
-      {isPendingReview && <ReviewControls instanceId={instance.id} />}
-    </div>
+/** The mobile day pager's row: same look as DraggableRow, minus dnd-kit's
+ * sortable wiring — that gesture surface would otherwise fight
+ * SwipeDayPager's horizontal drag for the same touch (see StudentWeekView's
+ * matching `enableDrag` for the identical reasoning on the student side).
+ * Reordering and cross-day dragging stay desktop-only; a tap still opens
+ * the edit sheet either way. */
+function StaticRow({
+  instance,
+  isLast,
+  onClick,
+}: {
+  instance: EditableInstance;
+  isLast: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <RowFrame instance={instance} isLast={isLast}>
+      <div onClick={onClick} className="flex cursor-pointer items-start gap-2 text-sm hover:bg-black/[0.03]">
+        <RowContents instance={instance} />
+      </div>
+    </RowFrame>
   );
 }
 

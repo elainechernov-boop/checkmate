@@ -21,7 +21,21 @@ import { NewProjectModal } from "./NewProjectModal";
 import { PlanTaskModal } from "./PlanTaskModal";
 import { ProjectsBand } from "./ProjectsBand";
 import { ReminderTakeover } from "./ReminderTakeover";
+import { SwipeDayPager } from "@/components/SwipeDayPager";
+import { DayPagerControls } from "@/components/DayPagerControls";
 import type { StudentInstance, StudentProject } from "./types";
+
+const DAY_SHORT_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** The mobile pager's default landing day: today's own column when browsing
+ * the current week (matching the desktop grid's today-highlight), else
+ * Monday — mirrors defaultWeekStart's "no column reads as today" reasoning
+ * for a week that isn't this one. */
+function defaultDayIndex(days: Date[], todayISO: string, isCurrentWeek: boolean): number {
+  if (!isCurrentWeek) return 0;
+  const index = days.findIndex((day) => toISODate(day) === todayISO);
+  return index === -1 ? 0 : index;
+}
 
 const REFRESH_INTERVAL_MS = 60_000;
 // §12: independent of the 60s data refresh above — this only ever reads
@@ -37,6 +51,7 @@ export function StudentWeekView({
   comingUp,
   projects,
   skipCelebratedGuard,
+  requestedDayIndex,
 }: {
   student: Student;
   monday: Date;
@@ -45,6 +60,9 @@ export function StudentWeekView({
   comingUp: StudentInstance[];
   projects: StudentProject[];
   skipCelebratedGuard: boolean;
+  // Set only when a mobile swipe/arrow carried the student across a week
+  // edge (see page.tsx) — otherwise null, and the default below applies.
+  requestedDayIndex: number | null;
 }) {
   const router = useRouter();
   const prefersReducedMotion = !!useReducedMotion();
@@ -68,6 +86,20 @@ export function StudentWeekView({
   const todayISO = toISODate(today);
   const celebratedKey = `checkmate:celebrated:${student.id}:${todayISO}`;
   const isCurrentWeek = toISODate(monday) === toISODate(defaultWeekStart(today));
+  const days = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(monday, i)), [monday]);
+
+  // The mobile pager's current day, plus the same render-time resync
+  // pattern as instances/projects above — a `monday` change (a week-nav
+  // click, or the boundary-crossing navigation below) always means a fresh
+  // day-index decision, never a carried-over one from the previous week.
+  const [mobileDayIndex, setMobileDayIndex] = useState(
+    () => requestedDayIndex ?? defaultDayIndex(days, todayISO, isCurrentWeek)
+  );
+  const [syncedMonday, setSyncedMonday] = useState(monday);
+  if (toISODate(monday) !== toISODate(syncedMonday)) {
+    setSyncedMonday(monday);
+    setMobileDayIndex(requestedDayIndex ?? defaultDayIndex(days, todayISO, isCurrentWeek));
+  }
 
   // Reset local (optimistic) state when the server hands us a fresh
   // `instances` prop (a week change or the 60s refresh) — done during
@@ -158,7 +190,6 @@ export function StudentWeekView({
     return () => window.clearInterval(interval);
   }, [localInstances, todayISO, reminderInstance, student.id]);
 
-  const days = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(monday, i)), [monday]);
   const weekHasAnyItems = localInstances.length > 0;
   // A backlog task needs somewhere to be dropped, even on an otherwise
   // silent week (§9's "an empty week shows nothing at all" is about there
@@ -177,6 +208,31 @@ export function StudentWeekView({
     if (skipCelebratedGuard) return; // stay re-testable while pinned to a fixed debug date
     setCelebratedToday(true);
     window.localStorage.setItem(celebratedKey, "1");
+  }
+
+  // Mobile pager navigation. Moving within the loaded week is purely local
+  // (every day's instances are already in `localInstances`, so there's
+  // nothing to fetch); crossing either edge means a different week's data
+  // is needed, so that hands off to a real navigation instead — landing on
+  // the far column of the new week (Saturday coming from Monday's "prev,"
+  // Monday coming from Saturday's "next") so the sequence of days reads
+  // continuously across the boundary.
+  function goToDayIndex(index: number) {
+    setMobileDayIndex(index);
+  }
+  function goToPrevDay() {
+    if (mobileDayIndex > 0) {
+      setMobileDayIndex(mobileDayIndex - 1);
+    } else {
+      router.push(`/student/${student.id}?week=${toISODate(addDays(monday, -7))}&day=5`);
+    }
+  }
+  function goToNextDay() {
+    if (mobileDayIndex < 5) {
+      setMobileDayIndex(mobileDayIndex + 1);
+    } else {
+      router.push(`/student/${student.id}?week=${toISODate(addDays(monday, 7))}&day=0`);
+    }
   }
 
   async function handleToggle(instance: StudentInstance, origin: { x: number; y: number }) {
@@ -322,12 +378,12 @@ export function StudentWeekView({
   const selectedInstance = localInstances.find((i) => i.id === selectedInstanceId) ?? null;
 
   return (
-    <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-10 py-10">
+    <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-4 py-6 lg:px-10 lg:py-10">
       <header className="flex items-start justify-between">
-        <h1 className="text-2xl font-medium" style={{ color: student.accentColor }}>
+        <h1 className="text-xl font-medium lg:text-2xl" style={{ color: student.accentColor }}>
           {student.name}&rsquo;s week
         </h1>
-        <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-4 text-sm lg:gap-6">
           <button onClick={() => setComingUpOpen(true)} className="hover:underline" style={{ color: COLORS.muted }}>
             Coming Up
           </button>
@@ -373,31 +429,80 @@ export function StudentWeekView({
 
       <DndContext sensors={bandSensors} onDragEnd={handleWeekDragEnd}>
         {(weekHasAnyItems || hasBacklogTasks) && (
-          <div className="mt-8 grid grid-cols-6 gap-6">
-            {days.map((day) => {
-              const dayISO = toISODate(day);
-              const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
-              const isToday = dayISO === todayISO;
-              return (
-                <DayColumn
-                  key={dayISO}
-                  day={day}
-                  isToday={isToday}
-                  interactive={isToday}
-                  instances={dayInstances}
-                  studentName={student.name}
-                  accentColor={student.accentColor}
-                  prefersReducedMotion={prefersReducedMotion}
-                  celebrated={celebratedToday}
-                  onCelebrate={handleCelebrate}
-                  onToggle={handleToggle}
-                  onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
-                  onReorderOpen={handleReorderOpen}
-                  onApproveViaPasscode={handleApproveViaPasscode}
-                />
-              );
-            })}
-          </div>
+          <>
+            {/* Desktop: the full six-column week (§6). Below `lg`, six
+                columns of full assignment rows have no room to breathe, so
+                a phone gets the swipeable single-day pager instead. */}
+            <div className="mt-8 hidden grid-cols-6 gap-6 lg:grid">
+              {days.map((day) => {
+                const dayISO = toISODate(day);
+                const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
+                const isToday = dayISO === todayISO;
+                return (
+                  <DayColumn
+                    key={dayISO}
+                    day={day}
+                    isToday={isToday}
+                    interactive={isToday}
+                    instances={dayInstances}
+                    studentName={student.name}
+                    accentColor={student.accentColor}
+                    prefersReducedMotion={prefersReducedMotion}
+                    celebrated={celebratedToday}
+                    onCelebrate={handleCelebrate}
+                    onToggle={handleToggle}
+                    onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
+                    onReorderOpen={handleReorderOpen}
+                    onApproveViaPasscode={handleApproveViaPasscode}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="mt-8 lg:hidden">
+              <DayPagerControls
+                activeIndex={mobileDayIndex}
+                labels={DAY_SHORT_LABELS}
+                accentColor={student.accentColor}
+                onSelect={goToDayIndex}
+                onPrev={goToPrevDay}
+                onNext={goToNextDay}
+              />
+              {(() => {
+                const day = days[mobileDayIndex];
+                const dayISO = toISODate(day);
+                const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
+                const isToday = dayISO === todayISO;
+                return (
+                  <SwipeDayPager
+                    dayKey={dayISO}
+                    onSwipeLeft={goToNextDay}
+                    onSwipeRight={goToPrevDay}
+                    prefersReducedMotion={prefersReducedMotion}
+                  >
+                    <div className="mt-3">
+                      <DayColumn
+                        day={day}
+                        isToday={isToday}
+                        interactive={isToday}
+                        instances={dayInstances}
+                        studentName={student.name}
+                        accentColor={student.accentColor}
+                        prefersReducedMotion={prefersReducedMotion}
+                        celebrated={celebratedToday}
+                        onCelebrate={handleCelebrate}
+                        onToggle={handleToggle}
+                        onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
+                        onReorderOpen={handleReorderOpen}
+                        onApproveViaPasscode={handleApproveViaPasscode}
+                        enableDrag={false}
+                      />
+                    </div>
+                  </SwipeDayPager>
+                );
+              })()}
+            </div>
+          </>
         )}
 
         <ProjectsBand

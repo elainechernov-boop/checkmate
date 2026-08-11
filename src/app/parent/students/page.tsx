@@ -6,7 +6,7 @@ export default async function StudentsPage() {
   const students = await prisma.student.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] px-10 py-12 text-[#161616]">
+    <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
       <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
         ← Back to week
       </Link>

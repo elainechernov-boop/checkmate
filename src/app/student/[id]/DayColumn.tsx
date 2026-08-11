@@ -146,6 +146,7 @@ export function DayColumn({
   onOpenDetails,
   onReorderOpen,
   onApproveViaPasscode,
+  enableDrag = true,
 }: {
   day: Date;
   isToday: boolean;
@@ -160,6 +161,11 @@ export function DayColumn({
   onOpenDetails: (instance: StudentInstance) => void;
   onReorderOpen: (orderedIds: string[]) => void;
   onApproveViaPasscode: (instance: StudentInstance, passcode: string, origin: { x: number; y: number }) => Promise<void>;
+  // The mobile single-day pager owns this touch surface for horizontal
+  // paging (SwipeDayPager) — a row-level touch-drag listener underneath it
+  // would fight the page-swipe gesture for the same pointer, so the pager
+  // passes false here and every row renders plain (tap-only) instead.
+  enableDrag?: boolean;
 }) {
   const [showTakeover, setShowTakeover] = useState(false);
   const wasAllDone = useRef<boolean | null>(null);
@@ -227,7 +233,7 @@ export function DayColumn({
     // task left the backlog for anywhere but today). Today's own open
     // items already get this via SortableRow instead, so this only ever
     // fires for a non-today cell.
-    if (!interactive && instance.project && instance.status === InstanceStatus.open) {
+    if (enableDrag && !interactive && instance.project && instance.status === InstanceStatus.open) {
       return <DraggableProjectRow key={instance.id} {...rowProps} />;
     }
 
@@ -290,7 +296,7 @@ export function DayColumn({
             dragged out of place. */}
         {timeSensitive.map(plainRow)}
 
-        {interactive && open.length > 0 ? (
+        {enableDrag && interactive && open.length > 0 ? (
           // Explicit `id` makes dnd-kit's internal aria-describedby id
           // deterministic — without it, dnd-kit derives it from a
           // module-level counter that isn't SSR-safe, causing a harmless
