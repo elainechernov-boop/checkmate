@@ -15,6 +15,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
+import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
 import { AssignmentRow } from "./AssignmentRow";
@@ -184,6 +185,13 @@ export function DayColumn({
     pendingReview.length === 0 &&
     rolled.length === 0;
   const totalRows = rolled.length + timeSensitive.length + open.length + pendingReview.length + completed.length;
+  // A long list of small items adds up to less than it looks like — the
+  // same reassurance Parent Mode's own day cells already give the parent
+  // (formatTotalMinutes), now surfaced to the kid whose list it is.
+  const totalMinutes = instances.reduce((sum, instance) => {
+    const minutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
+    return minutes != null ? sum + minutes : sum;
+  }, 0);
   // The column's true bottom-to-top order (rolled -> time-sensitive -> open
   // -> pendingReview -> completed, §6/§12) regardless of which bucket a row
   // is rendered from — only this one row skips its trailing divider.
@@ -241,94 +249,101 @@ export function DayColumn({
   }
 
   return (
-    <div
-      ref={setDroppableRef}
-      className="rounded border p-3 transition-colors"
-      style={{
-        borderColor: isOver ? accentColor : isToday ? COLORS.text : COLORS.hairline,
-        borderWidth: isToday ? 1.5 : 1,
-        background: isOver ? "#F1F2F4" : "rgba(255,255,255,0.6)",
-      }}
-    >
-      <div className="relative flex items-start justify-between">
-        {/* TeuxDeux's two-line day header (§9): a tiny uppercase date line,
-            the weekday name large and bold directly beneath it — the two
-            sit close together, with almost all the visual weight on the
-            weekday name. Today's name picks up the student's own accent
-            color instead of the near-black default. */}
-        <div className="flex flex-col leading-tight">
-          <span
-            className="font-medium uppercase"
-            style={{ color: COLORS.muted, fontSize: "0.6rem", letterSpacing: "0.06em" }}
-          >
-            {formatDayDateLine(day)}
-          </span>
-          <span
-            className="font-bold uppercase"
-            style={{
-              color: isToday ? accentColor : COLORS.text,
-              fontSize: isToday ? "1.5rem" : "1.15rem",
-              fontStretch: "condensed",
-            }}
-          >
-            {formatDayWeekdayName(day)}
-          </span>
+    <div className="flex flex-col">
+      <div
+        ref={setDroppableRef}
+        className="rounded border p-3 transition-colors"
+        style={{
+          borderColor: isOver ? accentColor : isToday ? COLORS.text : COLORS.hairline,
+          borderWidth: isToday ? 1.5 : 1,
+          background: isOver ? "#F1F2F4" : "rgba(255,255,255,0.6)",
+        }}
+      >
+        <div className="relative flex items-start justify-between">
+          {/* TeuxDeux's two-line day header (§9): a tiny uppercase date line,
+              the weekday name large and bold directly beneath it — the two
+              sit close together, with almost all the visual weight on the
+              weekday name. Today's name picks up the student's own accent
+              color instead of the near-black default. */}
+          <div className="flex flex-col leading-tight">
+            <span
+              className="font-medium uppercase"
+              style={{ color: COLORS.muted, fontSize: "0.6rem", letterSpacing: "0.06em" }}
+            >
+              {formatDayDateLine(day)}
+            </span>
+            <span
+              className="font-bold uppercase"
+              style={{
+                color: isToday ? accentColor : COLORS.text,
+                fontSize: isToday ? "1.5rem" : "1.15rem",
+                fontStretch: "condensed",
+              }}
+            >
+              {formatDayWeekdayName(day)}
+            </span>
+          </div>
+          {showTakeover && (
+            <DayCompleteTakeover
+              studentName={studentName}
+              reducedMotion={prefersReducedMotion}
+              onDone={() => setShowTakeover(false)}
+            />
+          )}
         </div>
-        {showTakeover && (
-          <DayCompleteTakeover
-            studentName={studentName}
-            reducedMotion={prefersReducedMotion}
-            onDone={() => setShowTakeover(false)}
-          />
-        )}
+
+        <div className="mt-2 flex flex-col">
+          {totalRows === 0 && (
+            <p className="py-1 text-center text-sm" style={{ color: COLORS.mutedFaint }}>
+              Nothing due.
+            </p>
+          )}
+
+          {rolled.map(plainRow)}
+          {/* §12: pinned above the student's own drag-order, and — like
+              rolled — rendered as plain (non-sortable) rows so it can't be
+              dragged out of place. */}
+          {timeSensitive.map(plainRow)}
+
+          {enableDrag && interactive && open.length > 0 ? (
+            // Explicit `id` makes dnd-kit's internal aria-describedby id
+            // deterministic — without it, dnd-kit derives it from a
+            // module-level counter that isn't SSR-safe, causing a harmless
+            // but real hydration-attribute mismatch (same fix already used
+            // in ParentWeekBoard.tsx).
+            <DndContext
+              id={`day-${toISODate(day)}`}
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={open.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                {open.map((instance) => (
+                  <SortableRow
+                    key={instance.id}
+                    instance={instance}
+                    prefersReducedMotion={prefersReducedMotion}
+                    isLast={instance.id === lastRowId}
+                    accentColor={accentColor}
+                    onToggle={(origin) => onToggle(instance, origin)}
+                    onOpenDetails={() => onOpenDetails(instance)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          ) : (
+            open.map(plainRow)
+          )}
+
+          {pendingReview.map(plainRow)}
+          {completed.map(plainRow)}
+        </div>
       </div>
-
-      <div className="mt-2 flex flex-col">
-        {totalRows === 0 && (
-          <p className="py-1 text-center text-sm" style={{ color: COLORS.mutedFaint }}>
-            Nothing due.
-          </p>
-        )}
-
-        {rolled.map(plainRow)}
-        {/* §12: pinned above the student's own drag-order, and — like
-            rolled — rendered as plain (non-sortable) rows so it can't be
-            dragged out of place. */}
-        {timeSensitive.map(plainRow)}
-
-        {enableDrag && interactive && open.length > 0 ? (
-          // Explicit `id` makes dnd-kit's internal aria-describedby id
-          // deterministic — without it, dnd-kit derives it from a
-          // module-level counter that isn't SSR-safe, causing a harmless
-          // but real hydration-attribute mismatch (same fix already used
-          // in ParentWeekBoard.tsx).
-          <DndContext
-            id={`day-${toISODate(day)}`}
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={open.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-              {open.map((instance) => (
-                <SortableRow
-                  key={instance.id}
-                  instance={instance}
-                  prefersReducedMotion={prefersReducedMotion}
-                  isLast={instance.id === lastRowId}
-                  accentColor={accentColor}
-                  onToggle={(origin) => onToggle(instance, origin)}
-                  onOpenDetails={() => onOpenDetails(instance)}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        ) : (
-          open.map(plainRow)
-        )}
-
-        {pendingReview.map(plainRow)}
-        {completed.map(plainRow)}
-      </div>
+      {totalMinutes > 0 && (
+        <p className="mt-1 text-center text-xs" style={{ color: COLORS.mutedFaint }}>
+          {formatTotalMinutes(totalMinutes)} total
+        </p>
+      )}
     </div>
   );
 }

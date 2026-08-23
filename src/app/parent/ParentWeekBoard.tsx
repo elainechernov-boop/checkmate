@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
+import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import { getSubjectColor } from "@/lib/subjectColors";
 import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime } from "@/lib/reminders";
@@ -59,15 +60,6 @@ const TYPE_TAG: Record<SchoolDayType, string | null> = {
   holiday: "Holiday",
 };
 
-/** A day's load indicator (§3's "used for the daily load indicator"),
- * shown underneath its box rather than inside it — a summary of the box,
- * not one more row competing with the assignments themselves. */
-function formatTotalMinutes(totalMinutes: number): string {
-  if (totalMinutes < 60) return `${totalMinutes} min`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
-}
 
 export function ParentWeekBoard({
   students,
