@@ -20,11 +20,12 @@ import { AssignmentDetailsModal } from "./AssignmentDetailsModal";
 import { ItemCelebration } from "./ItemCelebration";
 import { NewProjectModal } from "./NewProjectModal";
 import { PlanTaskModal } from "./PlanTaskModal";
+import { IdeasList } from "./IdeasList";
 import { ProjectsBand } from "./ProjectsBand";
 import { ReminderTakeover } from "./ReminderTakeover";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
-import type { StudentInstance, StudentProject } from "./types";
+import type { ProjectIdea, StudentInstance, StudentProject } from "./types";
 
 const DAY_SHORT_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -51,6 +52,7 @@ export function StudentWeekView({
   instances,
   comingUp,
   projects,
+  projectIdeas,
   skipCelebratedGuard,
   requestedDayIndex,
 }: {
@@ -60,6 +62,7 @@ export function StudentWeekView({
   instances: StudentInstance[];
   comingUp: StudentInstance[];
   projects: StudentProject[];
+  projectIdeas: ProjectIdea[];
   skipCelebratedGuard: boolean;
   // Set only when a mobile swipe/arrow carried the student across a week
   // edge (see page.tsx) — otherwise null, and the default below applies.
@@ -548,6 +551,10 @@ export function StudentWeekView({
           prefersReducedMotion={prefersReducedMotion}
         />
       </DndContext>
+
+      {/* Outside the week/projects DndContext above — ideas never drag
+          anywhere, they're a plain list (§7's "someday" scratch list). */}
+      <IdeasList studentId={student.id} accentColor={student.accentColor} ideas={projectIdeas} />
 
       <ComingUpPanel
         open={comingUpOpen}

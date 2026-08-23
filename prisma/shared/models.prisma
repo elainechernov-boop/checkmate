@@ -66,6 +66,7 @@ model Student {
   accentColor String
 
   projects            Project[]
+  projectIdeas        ProjectIdea[]
   assignmentSeries    AssignmentSeries[]
   assignmentInstances AssignmentInstance[]
   schoolDays          SchoolDay[]
@@ -100,6 +101,21 @@ model Project {
 
   series    AssignmentSeries[]
   instances AssignmentInstance[]
+
+  @@index([studentId])
+}
+
+// A student-kept "someday" scratch list, one level lighter than Project
+// itself (§7) — a bare line of text, nothing to schedule or track, until the
+// student decides to promote one into a real Project (moving it out of this
+// list and into the band above as a fresh Project with the idea's text as
+// its name — see projects.ts's promoteProjectIdea).
+model ProjectIdea {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  text      String
+  createdAt DateTime @default(now())
 
   @@index([studentId])
 }

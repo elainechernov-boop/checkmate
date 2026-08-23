@@ -1,4 +1,4 @@
-import type { AssignmentInstance, Project } from "@/generated/prisma/client";
+import type { AssignmentInstance, Project, ProjectIdea } from "@/generated/prisma/client";
 
 export type StudentInstance = AssignmentInstance & {
   subject: { id: string; name: string } | null;
@@ -11,3 +11,6 @@ export type StudentInstance = AssignmentInstance & {
 export type StudentProject = Project & {
   backlogTasks: StudentInstance[];
 };
+
+// §7's "someday" scratch list — plain text, no relations of its own.
+export type { ProjectIdea };

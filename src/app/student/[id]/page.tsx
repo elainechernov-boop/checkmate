@@ -47,7 +47,7 @@ export default async function StudentPage({
     project: { select: { id: true, name: true } },
   } as const;
 
-  const [weekInstances, comingUp, projects] = await Promise.all([
+  const [weekInstances, comingUp, projects, projectIdeas] = await Promise.all([
     prisma.assignmentInstance.findMany({
       where: { studentId: id, dueDate: { gte: monday, lt: weekEnd } },
       include: instanceInclude,
@@ -76,6 +76,7 @@ export default async function StudentPage({
       // untouched project shares sortOrder 0).
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
+    prisma.projectIdea.findMany({ where: { studentId: id }, orderBy: { createdAt: "asc" } }),
   ]);
 
   return (
@@ -86,6 +87,7 @@ export default async function StudentPage({
       instances={weekInstances}
       comingUp={comingUp}
       projects={projects.map(({ instances, ...project }) => ({ ...project, backlogTasks: instances }))}
+      projectIdeas={projectIdeas}
       skipCelebratedGuard={isDebugToday()}
       requestedDayIndex={requestedDayIndex}
     />
