@@ -11,6 +11,7 @@ import {
   editProjectTaskTitle,
   moveProjectTask,
   planProjectTask,
+  reorderProjects,
   unscheduleProjectTask,
   type PlanRecurrenceChoice,
 } from "@/lib/projects";
@@ -65,5 +66,11 @@ export async function editProjectTaskTitleAction(studentId: string, taskId: stri
 
 export async function deleteProjectAction(studentId: string, projectId: string) {
   await deleteProject(prisma, studentId, projectId);
+  revalidatePath(`/student/${studentId}`);
+}
+
+/** §7 "prioritized" — dragging a project card to reorder the band. */
+export async function reorderProjectsAction(studentId: string, orderedIds: string[]) {
+  await reorderProjects(prisma, studentId, orderedIds);
   revalidatePath(`/student/${studentId}`);
 }

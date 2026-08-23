@@ -24,6 +24,7 @@ import { formatScheduledTime } from "@/lib/reminders";
 import { COLORS } from "@/lib/theme";
 import {
   approveReviewAction,
+  deleteAssignment,
   quickCreateAssignment,
   reorderDayInstances,
   rescheduleInstance,
@@ -31,7 +32,6 @@ import {
   setDayType,
 } from "./planner-actions";
 import { EditAssignmentModal, type EditableInstance } from "./EditAssignmentModal";
-import { RescheduleHelperModal, type ReschedulableItem } from "./RescheduleHelperModal";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
 
@@ -90,8 +90,6 @@ export function ParentWeekBoard({
 }) {
   const router = useRouter();
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
-  const [helper, setHelper] = useState<{ studentId: string; dateISO: string } | null>(null);
-  const [reschedulable, setReschedulable] = useState<ReschedulableItem[]>([]);
   const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i));
   const todayISO = toISODate(today);
   const prevWeek = toISODate(addDays(monday, -7));
@@ -133,15 +131,18 @@ export function ParentWeekBoard({
   /** §5 "field trips and off days" — reached from each card's own day
    * header now (not a separate strip), and scoped to just that one
    * student (§5's per-kid sick days/field trips — the family-wide academic
-   * calendar lives on /parent/calendar instead). Re-materializing that
-   * student's series may leave standalone instances behind, which is when
-   * the Reschedule Helper opens. */
+   * calendar lives on /parent/calendar instead). Recurring occurrences on
+   * the day disappear via re-materialization; any standalone instance left
+   * behind moves straight to the next school day — see setDayType. */
   async function handleDayTypeChange(studentId: string, dateISO: string, type: SchoolDayType) {
-    const result = await setDayType(studentId, dateISO, type);
-    if (result.reschedulable.length > 0) {
-      setReschedulable(result.reschedulable);
-      setHelper({ studentId, dateISO });
-    }
+    await setDayType(studentId, dateISO, type);
+  }
+
+  /** The hover-X on each row (Parent Mode only) — a deliberate small target
+   * the parent clicks on purpose, so unlike the edit sheet's delete this
+   * skips any "are you sure": always deletes just this one occurrence. */
+  async function handleDeleteInstance(instanceId: string) {
+    await deleteAssignment(instanceId, "only");
   }
 
   return (
@@ -195,6 +196,7 @@ export function ParentWeekBoard({
           instances={instances.filter((i) => i.studentId === student.id)}
           schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
           onEdit={setSelectedInstanceId}
+          onDelete={handleDeleteInstance}
           onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
           mobileDayIndex={mobileDayIndex}
           onSwipeLeft={goToNextDay}
@@ -208,14 +210,6 @@ export function ParentWeekBoard({
         onClose={() => setSelectedInstanceId(null)}
         prefersReducedMotion={false}
       />
-
-      <RescheduleHelperModal
-        open={!!helper}
-        studentId={helper?.studentId ?? null}
-        dateISO={helper?.dateISO ?? null}
-        items={reschedulable}
-        onClose={() => setHelper(null)}
-      />
     </>
   );
 }
@@ -227,6 +221,7 @@ function StudentBoard({
   instances,
   schoolDayTypes,
   onEdit,
+  onDelete,
   onDayTypeChange,
   mobileDayIndex,
   onSwipeLeft,
@@ -238,6 +233,7 @@ function StudentBoard({
   instances: EditableInstance[];
   schoolDayTypes: Record<string, SchoolDayType>;
   onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
   mobileDayIndex: number;
   onSwipeLeft: () => void;
@@ -327,6 +323,7 @@ function StudentBoard({
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 instances={byDay.get(dateISO) ?? []}
                 onEdit={onEdit}
+                onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
               />
             );
@@ -354,6 +351,7 @@ function StudentBoard({
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 instances={byDay.get(dateISO) ?? []}
                 onEdit={onEdit}
+                onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
                 enableDrag={false}
               />
@@ -374,6 +372,7 @@ function DayCell({
   dayType,
   instances,
   onEdit,
+  onDelete,
   onDayTypeChange,
   enableDrag = true,
 }: {
@@ -385,6 +384,7 @@ function DayCell({
   dayType: SchoolDayType;
   instances: EditableInstance[];
   onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
   // The mobile day pager (single day, swipe-driven) passes false: reorder
   // and cross-day-reschedule drags need the desktop grid's per-student
@@ -502,6 +502,7 @@ function DayCell({
                   instance={instance}
                   isLast={index === instances.length - 1}
                   onClick={() => onEdit(instance.id)}
+                  onDelete={() => onDelete(instance.id)}
                 />
               ))}
             </div>
@@ -514,6 +515,7 @@ function DayCell({
                 instance={instance}
                 isLast={index === instances.length - 1}
                 onClick={() => onEdit(instance.id)}
+                onDelete={() => onDelete(instance.id)}
               />
             ))}
           </div>
@@ -616,15 +618,18 @@ function RowContents({ instance }: { instance: EditableInstance }) {
 }
 
 /** The outer frame shared by both row variants: the time-sensitive
- * highlight wash, the return note, and the review controls — everything
- * that sits around the row itself rather than inside its drag surface. */
+ * highlight wash, the return note, the review controls, and the hover-X
+ * delete — everything that sits around the row itself rather than inside
+ * its drag surface. */
 function RowFrame({
   instance,
   isLast,
+  onDelete,
   children,
 }: {
   instance: EditableInstance;
   isLast: boolean;
+  onDelete: () => void;
   children: ReactNode;
 }) {
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
@@ -632,7 +637,7 @@ function RowFrame({
 
   return (
     <div
-      className="flex flex-col gap-1 rounded-sm px-1 py-0.5"
+      className="group relative flex flex-col gap-1 rounded-sm px-1 py-0.5"
       style={{
         borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}`,
         // §12: mirrors the student view's whole-row highlight (not just the
@@ -662,6 +667,23 @@ function RowFrame({
           draggable node above (no drag listeners here) so these buttons
           never race dnd-kit's pointer handling. */}
       {isPendingReview && <ReviewControls instanceId={instance.id} />}
+
+      {/* Hover-only quick delete — a deliberately small, precise target, so
+          no confirm prompt: a parent clicking a tiny X on purpose is
+          exactly the "no 'are you sure' needed" case. Kept outside the
+          draggable node for the same reason ReviewControls is. */}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
+        aria-label={`Delete ${instance.title}`}
+        title="Delete"
+        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+      >
+        ✕
+      </button>
     </div>
   );
 }
@@ -670,17 +692,19 @@ function DraggableRow({
   instance,
   isLast,
   onClick,
+  onDelete,
 }: {
   instance: EditableInstance;
   isLast: boolean;
   onClick: () => void;
+  onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: instance.id,
   });
 
   return (
-    <RowFrame instance={instance} isLast={isLast}>
+    <RowFrame instance={instance} isLast={isLast} onDelete={onDelete}>
       <div
         ref={setNodeRef}
         {...attributes}
@@ -695,7 +719,7 @@ function DraggableRow({
           cursor: "pointer",
           touchAction: "none",
         }}
-        className="flex items-start gap-2 text-sm hover:bg-black/[0.03]"
+        className="flex items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]"
       >
         <RowContents instance={instance} />
       </div>
@@ -713,14 +737,16 @@ function StaticRow({
   instance,
   isLast,
   onClick,
+  onDelete,
 }: {
   instance: EditableInstance;
   isLast: boolean;
   onClick: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <RowFrame instance={instance} isLast={isLast}>
-      <div onClick={onClick} className="flex cursor-pointer items-start gap-2 text-sm hover:bg-black/[0.03]">
+    <RowFrame instance={instance} isLast={isLast} onDelete={onDelete}>
+      <div onClick={onClick} className="flex cursor-pointer items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]">
         <RowContents instance={instance} />
       </div>
     </RowFrame>

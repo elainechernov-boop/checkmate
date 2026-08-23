@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { useDraggable } from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ProjectStatus } from "@/generated/prisma/enums";
 import { formatComingUpDate } from "@/lib/dates";
@@ -107,19 +108,26 @@ export function ProjectsBand({
       )}
 
       {active.length > 0 && (
-        <div className="mt-3 flex gap-4 overflow-x-auto pb-2">
-          {active.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              studentId={studentId}
-              accentColor={accentColor}
-              onPlanTask={onPlanTask}
-              onOpenDetails={() => setDetailsProjectId(project.id)}
-              awaitingCelebration={project.status === ProjectStatus.completed}
-            />
-          ))}
-        </div>
+        // §7 "prioritized" — reorderable within the same band-level
+        // DndContext StudentWeekView already owns (see its handleWeekDragEnd
+        // for the reorder branch); this only adds the sortable *strategy*,
+        // not a second drag root, so it can't collide with the backlog
+        // tasks' own draggables nested inside each card below.
+        <SortableContext items={active.map((project) => project.id)} strategy={horizontalListSortingStrategy}>
+          <div className="mt-3 flex gap-4 overflow-x-auto pb-2">
+            {active.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                studentId={studentId}
+                accentColor={accentColor}
+                onPlanTask={onPlanTask}
+                onOpenDetails={() => setDetailsProjectId(project.id)}
+                awaitingCelebration={project.status === ProjectStatus.completed}
+              />
+            ))}
+          </div>
+        </SortableContext>
       )}
 
       {finished.length > 0 && <FinishedStack projects={finished} onOpenDetails={setDetailsProjectId} />}
@@ -162,6 +170,7 @@ function ProjectCard({
 }) {
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: project.id });
 
   function submit() {
     const trimmed = text.trim();
@@ -181,10 +190,43 @@ function ProjectCard({
   }
 
   return (
-    <div className="w-56 shrink-0 rounded border p-3" style={{ borderColor: COLORS.hairline, background: "rgba(255,255,255,0.4)" }}>
-      <button type="button" onClick={onOpenDetails} className="block w-full truncate text-left text-sm font-medium hover:underline" style={{ color: COLORS.text }}>
-        {project.name}
-      </button>
+    <div
+      ref={setNodeRef}
+      className="w-56 shrink-0 rounded border p-3"
+      style={{
+        borderColor: COLORS.hairline,
+        background: "rgba(255,255,255,0.4)",
+        transform: CSS.Transform.toString(transform),
+        transition: transition ?? undefined,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : undefined,
+        position: "relative",
+      }}
+    >
+      <div className="flex items-start gap-1">
+        {/* The card's own drag handle (§7 "prioritized") — a dedicated
+            target, not the whole card, so it never competes with the
+            backlog tasks' own drag-to-day gesture nested inside it. */}
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Reorder ${project.name}`}
+          title="Drag to reorder"
+          className="mt-0.5 shrink-0 cursor-grab touch-none text-xs leading-none"
+          style={{ color: COLORS.mutedFaint, touchAction: "none" }}
+        >
+          ⠿
+        </button>
+        <button
+          type="button"
+          onClick={onOpenDetails}
+          className="block min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
+          style={{ color: COLORS.text }}
+        >
+          {project.name}
+        </button>
+      </div>
       {awaitingCelebration ? (
         <button type="button" onClick={onOpenDetails} className="text-xs hover:underline" style={{ color: accentColor }}>
           🎉 All done — open to finish!

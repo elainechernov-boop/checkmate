@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, toISODate } from "@/lib/dates";
@@ -12,7 +13,7 @@ import { COLORS } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
 import { approveReviewViaPasscode, reorderOpenItems, toggleInstance } from "./actions";
-import { moveProjectTaskAction } from "./projectActions";
+import { moveProjectTaskAction, reorderProjectsAction } from "./projectActions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
 import { AssignmentDetailsModal } from "./AssignmentDetailsModal";
@@ -308,8 +309,31 @@ export function StudentWeekView({
   async function handleWeekDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
-    const taskId = String(active.id);
-    const dateISO = String(over.id);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // §7 "prioritized" — reordering the project cards themselves. Both ends
+    // of the drag are project ids here, never a day column or a task, so
+    // this branch has to run before the day/task lookups below.
+    if (localProjects.some((p) => p.id === activeId)) {
+      if (activeId === overId) return;
+      const previousOrder = localProjects;
+      const ids = previousOrder.map((p) => p.id);
+      const oldIndex = ids.indexOf(activeId);
+      const newIndex = ids.indexOf(overId);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const reordered = arrayMove(previousOrder, oldIndex, newIndex);
+      setLocalProjects(reordered);
+      try {
+        await reorderProjectsAction(student.id, reordered.map((p) => p.id));
+      } catch {
+        setLocalProjects(previousOrder);
+      }
+      return;
+    }
+
+    const taskId = activeId;
+    const dateISO = overId;
     const targetDay = days.find((day) => toISODate(day) === dateISO);
     if (!targetDay) return;
 
@@ -427,7 +451,17 @@ export function StudentWeekView({
         </p>
       )}
 
-      <DndContext sensors={bandSensors} onDragEnd={handleWeekDragEnd}>
+      {/* Explicit `id`, same reasoning as ParentWeekBoard's own DndContext:
+          without it, dnd-kit's internal aria-describedby id comes from a
+          module-level counter that isn't SSR-safe, which is a real
+          hydration-attribute mismatch once more than one draggable is
+          registered (now true here too, with the project cards sortable). */}
+      <DndContext
+        id={`student-week-${student.id}`}
+        sensors={bandSensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleWeekDragEnd}
+      >
         {(weekHasAnyItems || hasBacklogTasks) && (
           <>
             {/* Desktop: the full six-column week (§6). Below `lg`, six

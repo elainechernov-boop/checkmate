@@ -9,6 +9,7 @@ import {
   editProjectTaskTitle,
   moveProjectTask,
   planProjectTask,
+  reorderProjects,
 } from "./projects";
 import { rollOverdueInstances } from "./rollForward";
 import { makeStudent, markSchoolDay } from "./test/fixtures";
@@ -181,5 +182,35 @@ describe("permission checks (§2/§7): students cannot touch parent-assigned ite
     await expect(editProjectTaskTitle(prisma, intruder.id, task.id, "Not yours")).rejects.toThrow(
       ProjectPermissionError
     );
+  });
+});
+
+describe("reorderProjects (§7 'prioritized')", () => {
+  it("applies the given order as each project's sortOrder", async () => {
+    const student = await makeStudent(prisma);
+    const a = await createProject(prisma, student.id, "A", null);
+    const b = await createProject(prisma, student.id, "B", null);
+    const c = await createProject(prisma, student.id, "C", null);
+
+    await reorderProjects(prisma, student.id, [c.id, a.id, b.id]);
+
+    const [reloadedA, reloadedB, reloadedC] = await Promise.all(
+      [a.id, b.id, c.id].map((id) => prisma.project.findUniqueOrThrow({ where: { id } }))
+    );
+    expect(reloadedC.sortOrder).toBe(0);
+    expect(reloadedA.sortOrder).toBe(1);
+    expect(reloadedB.sortOrder).toBe(2);
+  });
+
+  it("ignores ids that aren't this student's own project", async () => {
+    const owner = await makeStudent(prisma, { name: "Miles" });
+    const intruder = await makeStudent(prisma, { name: "Nora" });
+    const ownProject = await createProject(prisma, owner.id, "Mine", null);
+    const othersProject = await createProject(prisma, intruder.id, "Theirs", null);
+
+    await reorderProjects(prisma, owner.id, [othersProject.id, ownProject.id]);
+
+    const reloadedOthers = await prisma.project.findUniqueOrThrow({ where: { id: othersProject.id } });
+    expect(reloadedOthers.sortOrder).toBe(0); // untouched — not owner's to reorder
   });
 });

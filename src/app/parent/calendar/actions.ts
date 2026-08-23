@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, parseISODate } from "@/lib/dates";
 import { materializeSeries } from "@/lib/materialize";
+import { applyRescheduleHelper } from "@/lib/rescheduleHelper";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
 
 /** Re-materializing every series after a calendar change matches
@@ -39,6 +40,21 @@ export async function applyDayTypeRange(formData: FormData) {
     }
   }
   await rematerializeAllSeries();
+
+  // Same catch-up as the single-day toggle (planner-actions.ts's
+  // setDayType): recurring occurrences across the range are already gone
+  // via rematerialization above; whatever standalone work is left on each
+  // now-blocked day moves straight to the next school day, one date at a
+  // time so a multi-day closure (a week-long trip, say) doesn't just pile
+  // everything onto the first school day after the range starts.
+  if (type !== SchoolDayType.schoolDay) {
+    for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+      for (const student of students) {
+        await applyRescheduleHelper(prisma, student.id, cursor, { mode: "nextSchoolDay" });
+      }
+    }
+  }
+
   revalidatePath("/parent/calendar");
   revalidatePath("/parent");
 }

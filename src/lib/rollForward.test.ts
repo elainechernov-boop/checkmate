@@ -31,7 +31,7 @@ async function makeOpenInstance(studentId: string, subjectId: string, title: str
 }
 
 describe("rollOverdueInstances (§5 daily auto-roll)", () => {
-  it("skips a weekend: an unfinished Friday item doesn't roll onto a blocked Saturday, but does roll onto Monday", async () => {
+  it("skips a weekend: an unfinished Friday item rolls straight onto Monday, even if checked over the weekend", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma);
     const friday = parseISODate("2026-08-07");
@@ -42,18 +42,33 @@ describe("rollOverdueInstances (§5 daily auto-roll)", () => {
 
     const item = await makeOpenInstance(student.id, subject.id, "Reading", friday);
 
+    // Opening the app on the blocked Saturday doesn't strand the item there
+    // (or leave it silently un-rolled) — it lands straight on the next
+    // actual school day, Monday, in one step.
     const satResult = await rollOverdueInstances(prisma, student.id, saturday);
-    expect(satResult.rolledCount).toBe(0);
-    const stillFriday = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: item.id } });
-    expect(toISODate(stillFriday.dueDate!)).toBe("2026-08-07");
-    expect(stillFriday.rolledCount).toBe(0);
-
-    const monResult = await rollOverdueInstances(prisma, student.id, monday);
-    expect(monResult.rolledCount).toBe(1);
+    expect(satResult.rolledCount).toBe(1);
     const rolled = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: item.id } });
     expect(toISODate(rolled.dueDate!)).toBe("2026-08-10");
     expect(rolled.rolledCount).toBe(1);
     expect(toISODate(rolled.originalDueDate!)).toBe("2026-08-07"); // unchanged — the roll mark's basis
+
+    // Re-running on Monday itself is a no-op — it's already there.
+    const monResult = await rollOverdueInstances(prisma, student.id, monday);
+    expect(monResult.rolledCount).toBe(0);
+  });
+
+  it("Sunday never a landing day: an item due Saturday rolls onto Monday even though Sunday itself is unmarked", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    const saturday = parseISODate("2026-08-08");
+    const sunday = parseISODate("2026-08-09");
+
+    const item = await makeOpenInstance(student.id, subject.id, "Reading", saturday);
+
+    const result = await rollOverdueInstances(prisma, student.id, sunday);
+    expect(result.rolledCount).toBe(1);
+    const rolled = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: item.id } });
+    expect(toISODate(rolled.dueDate!)).toBe("2026-08-10"); // Monday, not Sunday — §6 has no Sunday column
   });
 
   it("leaves a pendingReview item exactly where it is — it holds its day", async () => {

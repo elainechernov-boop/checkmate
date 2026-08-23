@@ -17,7 +17,7 @@ import {
 } from "@/lib/assignmentEdits";
 import { materializeSeries } from "@/lib/materialize";
 import { reorderInstancesForDay } from "@/lib/reorderInstances";
-import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
+import { applyRescheduleHelper } from "@/lib/rescheduleHelper";
 import { approveReview, returnReview } from "@/lib/reviewActions";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
 
@@ -63,11 +63,13 @@ export async function returnReviewAction(instanceId: string, note: string) {
  * §5 "field trips and off days" — for one student (the family-wide
  * academic calendar is calendar/actions.ts's applyDayTypeRange, which just
  * calls this once per student). Changing a day's type re-materializes that
- * student's own series so series-generated occurrences on it correctly
- * disappear (daily/weekdays already lands on the next valid day per §3; a
- * weekly-on-specific-day occurrence is simply omitted) — then reports back
- * whatever's left over (standalone or individually-moved instances) so the
- * client can decide whether to open the Reschedule Helper.
+ * student's own series so series-generated (recurring) occurrences on it
+ * correctly disappear — they'll get another chance whenever the series
+ * next generates, no rescheduling needed. Whatever's left over (standalone
+ * or individually-edited instances, which nothing else will move) goes
+ * straight to the next school day, same as an overdue item's own roll —
+ * no prompt, since "move it to the next school day" is the only sensible
+ * outcome for a one-off that just lost its day.
  */
 export async function setDayType(studentId: string, dateISO: string, type: SchoolDayType) {
   const date = parseISODate(dateISO);
@@ -78,35 +80,10 @@ export async function setDayType(studentId: string, dateISO: string, type: Schoo
     await materializeSeries(prisma, series.id);
   }
 
-  revalidatePath("/parent");
-
-  if (type === SchoolDayType.schoolDay) {
-    return { reschedulable: [] as { id: string; title: string; studentName: string }[] };
+  if (type !== SchoolDayType.schoolDay) {
+    await applyRescheduleHelper(prisma, studentId, date, { mode: "nextSchoolDay" });
   }
 
-  const remaining = await findReschedulableInstances(prisma, studentId, date);
-  return {
-    reschedulable: remaining.map((instance) => ({
-      id: instance.id,
-      title: instance.title,
-      studentName: instance.student.name,
-    })),
-  };
-}
-
-export async function applyReschedule(
-  studentId: string,
-  dateISO: string,
-  mode: "nextSchoolDay" | "chosenDate" | "distribute",
-  chosenDateISO?: string
-) {
-  const date = parseISODate(dateISO);
-  await applyRescheduleHelper(
-    prisma,
-    studentId,
-    date,
-    mode === "chosenDate" ? { mode, date: parseISODate(chosenDateISO ?? dateISO) } : { mode }
-  );
   revalidatePath("/parent");
 }
 

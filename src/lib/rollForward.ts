@@ -1,30 +1,50 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { startOfUTCDay } from "./dates";
+import { addDays, startOfUTCDay } from "./dates";
 import { isBlockedDay, loadSchoolDayMap } from "./schoolCalendar";
 
 type RollablePrisma = Pick<PrismaClient, "assignmentInstance" | "schoolDay" | "$transaction">;
 
+const ROLL_LOOKAHEAD_DAYS = 14;
+
+// A blocked `asOf` (weekend, holiday, field trip) used to make the whole
+// roll a no-op — overdue items just sat waiting at their old dueDate until
+// someone happened to load the app again on a valid school day. That left
+// them stranded on whatever day they *did* land on if it fell outside the
+// visible week (a Sunday reopen after a break rolls onto Sunday, which has
+// no column at all — see §6). Instead, walk forward from `asOf` to the next
+// actual school day and land everything there directly, so "I opened the
+// app on a day off" behaves exactly like "I opened it on the next school
+// day" — always somewhere the student can actually see it.
+async function nextSchoolDayOnOrAfter(prisma: RollablePrisma, studentId: string, date: Date): Promise<Date> {
+  const horizonEnd = addDays(date, ROLL_LOOKAHEAD_DAYS);
+  const schoolDayMap = await loadSchoolDayMap(prisma, studentId, date, horizonEnd);
+  let cursor = date;
+  while (isBlockedDay(schoolDayMap, cursor)) {
+    cursor = addDays(cursor, 1);
+  }
+  return cursor;
+}
+
 /**
  * §5's "unfinished work rolls forward automatically." Every still-`open`
- * instance due before `asOf` moves onto `asOf` and its rolledCount ticks up
- * by one — but only when `asOf` is itself a valid school day; a blocked
- * `asOf` (weekend, field trip, etc.) means nothing rolls onto it at all, so
- * overdue items simply keep waiting at their current dueDate ("skips
- * non-school days"). `pendingReview` items are excluded by construction
- * (only `open` is touched) — they hold their day until approved or returned.
+ * instance due before the next valid school day on or after `asOf` moves
+ * onto that day and its rolledCount ticks up by one — landing on the next
+ * *school* day rather than literally "today" is what makes a Sunday (or a
+ * marked-off day) reopen show Monday's catch-up instead of stranding items
+ * on a day with no column. `pendingReview` items are excluded by
+ * construction (only `open` is touched) — they hold their day until
+ * approved or returned.
  */
 export async function rollOverdueInstances(
   prisma: RollablePrisma,
   studentId: string,
   asOf: Date = startOfUTCDay(new Date())
 ): Promise<{ rolledCount: number }> {
-  const today = startOfUTCDay(asOf);
-  const schoolDayMap = await loadSchoolDayMap(prisma, studentId, today, today);
-  if (isBlockedDay(schoolDayMap, today)) return { rolledCount: 0 };
+  const target = await nextSchoolDayOnOrAfter(prisma, studentId, startOfUTCDay(asOf));
 
   const overdue = await prisma.assignmentInstance.findMany({
-    where: { studentId, status: InstanceStatus.open, dueDate: { lt: today } },
+    where: { studentId, status: InstanceStatus.open, dueDate: { lt: target } },
   });
   if (overdue.length === 0) return { rolledCount: 0 };
 
@@ -32,7 +52,7 @@ export async function rollOverdueInstances(
     overdue.map((instance) =>
       prisma.assignmentInstance.update({
         where: { id: instance.id },
-        data: { dueDate: today, rolledCount: instance.rolledCount + 1 },
+        data: { dueDate: target, rolledCount: instance.rolledCount + 1 },
       })
     )
   );

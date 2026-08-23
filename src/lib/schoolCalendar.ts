@@ -7,8 +7,12 @@ export type SchoolDayMap = Map<string, SchoolDayType>;
 // Only days explicitly marked in the school calendar block generation; any
 // date with no SchoolDay row (or one explicitly typed `schoolDay`) is a
 // normal school day (§3, §8 — the calendar records exceptions, not every
-// valid day up front).
+// valid day up front). Sunday is the one hard-coded exception: the week
+// view never has a column for it (§6 is Monday-Saturday, full stop), so
+// nothing that lands here may ever target a Sunday — even an explicit
+// `schoolDay` row can't override that, unlike every other exception type.
 export function isBlockedDay(map: SchoolDayMap, date: Date): boolean {
+  if (date.getUTCDay() === 0) return true;
   const type = map.get(toISODate(date));
   return type !== undefined && type !== SchoolDayType.schoolDay;
 }

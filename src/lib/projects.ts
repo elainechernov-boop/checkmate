@@ -71,6 +71,23 @@ export async function createProject(
   });
 }
 
+/** §7 "prioritized" — drag-reordering the project cards themselves within
+ * the band, the same convention as reorderInstances.ts's day reorders.
+ * `orderedIds` is trusted only for this student's own projects; anything
+ * else (another student's project, a stale id) is silently dropped. */
+export async function reorderProjects(prisma: ProjectsPrisma, studentId: string, orderedIds: string[]): Promise<void> {
+  if (orderedIds.length === 0) return;
+
+  const projects = await prisma.project.findMany({ where: { id: { in: orderedIds }, studentId } });
+  const validIds = new Set(projects.map((p) => p.id));
+  const idsToReorder = orderedIds.filter((id) => validIds.has(id));
+  if (idsToReorder.length === 0) return;
+
+  await prisma.$transaction(
+    idsToReorder.map((id, index) => prisma.project.update({ where: { id }, data: { sortOrder: index } }))
+  );
+}
+
 /** A student deleting one of their own projects entirely — everything under
  * it (series, whose RecurrenceRule cascades, and instances) goes too, same
  * as Parent Mode's own delete (parent/projects/actions.ts), just

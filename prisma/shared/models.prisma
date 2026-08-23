@@ -91,6 +91,10 @@ model Project {
   subjectId  String?
   subject    Subject?      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   status     ProjectStatus @default(active)
+  // §7 "prioritized" — the student's own drag-order for the Projects band,
+  // same convention as AssignmentInstance.sortOrder (ties break on
+  // createdAt, so untouched projects keep their creation order).
+  sortOrder  Int           @default(0)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 

@@ -71,7 +71,10 @@ export default async function StudentPage({
           orderBy: { createdAt: "asc" },
         },
       },
-      orderBy: { createdAt: "asc" },
+      // §7 "prioritized" — the student's own drag-order first, falling back
+      // to creation order for anything never manually reordered (every
+      // untouched project shares sortOrder 0).
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
   ]);
 
