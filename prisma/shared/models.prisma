@@ -155,12 +155,32 @@ model AssignmentSeries {
   scheduledTime         String?
   reminderMinutesBefore Int?
 
-  instances AssignmentInstance[]
+  instances          AssignmentInstance[]
+  removedOccurrences RemovedOccurrence[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([studentId])
+}
+
+// A series occurrence deleted via "this assignment only" (§4/§5) — the
+// negative-space counterpart to an AssignmentInstance row. materializeSeries
+// only ever skips creating an occurrence it can see an existing instance
+// for; a hard delete alone leaves that date looking exactly like one that
+// was simply never generated yet, so the next materialization pass would
+// otherwise recreate it as a fresh open instance. Recording the date here
+// (keyed the same way as AssignmentInstance.originalDueDate) tells
+// materializeSeries to permanently skip it instead, the same way a capped
+// series endDate already does for "this and following" deletes.
+model RemovedOccurrence {
+  id       String           @id @default(cuid())
+  seriesId String
+  series   AssignmentSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  date     DateTime
+
+  @@unique([seriesId, date])
+  @@index([seriesId])
 }
 
 model RecurrenceRule {

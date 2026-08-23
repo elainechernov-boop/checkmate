@@ -6,7 +6,13 @@ import { materializeSeries } from "./materialize";
 
 type ProjectsPrisma = Pick<
   PrismaClient,
-  "project" | "assignmentInstance" | "assignmentSeries" | "recurrenceRule" | "schoolDay" | "$transaction"
+  | "project"
+  | "assignmentInstance"
+  | "assignmentSeries"
+  | "recurrenceRule"
+  | "schoolDay"
+  | "removedOccurrence"
+  | "$transaction"
 >;
 
 export class ProjectPermissionError extends Error {}

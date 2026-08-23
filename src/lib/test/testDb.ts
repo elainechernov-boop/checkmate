@@ -17,6 +17,7 @@ export function createTestClient(): PrismaClient {
 export async function resetDb(prisma: PrismaClient) {
   await prisma.assignmentInstance.deleteMany();
   await prisma.recurrenceRule.deleteMany();
+  await prisma.removedOccurrence.deleteMany();
   await prisma.assignmentSeries.deleteMany();
   await prisma.project.deleteMany();
   await prisma.projectIdea.deleteMany();

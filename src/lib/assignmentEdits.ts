@@ -258,13 +258,29 @@ export async function rescheduleInstance(
   }
 }
 
-/** "This assignment only" — removes just the one row the parent picked,
- * whatever its status. An explicit single-item delete is fully trusted. */
+/**
+ * "This assignment only" — removes just the one row the parent picked,
+ * whatever its status. An explicit single-item delete is fully trusted.
+ *
+ * When the row belongs to a series, materializeSeries would otherwise
+ * recreate it the next time it runs (a hard delete leaves that date looking
+ * exactly like one that was simply never generated yet) — recording it as a
+ * RemovedOccurrence tells materializeSeries to permanently skip that date
+ * instead, the way it needs the parent's actual intent to be preserved.
+ */
 export async function deleteInstanceOnly(
-  prisma: Pick<PrismaClient, "assignmentInstance">,
+  prisma: Pick<PrismaClient, "assignmentInstance" | "removedOccurrence">,
   instanceId: string
 ): Promise<void> {
+  const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
   await prisma.assignmentInstance.delete({ where: { id: instanceId } });
+  if (instance.seriesId && instance.originalDueDate) {
+    await prisma.removedOccurrence.upsert({
+      where: { seriesId_date: { seriesId: instance.seriesId, date: instance.originalDueDate } },
+      create: { seriesId: instance.seriesId, date: instance.originalDueDate },
+      update: {},
+    });
+  }
 }
 
 /** "This and following" — caps the series so it stops generating on/after

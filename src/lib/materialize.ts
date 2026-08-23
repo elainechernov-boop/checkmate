@@ -148,7 +148,10 @@ function addMonthsClamped(start: Date, monthsToAdd: number): Date {
   return new Date(Date.UTC(targetYear, targetMonth, day));
 }
 
-type MaterializablePrisma = Pick<PrismaClient, "assignmentSeries" | "assignmentInstance" | "schoolDay">;
+type MaterializablePrisma = Pick<
+  PrismaClient,
+  "assignmentSeries" | "assignmentInstance" | "schoolDay" | "removedOccurrence"
+>;
 
 /**
  * Syncs an AssignmentSeries' future instances against its current
@@ -186,8 +189,20 @@ export async function materializeSeries(
     endCount: series.endCount,
   };
 
+  // Dates explicitly deleted via "this assignment only" (assignmentEdits.ts's
+  // deleteInstanceOnly) — permanently excluded, the same way a capped
+  // series endDate already stops "this and following" deletes from
+  // regenerating, so a parent's single-occurrence delete actually sticks.
+  const removed = await prisma.removedOccurrence.findMany({
+    where: { seriesId, date: { gte: asOf, lte: horizonEnd } },
+    select: { date: true },
+  });
+  const removedKeys = new Set(removed.map((r) => toISODate(r.date)));
+
   const allOccurrences = computeOccurrenceDates(occurrenceInput, isBlocked, horizonEnd);
-  const futureOccurrences = allOccurrences.filter((date) => date >= asOf);
+  const futureOccurrences = allOccurrences
+    .filter((date) => date >= asOf)
+    .filter((date) => !removedKeys.has(toISODate(date)));
   const futureKeys = new Set(futureOccurrences.map(toISODate));
 
   // Matched by originalDueDate, not the current dueDate — §5's roll-forward

@@ -347,6 +347,30 @@ describe("deleteInstanceOnly", () => {
     const siblings = await prisma.assignmentInstance.count({ where: { seriesId: series.id } });
     expect(siblings).toBeGreaterThan(0); // the rest of the series is untouched
   });
+
+  it("doesn't come back when the series re-materializes (regression: deleting a future occurrence used to silently repopulate it)", async () => {
+    const { series } = await makeWeekdaysSeries(prisma);
+    const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+    });
+
+    await deleteInstanceOnly(prisma, wednesday.id);
+    // Re-run materialization the way a normal page load does (e.g. the next
+    // day's extendAllMaterializationHorizons) — this used to recreate the
+    // just-deleted date as a fresh open instance.
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+
+    const resurrected = await prisma.assignmentInstance.findFirst({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+    });
+    expect(resurrected).toBeNull();
+
+    // Its neighbors still materialize normally — only that one date is gone.
+    const thursday = await prisma.assignmentInstance.findFirst({
+      where: { seriesId: series.id, dueDate: parseISODate("2026-08-06") },
+    });
+    expect(thursday).not.toBeNull();
+  });
 });
 
 describe("deleteSeriesThisAndFollowing", () => {
