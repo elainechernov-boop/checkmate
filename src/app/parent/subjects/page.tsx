@@ -15,8 +15,8 @@ export default async function SubjectsPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-medium">Subjects</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
-        Work-sample category maps to Blue Ridge&rsquo;s four eligible categories (§8). Faith-integrated
-        subjects are excluded from work samples.
+        Report category is what the HST report&rsquo;s hours-by-subject breakdown groups by — Math, ELA, Science, and
+        History; leave it as &ldquo;none&rdquo; for anything else (Latin, Art, Scouts, …).
       </p>
 
       <div className="mt-8 space-y-4">
@@ -39,7 +39,7 @@ export default async function SubjectsPage() {
               name="workSampleCategory"
               defaultValue={subject.workSampleCategory}
               className="rounded border border-[#E1E3E6] px-3 py-2"
-              aria-label="Work sample category"
+              aria-label="Report category"
             >
               {CATEGORY_OPTIONS.map((option) => (
                 <option key={option} value={option}>

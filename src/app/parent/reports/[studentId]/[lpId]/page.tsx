@@ -1,10 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { WorkSampleCategory } from "@/generated/prisma/enums";
 import { buildHSTReport } from "@/lib/hstReport";
 import { formatComingUpDate } from "@/lib/dates";
+import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import { COLORS } from "@/lib/theme";
 import { PrintButton } from "../../PrintButton";
+
+const CATEGORY_LABEL: Record<WorkSampleCategory, string> = {
+  math: "Math",
+  languageArts: "ELA",
+  science: "Science",
+  socialStudies: "History",
+  none: "—",
+};
 
 export default async function HSTReportPage({
   params,
@@ -42,59 +52,16 @@ export default async function HSTReportPage({
 
         <section className="mt-8">
           <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
-            Attendance
+            Hours by subject
           </h2>
-          <p className="mt-2 text-sm">
-            {report.attendance.presentCount} / {report.attendance.schoolDayCount} school days present
-            {report.attendance.allClaimed ? " · all claimed" : " · not all claimed yet"}
-          </p>
-        </section>
-
-        <section className="mt-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
-            Work samples
-          </h2>
-          {report.workSamples.length === 0 ? (
-            <p className="mt-2 text-sm" style={{ color: COLORS.mutedFaint }}>
-              None flagged for this learning period yet.
-            </p>
-          ) : (
-            <table className="mt-2 w-full text-left text-sm">
-              <thead>
-                <tr style={{ color: COLORS.muted }}>
-                  <th className="border-b py-1 pr-3 font-medium" style={{ borderColor: COLORS.hairline }}>
-                    Title
-                  </th>
-                  <th className="border-b py-1 pr-3 font-medium" style={{ borderColor: COLORS.hairline }}>
-                    Subject
-                  </th>
-                  <th className="border-b py-1 font-medium" style={{ borderColor: COLORS.hairline }}>
-                    Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.workSamples.map((sample) => (
-                  <tr key={sample.id}>
-                    <td className="border-b py-1 pr-3" style={{ borderColor: COLORS.hairline }}>
-                      {sample.title}
-                      {sample.note && (
-                        <span className="block text-xs" style={{ color: COLORS.muted }}>
-                          {sample.note}
-                        </span>
-                      )}
-                    </td>
-                    <td className="border-b py-1 pr-3" style={{ borderColor: COLORS.hairline }}>
-                      {sample.subjectName}
-                    </td>
-                    <td className="border-b py-1" style={{ borderColor: COLORS.hairline }}>
-                      {formatComingUpDate(sample.completionDate)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <dl className="mt-2 flex flex-col gap-1 text-sm">
+            {report.hoursByCategory.map(({ category, minutes }) => (
+              <div key={category} className="flex justify-between border-b py-1" style={{ borderColor: COLORS.hairline }}>
+                <dt style={{ color: COLORS.muted }}>{CATEGORY_LABEL[category]}</dt>
+                <dd>{minutes > 0 ? formatTotalMinutes(minutes) : "—"}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
         <section className="mt-8">

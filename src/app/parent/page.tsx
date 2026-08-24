@@ -1,23 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { WorkSampleCategory } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
-import { loadAttendanceRange, summarizeAttendance } from "@/lib/attendance";
-import { getCurrentLearningPeriod, getWorkSampleCoverage } from "@/lib/hstReport";
+import { getCurrentLearningPeriod } from "@/lib/hstReport";
 import { COLORS } from "@/lib/theme";
 import { ParentNavMenu } from "./ParentNavMenu";
 import { ParentWeekBoard } from "./ParentWeekBoard";
-
-const CATEGORY_LABEL: Record<WorkSampleCategory, string> = {
-  math: "Math",
-  languageArts: "ELA",
-  science: "Science",
-  socialStudies: "Soc. Studies",
-  none: "—",
-};
 
 export default async function ParentPage({
   searchParams,
@@ -79,20 +69,14 @@ export default async function ParentPage({
     )
   );
 
-  // §8 dashboard card: days until LP end, attendance claimed?, work samples
-  // flagged per category — scoped to whichever learning period covers today.
+  // The current learning period, if any covers today — just enough to point
+  // a parent at the HST report when it's coming up; attendance and work
+  // samples are tracked in Blue Ridge's own portal and Google Drive, not
+  // here, so there's nothing else to surface on this card.
   const currentLP = await getCurrentLearningPeriod(prisma, today);
-  const dashboardCards = currentLP
-    ? await Promise.all(
-        students.map(async (student) => {
-          const days = await loadAttendanceRange(prisma, student.id, currentLP.startDate, currentLP.endDate);
-          const attendance = summarizeAttendance(days);
-          const coverage = await getWorkSampleCoverage(prisma, student.id, currentLP);
-          const daysUntilEnd = Math.round((currentLP.endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-          return { student, attendance, coverage, daysUntilEnd };
-        })
-      )
-    : [];
+  const daysUntilEnd = currentLP
+    ? Math.round((currentLP.endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+    : null;
 
   return (
     <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
@@ -126,28 +110,12 @@ export default async function ParentPage({
       />
 
       {currentLP ? (
-        <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {dashboardCards.map(({ student, attendance, coverage, daysUntilEnd }) => (
-            <div key={student.id} className="rounded border border-[#E1E3E6] bg-white p-4 text-sm">
-              {/* Clicking a student's own name is the way into their week
-                  view from Parent Mode, wherever that name appears — no
-                  separate "view" link needed. */}
-              <Link href={`/student/${student.id}`} className="font-medium hover:underline" style={{ color: student.accentColor }}>
-                {student.name}
-              </Link>
-              <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
-                {currentLP.name} · {daysUntilEnd >= 0 ? `${daysUntilEnd} day(s) left` : "ended"}
-              </p>
-              <p className="mt-2">
-                {attendance.presentCount}/{attendance.schoolDayCount} days present ·{" "}
-                {attendance.allClaimed ? "claimed ✓" : "not claimed"}
-              </p>
-              <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
-                {coverage.map((c) => `${CATEGORY_LABEL[c.category]} ${c.flagged ? "✓" : "—"}`).join(" · ")}
-              </p>
-            </div>
-          ))}
-        </section>
+        <p className="mt-10 text-sm" style={{ color: COLORS.muted }}>
+          {currentLP.name} · {daysUntilEnd !== null && daysUntilEnd >= 0 ? `${daysUntilEnd} day(s) left` : "ended"} ·{" "}
+          <Link href="/parent/reports" className="underline">
+            build the HST report
+          </Link>
+        </p>
       ) : (
         <p className="mt-10 text-sm" style={{ color: COLORS.muted }}>
           No learning period covers today —{" "}

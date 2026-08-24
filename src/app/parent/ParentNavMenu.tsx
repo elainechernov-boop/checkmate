@@ -9,8 +9,6 @@ const LINKS = [
   { href: "/parent/subjects", label: "Subjects" },
   { href: "/parent/projects", label: "Projects" },
   { href: "/parent/calendar", label: "Calendar" },
-  { href: "/parent/attendance", label: "Attendance" },
-  { href: "/parent/work-samples", label: "Work samples" },
   { href: "/parent/reports", label: "Reports" },
 ];
 

@@ -25,7 +25,8 @@ export default async function ReportsPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-medium">HST Meeting Prep report</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
-        Per student, per learning period: attendance summary, work samples, and a full completed-work log by subject.
+        Per student, per learning period: hours completed in Math, ELA, History, and Science, plus a full
+        completed-work log by subject.
       </p>
 
       {students.length === 0 || learningPeriods.length === 0 ? (
