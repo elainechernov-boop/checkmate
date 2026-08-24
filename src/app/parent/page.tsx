@@ -36,7 +36,7 @@ export default async function ParentPage({
   const monday = week ? parseISODate(week) : defaultWeekStart(today);
   const weekEnd = addDays(monday, 6);
 
-  const [students, subjects, instances] = await Promise.all([
+  const [students, subjects, instances, daySeparators] = await Promise.all([
     prisma.student.findMany({ orderBy: { name: "asc" } }),
     prisma.subject.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.assignmentInstance.findMany({
@@ -57,6 +57,8 @@ export default async function ParentPage({
       },
       orderBy: { createdAt: "asc" },
     }),
+    // §6 "Morning/Afternoon/Evening" — parent-managed dividers within a day.
+    prisma.daySeparator.findMany({ where: { date: { gte: monday, lt: weekEnd } } }),
   ]);
 
   // SchoolDay is per-student (§5) — one map per kid, keyed by their id. A
@@ -110,6 +112,7 @@ export default async function ParentPage({
         monday={monday}
         today={today}
         instances={instances}
+        daySeparators={daySeparators}
         schoolDayTypesByStudent={schoolDayTypesByStudent}
         requestedDayIndex={requestedDayIndex}
       />

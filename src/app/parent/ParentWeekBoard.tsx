@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
@@ -15,8 +15,8 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Student } from "@/generated/prisma/client";
-import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
+import type { DaySeparator, Student } from "@/generated/prisma/client";
+import { DaySeparatorLabel, InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import { getSubjectColor } from "@/lib/subjectColors";
@@ -24,8 +24,10 @@ import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime } from "@/lib/reminders";
 import { COLORS } from "@/lib/theme";
 import {
+  addDaySeparatorAction,
   approveReviewAction,
   deleteAssignment,
+  deleteDaySeparatorAction,
   quickCreateAssignment,
   reorderDayInstances,
   rescheduleInstance,
@@ -60,6 +62,23 @@ const TYPE_TAG: Record<SchoolDayType, string | null> = {
   holiday: "Holiday",
 };
 
+const SEPARATOR_LABEL_TEXT: Record<DaySeparatorLabel, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+};
+
+// A day cell's row is either an assignment or a separator (§6) — both share
+// the same sortOrder numbering space (see reorderInstances.ts), so they
+// merge into one ordered, one-SortableContext list here. Unlike the
+// student's own reorder, a parent isn't segment-bounded: she can move a
+// separator itself, or drag an instance across one, freely.
+type DayRow = { kind: "instance"; instance: EditableInstance } | { kind: "separator"; separator: DaySeparator };
+
+function rowId(row: DayRow): string {
+  return row.kind === "instance" ? row.instance.id : row.separator.id;
+}
+
 
 export function ParentWeekBoard({
   students,
@@ -67,6 +86,7 @@ export function ParentWeekBoard({
   monday,
   today,
   instances,
+  daySeparators,
   schoolDayTypesByStudent,
   requestedDayIndex,
 }: {
@@ -75,6 +95,7 @@ export function ParentWeekBoard({
   monday: Date;
   today: Date;
   instances: EditableInstance[];
+  daySeparators: DaySeparator[];
   schoolDayTypesByStudent: Record<string, Record<string, SchoolDayType>>;
   // Set only when a mobile swipe/arrow carried the parent across a week
   // edge (see page.tsx) — otherwise null, and the smart default applies.
@@ -186,6 +207,7 @@ export function ParentWeekBoard({
           days={days}
           todayISO={todayISO}
           instances={instances.filter((i) => i.studentId === student.id)}
+          daySeparators={daySeparators.filter((s) => s.studentId === student.id)}
           schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
           onEdit={setSelectedInstanceId}
           onDelete={handleDeleteInstance}
@@ -211,6 +233,7 @@ function StudentBoard({
   days,
   todayISO,
   instances,
+  daySeparators,
   schoolDayTypes,
   onEdit,
   onDelete,
@@ -223,6 +246,7 @@ function StudentBoard({
   days: Date[];
   todayISO: string;
   instances: EditableInstance[];
+  daySeparators: DaySeparator[];
   schoolDayTypes: Record<string, SchoolDayType>;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -236,27 +260,37 @@ function StudentBoard({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const prefersReducedMotion = !!useReducedMotion();
 
-  const byDay = new Map<string, EditableInstance[]>();
+  const byDay = new Map<string, DayRow[]>();
   for (const day of days) byDay.set(toISODate(day), []);
   for (const instance of instances) {
     if (!instance.dueDate) continue;
     const key = toISODate(instance.dueDate);
-    byDay.get(key)?.push(instance);
+    byDay.get(key)?.push({ kind: "instance", instance });
   }
-  for (const list of byDay.values()) list.sort((a, b) => a.sortOrder - b.sortOrder);
+  for (const separator of daySeparators) {
+    const key = toISODate(separator.date);
+    byDay.get(key)?.push({ kind: "separator", separator });
+  }
+  const sortOrderOf = (row: DayRow) => (row.kind === "instance" ? row.instance.sortOrder : row.separator.sortOrder);
+  for (const list of byDay.values()) list.sort((a, b) => sortOrderOf(a) - sortOrderOf(b));
 
-  function dayOf(instanceId: string): string | null {
-    const instance = instances.find((i) => i.id === instanceId);
-    return instance?.dueDate ? toISODate(instance.dueDate) : null;
+  function findRow(id: string): { dateISO: string; row: DayRow } | null {
+    for (const [dateISO, rows] of byDay) {
+      const row = rows.find((r) => rowId(r) === id);
+      if (row) return { dateISO, row };
+    }
+    return null;
   }
 
   /**
    * One drag gesture, two possible outcomes: dropped within the same day
-   * reorders that day's cards (her own visual ordering — useful ahead of
-   * future dividers like "lunch"); dropped on a different day reschedules
-   * it, same as before. `over.id` is either a day's own dateISO (dropped on
-   * empty space) or another card's id (dropped on/near a row) — both
-   * resolve back to "which day."
+   * reorders that day's cards (her own visual ordering, mixing assignments
+   * and separators freely — §6) and dropped on a different day reschedules
+   * it, same as before. A separator never leaves its own day — there's no
+   * "reschedule" for one, so a cross-day drop of one is just ignored.
+   * `over.id` is either a day's own dateISO (dropped on empty space) or
+   * another row's id (dropped on/near a row) — both resolve back to "which
+   * day."
    */
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -264,21 +298,22 @@ function StudentBoard({
 
     const activeId = String(active.id);
     const overId = String(over.id);
-    const sourceDateISO = dayOf(activeId);
-    if (!sourceDateISO) return;
+    const found = findRow(activeId);
+    if (!found) return;
+    const { dateISO: sourceDateISO, row: activeRow } = found;
 
-    const targetDateISO = byDay.has(overId) ? overId : dayOf(overId);
+    const targetDateISO = byDay.has(overId) ? overId : (findRow(overId)?.dateISO ?? null);
     if (!targetDateISO) return;
 
     if (targetDateISO === sourceDateISO) {
       if (activeId === overId) return;
       const dayList = byDay.get(sourceDateISO) ?? [];
-      const oldIndex = dayList.findIndex((i) => i.id === activeId);
-      const newIndex = dayList.findIndex((i) => i.id === overId);
+      const oldIndex = dayList.findIndex((r) => rowId(r) === activeId);
+      const newIndex = dayList.findIndex((r) => rowId(r) === overId);
       if (oldIndex === -1 || newIndex === -1) return;
-      const reordered = arrayMove(dayList, oldIndex, newIndex).map((i) => i.id);
+      const reordered = arrayMove(dayList, oldIndex, newIndex).map(rowId);
       await reorderDayInstances(student.id, sourceDateISO, reordered);
-    } else {
+    } else if (activeRow.kind === "instance") {
       await rescheduleInstance(activeId, targetDateISO);
     }
   }
@@ -313,7 +348,7 @@ function StudentBoard({
                 isToday={dateISO === todayISO}
                 accentColor={student.accentColor}
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
-                instances={byDay.get(dateISO) ?? []}
+                rows={byDay.get(dateISO) ?? []}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
@@ -341,7 +376,7 @@ function StudentBoard({
                 isToday={dateISO === todayISO}
                 accentColor={student.accentColor}
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
-                instances={byDay.get(dateISO) ?? []}
+                rows={byDay.get(dateISO) ?? []}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
@@ -362,7 +397,7 @@ function DayCell({
   isToday,
   accentColor,
   dayType,
-  instances,
+  rows,
   onEdit,
   onDelete,
   onDayTypeChange,
@@ -374,7 +409,7 @@ function DayCell({
   isToday: boolean;
   accentColor: string;
   dayType: SchoolDayType;
-  instances: EditableInstance[];
+  rows: DayRow[];
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
@@ -396,11 +431,19 @@ function DayCell({
   // the same way, §7) rather than one blended number.
   let assignmentMinutes = 0;
   let projectMinutes = 0;
-  for (const instance of instances) {
-    const minutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
+  for (const row of rows) {
+    if (row.kind !== "instance") continue;
+    const minutes = row.instance.estimatedMinutes ?? row.instance.series?.estimatedMinutes ?? null;
     if (minutes == null) continue;
-    if (instance.project) projectMinutes += minutes;
+    if (row.instance.project) projectMinutes += minutes;
     else assignmentMinutes += minutes;
+  }
+
+  async function handleAddSeparator(event: ChangeEvent<HTMLSelectElement>) {
+    const label = event.target.value as DaySeparatorLabel | "";
+    event.target.value = "";
+    if (!label) return;
+    await addDaySeparatorAction(studentId, dateISO, label);
   }
 
   function submitQuickAdd() {
@@ -486,30 +529,42 @@ function DayCell({
         )}
 
         {enableDrag ? (
-          <SortableContext items={instances.map((instance) => instance.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={rows.map(rowId)} strategy={verticalListSortingStrategy}>
             <div className="mt-2 flex flex-col">
-              {instances.map((instance, index) => (
-                <DraggableRow
-                  key={instance.id}
-                  instance={instance}
-                  isLast={index === instances.length - 1}
-                  onClick={() => onEdit(instance.id)}
-                  onDelete={() => onDelete(instance.id)}
-                />
-              ))}
+              {rows.map((row, index) =>
+                row.kind === "separator" ? (
+                  <SeparatorRow
+                    key={row.separator.id}
+                    separator={row.separator}
+                    onDelete={() => deleteDaySeparatorAction(row.separator.id)}
+                  />
+                ) : (
+                  <DraggableRow
+                    key={row.instance.id}
+                    instance={row.instance}
+                    isLast={index === rows.length - 1}
+                    onClick={() => onEdit(row.instance.id)}
+                    onDelete={() => onDelete(row.instance.id)}
+                  />
+                )
+              )}
             </div>
           </SortableContext>
         ) : (
           <div className="mt-2 flex flex-col">
-            {instances.map((instance, index) => (
-              <StaticRow
-                key={instance.id}
-                instance={instance}
-                isLast={index === instances.length - 1}
-                onClick={() => onEdit(instance.id)}
-                onDelete={() => onDelete(instance.id)}
-              />
-            ))}
+            {rows.map((row, index) =>
+              row.kind === "separator" ? (
+                <StaticSeparatorRow key={row.separator.id} separator={row.separator} />
+              ) : (
+                <StaticRow
+                  key={row.instance.id}
+                  instance={row.instance}
+                  isLast={index === rows.length - 1}
+                  onClick={() => onEdit(row.instance.id)}
+                  onDelete={() => onDelete(row.instance.id)}
+                />
+              )
+            )}
           </div>
         )}
 
@@ -524,15 +579,31 @@ function DayCell({
             className="mt-2 w-full rounded border border-[#E1E3E6] px-2 py-1 text-sm outline-none"
           />
         ) : (
-          <button
-            onClick={() => {
-              submittedRef.current = false;
-              setAdding(true);
-            }}
-            className="mt-2 text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
-          >
-            + Add
-          </button>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={() => {
+                submittedRef.current = false;
+                setAdding(true);
+              }}
+              className="text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
+            >
+              + Add
+            </button>
+            {/* §6 "Morning/Afternoon/Evening" — a plain select rather than a
+                second button-and-menu; picking an option adds it immediately
+                and resets, matching the day-type select's own pattern above. */}
+            <select
+              value=""
+              onChange={handleAddSeparator}
+              aria-label="Add a separator"
+              className="rounded border-none bg-transparent text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
+            >
+              <option value="">+ Separator</option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+              <option value="evening">Evening</option>
+            </select>
+          </div>
         )}
       </div>
       {assignmentMinutes > 0 && (
@@ -676,6 +747,74 @@ function RowFrame({
       >
         ✕
       </button>
+    </div>
+  );
+}
+
+/** §6 "Morning/Afternoon/Evening" — Parent Mode's own draggable divider row:
+ * a plain hairline-and-label, sortable alongside assignment rows in the
+ * same DndContext (unlike a student, a parent can freely reposition one or
+ * drag an assignment across it). Hover-X delete, same "no confirm needed"
+ * reasoning as an assignment's own. */
+function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDelete: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: separator.id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: transition ?? undefined,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : undefined,
+        position: "relative",
+        cursor: isDragging ? "grabbing" : "grab",
+        touchAction: "none",
+      }}
+      className="group relative flex items-center gap-2 py-1.5 pr-4"
+    >
+      <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+      <span
+        className="shrink-0 font-medium uppercase"
+        style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.06em" }}
+      >
+        {SEPARATOR_LABEL_TEXT[separator.label]}
+      </span>
+      <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
+        aria-label={`Delete ${SEPARATOR_LABEL_TEXT[separator.label]} separator`}
+        title="Delete"
+        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/** The mobile pager's separator row — same look, no drag wiring, matching
+ * StaticRow's own reasoning. Parent-only page, so no delete control is
+ * dropped here for space; the desktop grid is where that lives. */
+function StaticSeparatorRow({ separator }: { separator: DaySeparator }) {
+  return (
+    <div className="flex items-center gap-2 py-1.5">
+      <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+      <span
+        className="shrink-0 font-medium uppercase"
+        style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.06em" }}
+      >
+        {SEPARATOR_LABEL_TEXT[separator.label]}
+      </span>
+      <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
     </div>
   );
 }

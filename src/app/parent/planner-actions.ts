@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { parseISODate, toISODate } from "@/lib/dates";
-import { EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
+import { DaySeparatorLabel, EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
 import {
   deleteAllInSeries,
   deleteInstanceOnly,
@@ -15,8 +15,9 @@ import {
   quickCreateInstance,
   rescheduleInstance as rescheduleInstanceLib,
 } from "@/lib/assignmentEdits";
+import { addDaySeparator, deleteDaySeparator } from "@/lib/daySeparators";
 import { materializeSeries } from "@/lib/materialize";
-import { reorderInstancesForDay } from "@/lib/reorderInstances";
+import { reorderDayRows } from "@/lib/reorderInstances";
 import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
 import { approveReview, returnReview } from "@/lib/reviewActions";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
@@ -39,10 +40,26 @@ export async function rescheduleInstance(instanceId: string, newDueDateISO: stri
   revalidatePath("/parent");
 }
 
+/** §6 "Morning/Afternoon/Evening" — parent-only to add. Appended after
+ * everything already on the day; drag it into place afterward like any
+ * other row (reorderDayInstances above). */
+export async function addDaySeparatorAction(studentId: string, dateISO: string, label: DaySeparatorLabel) {
+  await addDaySeparator(prisma, studentId, parseISODate(dateISO), label);
+  revalidatePath("/parent");
+}
+
+export async function deleteDaySeparatorAction(separatorId: string) {
+  await deleteDaySeparator(prisma, separatorId);
+  revalidatePath("/parent");
+}
+
 /** Parent Mode's own within-day drag-reorder, for her own visual planning
- * (not tied to "today" or "open" the way the student's own reorder is). */
+ * (not tied to "today" or "open" the way the student's own reorder is, and
+ * not segment-bounded — she can freely move a separator itself or an
+ * instance across one, unlike a student). `orderedIds` mixes assignment
+ * and separator ids. */
 export async function reorderDayInstances(studentId: string, dateISO: string, orderedIds: string[]) {
-  await reorderInstancesForDay(prisma, studentId, dateISO, orderedIds);
+  await reorderDayRows(prisma, studentId, dateISO, orderedIds);
   revalidatePath("/parent");
 }
 

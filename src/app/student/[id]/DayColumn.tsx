@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -13,14 +13,38 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { InstanceStatus } from "@/generated/prisma/enums";
+import { InstanceStatus, type DaySeparatorLabel } from "@/generated/prisma/enums";
 import { formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
+import { splitBySeparators } from "@/lib/daySeparators";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
 import { AssignmentRow } from "./AssignmentRow";
 import { DayCompleteTakeover } from "./DayCompleteTakeover";
-import type { StudentInstance } from "./types";
+import type { DaySeparator, StudentInstance } from "./types";
+
+const SEPARATOR_LABEL_TEXT: Record<DaySeparatorLabel, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+};
+
+/** §6 — a parent-placed, read-only-to-the-student divider. Bounds where a
+ * student's own drag-reorder can reach (see DayColumn's handleDragEnd). */
+function SeparatorDivider({ label }: { label: DaySeparatorLabel }) {
+  return (
+    <div className="my-1.5 flex items-center gap-2">
+      <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+      <span
+        className="shrink-0 font-medium uppercase"
+        style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.06em" }}
+      >
+        {SEPARATOR_LABEL_TEXT[label]}
+      </span>
+      <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+    </div>
+  );
+}
 
 function SortableRow({
   instance,
@@ -138,6 +162,7 @@ export function DayColumn({
   isToday,
   interactive,
   instances,
+  separators,
   studentName,
   accentColor,
   prefersReducedMotion,
@@ -153,6 +178,10 @@ export function DayColumn({
   isToday: boolean;
   interactive: boolean;
   instances: StudentInstance[];
+  // §6 "Morning/Afternoon/Evening" — parent-placed, shown every day they're
+  // set on, not just today; only today's own SortableContext (below) treats
+  // them as reorder boundaries.
+  separators: DaySeparator[];
   studentName: string;
   accentColor: string;
   prefersReducedMotion: boolean;
@@ -178,6 +207,7 @@ export function DayColumn({
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: toISODate(day) });
 
   const { rolled, timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
+  const { segments, separatorsInOrder } = splitBySeparators(open, separators);
   const allDone =
     instances.length > 0 &&
     open.length === 0 &&
@@ -209,13 +239,23 @@ export function DayColumn({
     wasAllDone.current = allDone;
   }, [allDone, isToday, celebrated, onCelebrate]);
 
+  // §6 "Morning/Afternoon/Evening" — a student can drag freely within the
+  // segment a separator bounds, never across one. `over` landing outside
+  // `active`'s own segment (newIndex === -1) is simply a no-op: dnd-kit
+  // snaps the row back to where it started, exactly like dropping nowhere.
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = open.findIndex((i) => i.id === active.id);
-    const newIndex = open.findIndex((i) => i.id === over.id);
+    const activeSegment = segments.find((segment) => segment.some((i) => i.id === active.id));
+    if (!activeSegment) return;
+    const oldIndex = activeSegment.findIndex((i) => i.id === active.id);
+    const newIndex = activeSegment.findIndex((i) => i.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    onReorderOpen(arrayMove(open, oldIndex, newIndex).map((i) => i.id));
+    const reorderedSegment = arrayMove(activeSegment, oldIndex, newIndex);
+    const fullOrder = segments
+      .flatMap((segment) => (segment === activeSegment ? reorderedSegment : segment))
+      .map((i) => i.id);
+    onReorderOpen(fullOrder);
   }
 
   function plainRow(instance: StudentInstance) {
@@ -317,22 +357,36 @@ export function DayColumn({
               collisionDetection={closestCenter}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext items={open.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-                {open.map((instance) => (
-                  <SortableRow
-                    key={instance.id}
-                    instance={instance}
-                    prefersReducedMotion={prefersReducedMotion}
-                    isLast={instance.id === lastRowId}
-                    accentColor={accentColor}
-                    onToggle={(origin) => onToggle(instance, origin)}
-                    onOpenDetails={() => onOpenDetails(instance)}
-                  />
-                ))}
-              </SortableContext>
+              {segments.map((segment, index) => (
+                // One SortableContext per segment (§6) — dnd-kit's own
+                // reorder math only ever sees this segment's own items, and
+                // handleDragEnd's own segment check is the actual boundary
+                // enforcement (this just keeps the FLIP animation sane).
+                <Fragment key={index}>
+                  <SortableContext items={segment.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                    {segment.map((instance) => (
+                      <SortableRow
+                        key={instance.id}
+                        instance={instance}
+                        prefersReducedMotion={prefersReducedMotion}
+                        isLast={instance.id === lastRowId}
+                        accentColor={accentColor}
+                        onToggle={(origin) => onToggle(instance, origin)}
+                        onOpenDetails={() => onOpenDetails(instance)}
+                      />
+                    ))}
+                  </SortableContext>
+                  {separatorsInOrder[index] && <SeparatorDivider label={separatorsInOrder[index].label} />}
+                </Fragment>
+              ))}
             </DndContext>
           ) : (
-            open.map(plainRow)
+            segments.map((segment, index) => (
+              <Fragment key={index}>
+                {segment.map(plainRow)}
+                {separatorsInOrder[index] && <SeparatorDivider label={separatorsInOrder[index].label} />}
+              </Fragment>
+            ))
           )}
 
           {pendingReview.map(plainRow)}

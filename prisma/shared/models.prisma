@@ -57,6 +57,12 @@ enum SchoolDayType {
   holiday
 }
 
+enum DaySeparatorLabel {
+  morning
+  afternoon
+  evening
+}
+
 // ---- Models (SPEC.md §3) ----
 
 model Student {
@@ -70,6 +76,7 @@ model Student {
   assignmentSeries    AssignmentSeries[]
   assignmentInstances AssignmentInstance[]
   schoolDays          SchoolDay[]
+  daySeparators       DaySeparator[]
 }
 
 model Subject {
@@ -293,4 +300,21 @@ model UndoLogEntry {
   undoneAt   DateTime?
 
   @@index([createdAt])
+}
+
+// A parent-placed divider within one day's column (§6) — "Morning,"
+// "Afternoon," "Evening." Shares the same sortOrder numbering space as that
+// day's AssignmentInstance rows (see reorderInstances.ts) so the two can be
+// interleaved into one ordered list. Parent-only to create, move, or
+// delete; students see them but can only reorder their own open items
+// *within* the segment a separator bounds, never across one.
+model DaySeparator {
+  id        String            @id @default(cuid())
+  studentId String
+  student   Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  date      DateTime
+  label     DaySeparatorLabel
+  sortOrder Int               @default(0)
+
+  @@index([studentId, date])
 }

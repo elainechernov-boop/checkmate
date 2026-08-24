@@ -25,7 +25,7 @@ import { ProjectsBand } from "./ProjectsBand";
 import { ReminderTakeover } from "./ReminderTakeover";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
-import type { ProjectIdea, StudentInstance, StudentProject } from "./types";
+import type { DaySeparator, ProjectIdea, StudentInstance, StudentProject } from "./types";
 
 const DAY_SHORT_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -53,6 +53,7 @@ export function StudentWeekView({
   comingUp,
   projects,
   projectIdeas,
+  daySeparators,
   skipCelebratedGuard,
   requestedDayIndex,
 }: {
@@ -63,6 +64,7 @@ export function StudentWeekView({
   comingUp: StudentInstance[];
   projects: StudentProject[];
   projectIdeas: ProjectIdea[];
+  daySeparators: DaySeparator[];
   skipCelebratedGuard: boolean;
   // Set only when a mobile swipe/arrow carried the student across a week
   // edge (see page.tsx) — otherwise null, and the default below applies.
@@ -474,6 +476,7 @@ export function StudentWeekView({
               {days.map((day) => {
                 const dayISO = toISODate(day);
                 const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
+                const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
                 const isToday = dayISO === todayISO;
                 return (
                   <DayColumn
@@ -482,6 +485,7 @@ export function StudentWeekView({
                     isToday={isToday}
                     interactive={isToday}
                     instances={dayInstances}
+                    separators={daySeparatorsForDay}
                     studentName={student.name}
                     accentColor={student.accentColor}
                     prefersReducedMotion={prefersReducedMotion}
@@ -509,6 +513,7 @@ export function StudentWeekView({
                 const day = days[mobileDayIndex];
                 const dayISO = toISODate(day);
                 const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
+                const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
                 const isToday = dayISO === todayISO;
                 return (
                   <SwipeDayPager
@@ -523,6 +528,7 @@ export function StudentWeekView({
                         isToday={isToday}
                         interactive={isToday}
                         instances={dayInstances}
+                        separators={daySeparatorsForDay}
                         studentName={student.name}
                         accentColor={student.accentColor}
                         prefersReducedMotion={prefersReducedMotion}

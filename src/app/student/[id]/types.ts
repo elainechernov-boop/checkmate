@@ -1,4 +1,4 @@
-import type { AssignmentInstance, Project, ProjectIdea } from "@/generated/prisma/client";
+import type { AssignmentInstance, DaySeparator, Project, ProjectIdea } from "@/generated/prisma/client";
 
 export type StudentInstance = AssignmentInstance & {
   subject: { id: string; name: string } | null;
@@ -14,3 +14,6 @@ export type StudentProject = Project & {
 
 // §7's "someday" scratch list — plain text, no relations of its own.
 export type { ProjectIdea };
+
+// §6's "Morning/Afternoon/Evening" divider — plain, no relations of its own.
+export type { DaySeparator };
