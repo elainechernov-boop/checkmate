@@ -17,7 +17,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import type { DaySeparator, Student } from "@/generated/prisma/client";
 import { DaySeparatorLabel, InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
-import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, parseISODate, toISODate } from "@/lib/dates";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { getSubjectColor } from "@/lib/subjectColors";
@@ -113,7 +113,27 @@ export function ParentWeekBoard({
   const prevWeek = toISODate(addDays(monday, -7));
   const nextWeek = toISODate(addDays(monday, 7));
   const isCurrentWeek = toISODate(monday) === toISODate(defaultWeekStart(today));
-  const selectedInstance = instances.find((i) => i.id === selectedInstanceId) ?? null;
+
+  // Optimistic mirrors of the server props — without these, a drag (reorder
+  // or reschedule) has nothing to show until the server action resolves and
+  // Next.js revalidates, so dnd-kit's own transform resets to zero the
+  // instant the drag ends and the row visibly snaps back to its old spot
+  // before catching up a moment later. Same render-time resync pattern
+  // StudentWeekView already uses for its own local state.
+  const [localInstances, setLocalInstances] = useState(instances);
+  const [syncedInstances, setSyncedInstances] = useState(instances);
+  const [localDaySeparators, setLocalDaySeparators] = useState(daySeparators);
+  const [syncedDaySeparators, setSyncedDaySeparators] = useState(daySeparators);
+  if (instances !== syncedInstances) {
+    setSyncedInstances(instances);
+    setLocalInstances(instances);
+  }
+  if (daySeparators !== syncedDaySeparators) {
+    setSyncedDaySeparators(daySeparators);
+    setLocalDaySeparators(daySeparators);
+  }
+
+  const selectedInstance = localInstances.find((i) => i.id === selectedInstanceId) ?? null;
 
   // The mobile pager's day, shared across every student's board below (a
   // parent planning "today" wants to see every kid's today at once, not
@@ -161,6 +181,44 @@ export function ParentWeekBoard({
    * skips any "are you sure": always deletes just this one occurrence. */
   async function handleDeleteInstance(instanceId: string) {
     await deleteAssignment(instanceId, "only");
+  }
+
+  /** Same-day drag-reorder (mixing assignments and separators freely — a
+   * parent isn't segment-bounded the way a student is). Optimistic: the
+   * new sortOrder shows immediately, matching what the server is about to
+   * assign, and only reverts if the action actually fails. */
+  async function handleReorderDay(studentId: string, dateISO: string, orderedIds: string[]) {
+    const previousInstances = localInstances;
+    const previousSeparators = localDaySeparators;
+    const orderIndex = new Map(orderedIds.map((id, index) => [id, index]));
+    setLocalInstances((current) =>
+      current.map((instance) => (orderIndex.has(instance.id) ? { ...instance, sortOrder: orderIndex.get(instance.id)! } : instance))
+    );
+    setLocalDaySeparators((current) =>
+      current.map((separator) => (orderIndex.has(separator.id) ? { ...separator, sortOrder: orderIndex.get(separator.id)! } : separator))
+    );
+    try {
+      await reorderDayInstances(studentId, dateISO, orderedIds);
+    } catch {
+      setLocalInstances(previousInstances);
+      setLocalDaySeparators(previousSeparators);
+    }
+  }
+
+  /** Cross-day drag-reschedule — mirrors assignmentEdits.ts's own
+   * rescheduleInstance, which always sets both dueDate and originalDueDate
+   * to the new date regardless of whether the instance is series-linked. */
+  async function handleReschedule(instanceId: string, newDateISO: string) {
+    const previousInstances = localInstances;
+    const newDueDate = parseISODate(newDateISO);
+    setLocalInstances((current) =>
+      current.map((instance) => (instance.id === instanceId ? { ...instance, dueDate: newDueDate, originalDueDate: newDueDate } : instance))
+    );
+    try {
+      await rescheduleInstance(instanceId, newDateISO);
+    } catch {
+      setLocalInstances(previousInstances);
+    }
   }
 
   return (
@@ -211,13 +269,15 @@ export function ParentWeekBoard({
           student={student}
           days={days}
           todayISO={todayISO}
-          instances={instances.filter((i) => i.studentId === student.id)}
-          daySeparators={daySeparators.filter((s) => s.studentId === student.id)}
+          instances={localInstances.filter((i) => i.studentId === student.id)}
+          daySeparators={localDaySeparators.filter((s) => s.studentId === student.id)}
           calendarEvents={calendarEvents}
           schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
           onEdit={setSelectedInstanceId}
           onDelete={handleDeleteInstance}
           onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
+          onReorderDay={(dateISO, orderedIds) => handleReorderDay(student.id, dateISO, orderedIds)}
+          onReschedule={handleReschedule}
           mobileDayIndex={mobileDayIndex}
           onSwipeLeft={goToNextDay}
           onSwipeRight={goToPrevDay}
@@ -245,6 +305,8 @@ function StudentBoard({
   onEdit,
   onDelete,
   onDayTypeChange,
+  onReorderDay,
+  onReschedule,
   mobileDayIndex,
   onSwipeLeft,
   onSwipeRight,
@@ -259,6 +321,8 @@ function StudentBoard({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
+  onReorderDay: (dateISO: string, orderedIds: string[]) => void | Promise<void>;
+  onReschedule: (instanceId: string, newDateISO: string) => void | Promise<void>;
   mobileDayIndex: number;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
@@ -326,9 +390,9 @@ function StudentBoard({
       const newIndex = dayList.findIndex((r) => rowId(r) === overId);
       if (oldIndex === -1 || newIndex === -1) return;
       const reordered = arrayMove(dayList, oldIndex, newIndex).map(rowId);
-      await reorderDayInstances(student.id, sourceDateISO, reordered);
+      await onReorderDay(sourceDateISO, reordered);
     } else if (activeRow.kind === "instance") {
-      await rescheduleInstance(activeId, targetDateISO);
+      await onReschedule(activeId, targetDateISO);
     }
   }
 
