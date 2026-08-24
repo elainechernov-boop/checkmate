@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, parseISODate, toISODate } from "@/lib/dates";
+import { clearFamilyCalendarSettings, setFamilyCalendarSettings } from "@/lib/familyCalendar";
 import { materializeSeries } from "@/lib/materialize";
 import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
@@ -142,6 +143,25 @@ export async function deleteLearningPeriod(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
   await prisma.learningPeriod.delete({ where: { id } });
+  revalidatePath("/parent/calendar");
+  revalidatePath("/parent");
+}
+
+/** The family's Google Calendar, imported read-only via its "Secret
+ * address in iCal format" — pasted in once here, then overlaid on every
+ * day cell in Parent Mode (see familyCalendar.ts). */
+export async function saveFamilyCalendarSettings(formData: FormData) {
+  const icsUrl = String(formData.get("icsUrl") ?? "").trim();
+  const timeZone = String(formData.get("timeZone") ?? "").trim();
+  if (!icsUrl || !timeZone) return;
+
+  await setFamilyCalendarSettings(prisma, icsUrl, timeZone);
+  revalidatePath("/parent/calendar");
+  revalidatePath("/parent");
+}
+
+export async function removeFamilyCalendarSettings() {
+  await clearFamilyCalendarSettings(prisma);
   revalidatePath("/parent/calendar");
   revalidatePath("/parent");
 }

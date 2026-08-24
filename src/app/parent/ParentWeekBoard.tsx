@@ -19,6 +19,7 @@ import type { DaySeparator, Student } from "@/generated/prisma/client";
 import { DaySeparatorLabel, InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
+import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { getSubjectColor } from "@/lib/subjectColors";
 import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime } from "@/lib/reminders";
@@ -87,6 +88,7 @@ export function ParentWeekBoard({
   today,
   instances,
   daySeparators,
+  calendarEvents,
   schoolDayTypesByStudent,
   requestedDayIndex,
 }: {
@@ -96,6 +98,9 @@ export function ParentWeekBoard({
   today: Date;
   instances: EditableInstance[];
   daySeparators: DaySeparator[];
+  // The family's imported Google Calendar (§ "on top of the view") — the
+  // same list for every student, since it's not per-kid.
+  calendarEvents: FamilyCalendarEvent[];
   schoolDayTypesByStudent: Record<string, Record<string, SchoolDayType>>;
   // Set only when a mobile swipe/arrow carried the parent across a week
   // edge (see page.tsx) — otherwise null, and the smart default applies.
@@ -208,6 +213,7 @@ export function ParentWeekBoard({
           todayISO={todayISO}
           instances={instances.filter((i) => i.studentId === student.id)}
           daySeparators={daySeparators.filter((s) => s.studentId === student.id)}
+          calendarEvents={calendarEvents}
           schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
           onEdit={setSelectedInstanceId}
           onDelete={handleDeleteInstance}
@@ -234,6 +240,7 @@ function StudentBoard({
   todayISO,
   instances,
   daySeparators,
+  calendarEvents,
   schoolDayTypes,
   onEdit,
   onDelete,
@@ -247,6 +254,7 @@ function StudentBoard({
   todayISO: string;
   instances: EditableInstance[];
   daySeparators: DaySeparator[];
+  calendarEvents: FamilyCalendarEvent[];
   schoolDayTypes: Record<string, SchoolDayType>;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -259,6 +267,12 @@ function StudentBoard({
   // modal — only a real drag (past this threshold) starts a reorder/reschedule.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const prefersReducedMotion = !!useReducedMotion();
+
+  const eventsByDay = new Map<string, FamilyCalendarEvent[]>();
+  for (const event of calendarEvents) {
+    if (!eventsByDay.has(event.dateISO)) eventsByDay.set(event.dateISO, []);
+    eventsByDay.get(event.dateISO)!.push(event);
+  }
 
   const byDay = new Map<string, DayRow[]>();
   for (const day of days) byDay.set(toISODate(day), []);
@@ -349,6 +363,7 @@ function StudentBoard({
                 accentColor={student.accentColor}
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 rows={byDay.get(dateISO) ?? []}
+                events={eventsByDay.get(dateISO) ?? []}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
@@ -377,6 +392,7 @@ function StudentBoard({
                 accentColor={student.accentColor}
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 rows={byDay.get(dateISO) ?? []}
+                events={eventsByDay.get(dateISO) ?? []}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
@@ -398,6 +414,7 @@ function DayCell({
   accentColor,
   dayType,
   rows,
+  events,
   onEdit,
   onDelete,
   onDayTypeChange,
@@ -410,6 +427,10 @@ function DayCell({
   accentColor: string;
   dayType: SchoolDayType;
   rows: DayRow[];
+  // The family's imported Google Calendar, already filtered to this day
+  // (§ Parent Mode "on top of the view") — read-only context, not part of
+  // the day's own sortOrder sequence at all.
+  events: FamilyCalendarEvent[];
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
@@ -526,6 +547,24 @@ function DayCell({
               </span>
             )}
           </button>
+        )}
+
+        {events.length > 0 && (
+          // §Parent Mode "on top of the view" — the family's own imported
+          // calendar, read-only context sitting apart from the day's actual
+          // sortOrder sequence (never draggable, never part of a reorder).
+          <div className="mt-1.5 flex flex-col gap-0.5">
+            {events.map((event) => (
+              <p
+                key={event.id}
+                className="truncate text-xs italic"
+                style={{ color: COLORS.muted }}
+                title={event.title}
+              >
+                {event.timeLabel ?? "All day"} · {event.title}
+              </p>
+            ))}
+          </div>
         )}
 
         {enableDrag ? (

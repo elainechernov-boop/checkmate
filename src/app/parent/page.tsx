@@ -4,6 +4,7 @@ import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
+import { fetchFamilyCalendarEvents, getFamilyCalendarSettings } from "@/lib/familyCalendar";
 import { getCurrentLearningPeriod } from "@/lib/hstReport";
 import { listRecentUndoLog } from "@/lib/undoLog";
 import { COLORS } from "@/lib/theme";
@@ -84,6 +85,15 @@ export default async function ParentPage({
 
   const recentUndoLog = await listRecentUndoLog(prisma);
 
+  // The family's imported Google Calendar (§ Parent Mode "on top of the
+  // view") — overlaid the same for every student, so fetched once here
+  // rather than per student board. A flaky or unconfigured feed just means
+  // an empty overlay, never a broken page.
+  const familyCalendarSettings = await getFamilyCalendarSettings(prisma);
+  const familyCalendarEvents = familyCalendarSettings
+    ? await fetchFamilyCalendarEvents(familyCalendarSettings, monday, weekEnd)
+    : [];
+
   return (
     <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -113,6 +123,7 @@ export default async function ParentPage({
         today={today}
         instances={instances}
         daySeparators={daySeparators}
+        calendarEvents={familyCalendarEvents}
         schoolDayTypesByStudent={schoolDayTypesByStudent}
         requestedDayIndex={requestedDayIndex}
       />

@@ -318,3 +318,17 @@ model DaySeparator {
 
   @@index([studentId, date])
 }
+
+// The family's Google Calendar, imported read-only into Parent Mode's week
+// view via its "Secret address in iCal format" (Calendar → Settings →
+// that calendar → Integrate calendar) — a plain unauthenticated feed URL,
+// no OAuth needed since nothing is ever written back. Singleton: at most
+// one row ever exists. timeZone is the IANA name events are bucketed into
+// a calendar day by (an ICS instant is timezone-agnostic; "which day it
+// shows up on" isn't, and this app models no other timezone anywhere).
+model FamilyCalendarSettings {
+  id        String   @id @default(cuid())
+  icsUrl    String
+  timeZone  String   @default("America/Los_Angeles")
+  updatedAt DateTime @updatedAt
+}
