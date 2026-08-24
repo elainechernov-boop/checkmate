@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { parseISODate } from "@/lib/dates";
+import { parseISODate, toISODate } from "@/lib/dates";
 import { EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
 import {
   deleteAllInSeries,
@@ -17,9 +17,10 @@ import {
 } from "@/lib/assignmentEdits";
 import { materializeSeries } from "@/lib/materialize";
 import { reorderInstancesForDay } from "@/lib/reorderInstances";
-import { applyRescheduleHelper } from "@/lib/rescheduleHelper";
+import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
 import { approveReview, returnReview } from "@/lib/reviewActions";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
+import { describeDayType, recordUndo } from "@/lib/undoLog";
 
 const REPEAT_TO_FREQUENCY: Record<string, Frequency> = {
   weekdays: Frequency.weekdays,
@@ -73,6 +74,9 @@ export async function returnReviewAction(instanceId: string, note: string) {
  */
 export async function setDayType(studentId: string, dateISO: string, type: SchoolDayType) {
   const date = parseISODate(dateISO);
+  const existing = await prisma.schoolDay.findUnique({ where: { date_studentId: { date, studentId } } });
+  const previousType = existing?.type ?? null;
+
   await setSchoolDayType(prisma, studentId, date, type);
 
   const seriesList = await prisma.assignmentSeries.findMany({ where: { studentId }, select: { id: true } });
@@ -80,9 +84,23 @@ export async function setDayType(studentId: string, dateISO: string, type: Schoo
     await materializeSeries(prisma, series.id);
   }
 
+  const movedInstances: { instanceId: string; previousDueDate: string; previousOriginalDueDate: string | null }[] = [];
   if (type !== SchoolDayType.schoolDay) {
+    const reschedulable = await findReschedulableInstances(prisma, studentId, date);
+    for (const instance of reschedulable) {
+      movedInstances.push({
+        instanceId: instance.id,
+        previousDueDate: dateISO,
+        previousOriginalDueDate: instance.originalDueDate ? toISODate(instance.originalDueDate) : null,
+      });
+    }
     await applyRescheduleHelper(prisma, studentId, date, { mode: "nextSchoolDay" });
   }
+
+  await recordUndo(prisma, "dayTypeChange", `Marked ${dateISO} ${describeDayType(type)}`, {
+    schoolDays: [{ studentId, dateISO, previousType }],
+    movedInstances,
+  });
 
   revalidatePath("/parent");
 }
@@ -204,12 +222,34 @@ export async function updateAssignment(formData: FormData) {
  * instances ignore scope entirely — there's no series to widen the delete
  * to. Completed work is never swept up by a "following"/"all" delete; see
  * assignmentEdits.ts's DELETABLE_STATUSES.
+ *
+ * Only the single-instance path (scope "only", or any standalone delete
+ * regardless of scope) is logged for undo — that's the one the hover-X
+ * quick delete always uses, and the one snapshot is simple: one row, plus
+ * at most one RemovedOccurrence. "Following"/"all" can cascade across a
+ * whole series (capping it, sometimes deleting it outright) and aren't
+ * undoable yet.
  */
 export async function deleteAssignment(instanceId: string, scope: "only" | "following" | "all") {
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
 
   if (!instance.seriesId || scope === "only") {
+    const hadRemovedOccurrenceAlready =
+      instance.seriesId && instance.originalDueDate
+        ? await prisma.removedOccurrence.findUnique({
+            where: { seriesId_date: { seriesId: instance.seriesId, date: instance.originalDueDate } },
+          })
+        : null;
+
     await deleteInstanceOnly(prisma, instanceId);
+
+    await recordUndo(prisma, "deleteInstance", `Deleted "${instance.title}"`, {
+      instance,
+      removedOccurrence:
+        instance.seriesId && instance.originalDueDate && !hadRemovedOccurrenceAlready
+          ? { seriesId: instance.seriesId, date: instance.originalDueDate.toISOString() }
+          : null,
+    });
   } else if (scope === "following") {
     await deleteSeriesThisAndFollowing(prisma, instanceId);
   } else {

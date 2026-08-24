@@ -12,8 +12,8 @@ const LINKS = [
   { href: "/parent/reports", label: "Reports" },
 ];
 
-/** The admin-y corners of Parent Mode (calendar setup, attendance, reports…)
- * used to sit inline in the header as plain text links — fine at first, but
+/** The admin-y corners of Parent Mode (calendar setup, reports…) used to sit
+ * inline in the header as plain text links — fine at first, but
  * it kept growing and started wrapping onto a second line. Tucked behind
  * one "Menu" button instead, the same "⋯" pattern the student view already
  * uses for its rarely-used switch-student link; jumping to a specific

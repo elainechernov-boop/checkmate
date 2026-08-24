@@ -276,3 +276,21 @@ model LearningPeriod {
   endDate        DateTime
   hstMeetingDate DateTime?
 }
+
+// A capped undo log for Parent Mode's most destructive actions — deleting a
+// single assignment, and marking a day/range off (or back on). Each entry
+// snapshots exactly what's needed to restore the affected rows; undoing
+// marks the entry used rather than deleting it, so the log stays a
+// readable recent-activity trail (last 10-20 steps) even after something's
+// been undone. No FK relations on purpose — a snapshot has to survive even
+// if the rows it references are gone by the time someone tries to undo it.
+model UndoLogEntry {
+  id         String    @id @default(cuid())
+  actionType String
+  summary    String
+  payload    String
+  createdAt  DateTime  @default(now())
+  undoneAt   DateTime?
+
+  @@index([createdAt])
+}

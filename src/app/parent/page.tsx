@@ -5,9 +5,11 @@ import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
 import { getCurrentLearningPeriod } from "@/lib/hstReport";
+import { listRecentUndoLog } from "@/lib/undoLog";
 import { COLORS } from "@/lib/theme";
 import { ParentNavMenu } from "./ParentNavMenu";
 import { ParentWeekBoard } from "./ParentWeekBoard";
+import { UndoMenu } from "./UndoMenu";
 
 export default async function ParentPage({
   searchParams,
@@ -78,12 +80,15 @@ export default async function ParentPage({
     ? Math.round((currentLP.endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
     : null;
 
+  const recentUndoLog = await listRecentUndoLog(prisma);
+
   return (
     <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-medium lg:text-2xl">Parent Mode</h1>
         <nav className="flex flex-wrap items-center gap-3 text-sm lg:gap-4">
           <ParentNavMenu />
+          <UndoMenu entries={recentUndoLog} />
           <Link
             href="/parent/projects"
             className="rounded border border-[#161616] px-3 py-1.5 text-[#161616] hover:bg-[#161616] hover:text-white"

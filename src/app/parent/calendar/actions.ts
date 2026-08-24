@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
-import { addDays, parseISODate } from "@/lib/dates";
+import { addDays, parseISODate, toISODate } from "@/lib/dates";
 import { materializeSeries } from "@/lib/materialize";
-import { applyRescheduleHelper } from "@/lib/rescheduleHelper";
+import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
+import { describeDayType, recordUndo } from "@/lib/undoLog";
 
 /** Re-materializing every series after a calendar change matches
  * planner-actions.ts's setDayType — a newly-blocked day needs to disappear
@@ -34,6 +35,21 @@ export async function applyDayTypeRange(formData: FormData) {
   if (end < start) return;
 
   const students = await prisma.student.findMany({ select: { id: true } });
+
+  // Snapshot every (student, date) pair's prior type before any of them
+  // change — the loop below mutates as it goes, so this has to happen
+  // first for the undo entry to reflect what was actually there before.
+  const schoolDaySnapshots: { studentId: string; dateISO: string; previousType: SchoolDayType | null }[] = [];
+  for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+    const dateISO = toISODate(cursor);
+    for (const student of students) {
+      const existing = await prisma.schoolDay.findUnique({
+        where: { date_studentId: { date: cursor, studentId: student.id } },
+      });
+      schoolDaySnapshots.push({ studentId: student.id, dateISO, previousType: existing?.type ?? null });
+    }
+  }
+
   for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
     for (const student of students) {
       await setSchoolDayType(prisma, student.id, cursor, type);
@@ -47,13 +63,30 @@ export async function applyDayTypeRange(formData: FormData) {
   // now-blocked day moves straight to the next school day, one date at a
   // time so a multi-day closure (a week-long trip, say) doesn't just pile
   // everything onto the first school day after the range starts.
+  const movedInstances: { instanceId: string; previousDueDate: string; previousOriginalDueDate: string | null }[] = [];
   if (type !== SchoolDayType.schoolDay) {
     for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+      const dateISO = toISODate(cursor);
       for (const student of students) {
+        const reschedulable = await findReschedulableInstances(prisma, student.id, cursor);
+        for (const instance of reschedulable) {
+          movedInstances.push({
+            instanceId: instance.id,
+            previousDueDate: dateISO,
+            previousOriginalDueDate: instance.originalDueDate ? toISODate(instance.originalDueDate) : null,
+          });
+        }
         await applyRescheduleHelper(prisma, student.id, cursor, { mode: "nextSchoolDay" });
       }
     }
   }
+
+  await recordUndo(
+    prisma,
+    "dayTypeChange",
+    `Marked ${startISO}${endISO !== startISO ? ` – ${endISO}` : ""} ${describeDayType(type)} for everyone`,
+    { schoolDays: schoolDaySnapshots, movedInstances }
+  );
 
   revalidatePath("/parent/calendar");
   revalidatePath("/parent");
