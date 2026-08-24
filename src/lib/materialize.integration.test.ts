@@ -4,6 +4,7 @@ import { EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums
 import { parseISODate, toISODate } from "./dates";
 import { extendAllMaterializationHorizons, materializeSeries } from "./materialize";
 import { rollOverdueInstances } from "./rollForward";
+import { setSchoolDayType } from "./schoolCalendar";
 import { createTestClient, resetDb } from "./test/testDb";
 import { makeStudent, makeSubject, markSchoolDay } from "./test/fixtures";
 
@@ -440,5 +441,41 @@ describe("extendAllMaterializationHorizons", () => {
     expect(toISODate(rolledRow!.originalDueDate!)).toBe("2026-08-10");
     expect(freshRow?.rolledCount).toBe(0);
     expect(toISODate(freshRow!.originalDueDate!)).toBe("2026-08-11");
+  });
+
+  it("a recurring occurrence comes back on its own once a day is switched from off back to on", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    const series = await prisma.assignmentSeries.create({
+      data: {
+        title: "Math worksheet",
+        studentId: student.id,
+        subjectId: subject.id,
+        createdBy: "parent",
+        startDate: parseISODate("2026-08-03"),
+        endCondition: EndCondition.onDate,
+        endDate: parseISODate("2026-08-07"),
+        recurrence: { create: { frequency: Frequency.weekdays, interval: 1 } },
+      },
+    });
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+
+    // Mark Wednesday off — its occurrence disappears (no gap-filling; §3
+    // "skips to the next valid day" only applies at generation time, this
+    // one was already generated and materializeSeries's own stale-cleanup
+    // removes it once the date's no longer a valid candidate).
+    await markSchoolDay(prisma, student.id, parseISODate("2026-08-05"), SchoolDayType.offDay);
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+    const whileOff = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") } });
+    expect(whileOff).toHaveLength(0);
+
+    // Switch it back to a normal school day — nothing tombstones this date
+    // (that only happens for an explicit single-occurrence delete, tracked
+    // via RemovedOccurrence), so the series is free to regenerate it.
+    await setSchoolDayType(prisma, student.id, parseISODate("2026-08-05"), SchoolDayType.schoolDay);
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+    const backOn = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") } });
+    expect(backOn).toHaveLength(1);
+    expect(backOn[0].title).toBe("Math worksheet");
   });
 });
