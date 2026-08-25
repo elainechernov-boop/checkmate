@@ -4,7 +4,7 @@ import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
-import { fetchFamilyCalendarEvents, getFamilyCalendarSettings } from "@/lib/familyCalendar";
+import { fetchFamilyCalendarEvents, getDismissedEventKeys, getFamilyCalendarSettings } from "@/lib/familyCalendar";
 import { getCurrentLearningPeriod } from "@/lib/hstReport";
 import { listRecentUndoLog } from "@/lib/undoLog";
 import { COLORS } from "@/lib/theme";
@@ -90,9 +90,14 @@ export default async function ParentPage({
   // rather than per student board. A flaky or unconfigured feed just means
   // an empty overlay, never a broken page.
   const familyCalendarSettings = await getFamilyCalendarSettings(prisma);
-  const familyCalendarEvents = familyCalendarSettings
-    ? await fetchFamilyCalendarEvents(familyCalendarSettings, monday, weekEnd)
-    : [];
+  const [rawFamilyCalendarEvents, dismissedEventKeys] = await Promise.all([
+    familyCalendarSettings ? fetchFamilyCalendarEvents(familyCalendarSettings, monday, weekEnd) : Promise.resolve([]),
+    getDismissedEventKeys(prisma),
+  ]);
+  // Parent Mode's own hover-X dismiss (CalendarEventRow) — the feed itself
+  // is read-only, so a "deleted" event just never makes it into the props
+  // the board renders, on every subsequent load, not just this one.
+  const familyCalendarEvents = rawFamilyCalendarEvents.filter((event) => !dismissedEventKeys.has(event.id));
 
   return (
     <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">

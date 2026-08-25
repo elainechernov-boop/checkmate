@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, parseISODate, toISODate } from "@/lib/dates";
-import { clearFamilyCalendarSettings, getFamilyCalendarSettings, setFamilyCalendarSettings } from "@/lib/familyCalendar";
+import {
+  clearFamilyCalendarSettings,
+  dismissCalendarEvent,
+  getFamilyCalendarSettings,
+  setFamilyCalendarSettings,
+} from "@/lib/familyCalendar";
 import { materializeSeries } from "@/lib/materialize";
 import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
 import { setSchoolDayType } from "@/lib/schoolCalendar";
@@ -219,5 +224,14 @@ export async function addCalendarEventToTodoList(
     },
   });
 
+  revalidatePath("/parent");
+}
+
+/** ParentWeekBoard's CalendarEventRow hover-X — "delete" for a read-only
+ * imported event can only mean "stop showing me this occurrence" (see
+ * dismissCalendarEvent). `eventKey` is the event's own FamilyCalendarEvent.id. */
+export async function dismissCalendarEventAction(eventKey: string) {
+  if (!eventKey) return;
+  await dismissCalendarEvent(prisma, eventKey);
   revalidatePath("/parent");
 }

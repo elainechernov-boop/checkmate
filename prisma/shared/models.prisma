@@ -327,3 +327,17 @@ model FamilyCalendarSettings {
   timeZone  String   @default("America/Los_Angeles")
   updatedAt DateTime @updatedAt
 }
+
+// A calendar event the parent has dismissed from Parent Mode's overlay
+// (ParentWeekBoard's CalendarEventRow hover-X) — since the feed itself is
+// read-only (FamilyCalendarSettings), "deleting" one can only ever mean
+// "stop showing me this occurrence," recorded here so it stays hidden
+// across reloads instead of reappearing the next time the ICS is re-fetched.
+// eventKey matches FamilyCalendarEvent.id (`${uid}-${start.toISOString()}`)
+// — one specific occurrence, not the whole recurring series, so dismissing
+// today's standing meeting doesn't hide next week's.
+model DismissedCalendarEvent {
+  id        String   @id @default(cuid())
+  eventKey  String   @unique
+  createdAt DateTime @default(now())
+}

@@ -42,6 +42,27 @@ export async function clearFamilyCalendarSettings(prisma: SettingsPrisma): Promi
   await prisma.familyCalendarSettings.deleteMany();
 }
 
+type DismissedPrisma = Pick<PrismaClient, "dismissedCalendarEvent">;
+
+/** ParentWeekBoard's CalendarEventRow hover-X — the feed is read-only, so
+ * this just remembers to hide this one occurrence going forward (see
+ * DismissedCalendarEvent). Upserted, not a plain create: the row's own id
+ * comes from the client's already-rendered event, so a duplicate dismiss
+ * (double-click, or the same event re-rendering before the page catches up)
+ * should silently no-op rather than throwing on the unique constraint. */
+export async function dismissCalendarEvent(prisma: DismissedPrisma, eventKey: string): Promise<void> {
+  await prisma.dismissedCalendarEvent.upsert({
+    where: { eventKey },
+    update: {},
+    create: { eventKey },
+  });
+}
+
+export async function getDismissedEventKeys(prisma: DismissedPrisma): Promise<Set<string>> {
+  const rows = await prisma.dismissedCalendarEvent.findMany({ select: { eventKey: true } });
+  return new Set(rows.map((row) => row.eventKey));
+}
+
 export interface FamilyCalendarEvent {
   id: string;
   title: string;
