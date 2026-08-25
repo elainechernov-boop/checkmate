@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { parseISODate, toISODate } from "@/lib/dates";
-import { DaySeparatorLabel, EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
+import { EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
 import {
   deleteAllInSeries,
   deleteInstanceOnly,
@@ -40,11 +40,23 @@ export async function rescheduleInstance(instanceId: string, newDueDateISO: stri
   revalidatePath("/parent");
 }
 
-/** §6 "Morning/Afternoon/Evening" — parent-only to add. Appended after
- * everything already on the day; drag it into place afterward like any
- * other row (reorderDayInstances above). */
-export async function addDaySeparatorAction(studentId: string, dateISO: string, label: DaySeparatorLabel) {
-  await addDaySeparator(prisma, studentId, parseISODate(dateISO), label);
+/** §6 divider — free text ("Morning," "Before breakfast," anything the
+ * parent types). `existingOrderedIds` is that day's current row ids (before
+ * this new one exists) and `index` is where among them to insert it — the
+ * drag-the-handle-into-place flow (ParentWeekBoard's SeparatorHandle) — so
+ * creation and positioning land in one round trip instead of "append, then
+ * separately drag it into place." */
+export async function addDaySeparatorAction(
+  studentId: string,
+  dateISO: string,
+  label: string,
+  index: number,
+  existingOrderedIds: string[]
+) {
+  const created = await addDaySeparator(prisma, studentId, parseISODate(dateISO), label);
+  const finalOrder = [...existingOrderedIds];
+  finalOrder.splice(index, 0, created.id);
+  await reorderDayRows(prisma, studentId, dateISO, finalOrder);
   revalidatePath("/parent");
 }
 

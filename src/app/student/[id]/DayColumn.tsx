@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { InstanceStatus, type DaySeparatorLabel } from "@/generated/prisma/enums";
+import { InstanceStatus } from "@/generated/prisma/enums";
 import { formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
 import { splitBySeparators } from "@/lib/daySeparators";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
@@ -23,15 +23,10 @@ import { AssignmentRow } from "./AssignmentRow";
 import { DayCompleteTakeover } from "./DayCompleteTakeover";
 import type { DaySeparator, StudentInstance } from "./types";
 
-const SEPARATOR_LABEL_TEXT: Record<DaySeparatorLabel, string> = {
-  morning: "Morning",
-  afternoon: "Afternoon",
-  evening: "Evening",
-};
-
-/** §6 — a parent-placed, read-only-to-the-student divider. Bounds where a
- * student's own drag-reorder can reach (see DayColumn's handleDragEnd). */
-function SeparatorDivider({ label }: { label: DaySeparatorLabel }) {
+/** §6 — a parent-placed, read-only-to-the-student divider (free text, e.g.
+ * "Before breakfast"). Bounds where a student's own drag-reorder can reach
+ * (see DayColumn's handleDragEnd). */
+function SeparatorDivider({ label }: { label: string }) {
   return (
     <div className="my-1.5 flex items-center gap-2">
       <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
@@ -39,7 +34,7 @@ function SeparatorDivider({ label }: { label: DaySeparatorLabel }) {
         className="shrink-0 font-medium uppercase"
         style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.06em" }}
       >
-        {SEPARATOR_LABEL_TEXT[label]}
+        {label}
       </span>
       <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
     </div>
@@ -207,7 +202,14 @@ export function DayColumn({
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: toISODate(day) });
 
   const { rolled, timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
-  const { segments, separatorsInOrder } = splitBySeparators(open, separators);
+  // §6/§12: time-sensitive items share the same sortOrder numbering space as
+  // ordinary open items (Parent Mode's own drag-reorder never treats them
+  // specially — see ParentWeekBoard.tsx), so they're segmented by the day's
+  // separators exactly the same way: wherever the parent actually placed
+  // one relative to "Morning"/"Afternoon"/whatever she typed, that's where
+  // it shows up here too, instead of always floating above every separator
+  // regardless of where she put it.
+  const { segments, separatorsInOrder } = splitBySeparators([...open, ...timeSensitive], separators);
   const allDone =
     instances.length > 0 &&
     open.length === 0 &&
@@ -222,10 +224,11 @@ export function DayColumn({
     const minutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
     return minutes != null ? sum + minutes : sum;
   }, 0);
-  // The column's true bottom-to-top order (rolled -> time-sensitive -> open
-  // -> pendingReview -> completed, §6/§12) regardless of which bucket a row
-  // is rendered from — only this one row skips its trailing divider.
-  const orderedRows = [...rolled, ...timeSensitive, ...open, ...pendingReview, ...completed];
+  // The column's true bottom-to-top order (rolled -> segments [time-sensitive
+  // and open, interleaved by separator placement] -> pendingReview ->
+  // completed, §6/§12) regardless of which bucket a row is rendered from —
+  // only this one row skips its trailing divider.
+  const orderedRows = [...rolled, ...segments.flat(), ...pendingReview, ...completed];
   const lastRowId = orderedRows.length > 0 ? orderedRows[orderedRows.length - 1].id : null;
 
   useEffect(() => {
@@ -340,12 +343,8 @@ export function DayColumn({
           )}
 
           {rolled.map(plainRow)}
-          {/* §12: pinned above the student's own drag-order, and — like
-              rolled — rendered as plain (non-sortable) rows so it can't be
-              dragged out of place. */}
-          {timeSensitive.map(plainRow)}
 
-          {enableDrag && interactive && open.length > 0 ? (
+          {enableDrag && interactive && (open.length > 0 || timeSensitive.length > 0) ? (
             // Explicit `id` makes dnd-kit's internal aria-describedby id
             // deterministic — without it, dnd-kit derives it from a
             // module-level counter that isn't SSR-safe, causing a harmless
@@ -359,22 +358,42 @@ export function DayColumn({
             >
               {segments.map((segment, index) => (
                 // One SortableContext per segment (§6) — dnd-kit's own
-                // reorder math only ever sees this segment's own items, and
-                // handleDragEnd's own segment check is the actual boundary
-                // enforcement (this just keeps the FLIP animation sane).
+                // reorder math only ever sees this segment's own draggable
+                // items, and handleDragEnd's own segment check is the actual
+                // boundary enforcement (this just keeps the FLIP animation
+                // sane). A time-sensitive item in the segment renders as a
+                // plain, non-sortable row instead (§12: still not
+                // draggable), positioned right where the parent put it
+                // relative to whatever else is in this segment.
                 <Fragment key={index}>
-                  <SortableContext items={segment.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-                    {segment.map((instance) => (
-                      <SortableRow
-                        key={instance.id}
-                        instance={instance}
-                        prefersReducedMotion={prefersReducedMotion}
-                        isLast={instance.id === lastRowId}
-                        accentColor={accentColor}
-                        onToggle={(origin) => onToggle(instance, origin)}
-                        onOpenDetails={() => onOpenDetails(instance)}
-                      />
-                    ))}
+                  <SortableContext
+                    items={segment.filter((i) => !i.isTimeSensitive).map((i) => i.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {segment.map((instance) =>
+                      instance.isTimeSensitive ? (
+                        <AssignmentRow
+                          key={instance.id}
+                          instance={instance}
+                          interactive={interactive && instance.status !== InstanceStatus.excused}
+                          prefersReducedMotion={prefersReducedMotion}
+                          isLast={instance.id === lastRowId}
+                          accentColor={accentColor}
+                          onToggle={(origin) => onToggle(instance, origin)}
+                          onOpenDetails={() => onOpenDetails(instance)}
+                        />
+                      ) : (
+                        <SortableRow
+                          key={instance.id}
+                          instance={instance}
+                          prefersReducedMotion={prefersReducedMotion}
+                          isLast={instance.id === lastRowId}
+                          accentColor={accentColor}
+                          onToggle={(origin) => onToggle(instance, origin)}
+                          onOpenDetails={() => onOpenDetails(instance)}
+                        />
+                      )
+                    )}
                   </SortableContext>
                   {separatorsInOrder[index] && <SeparatorDivider label={separatorsInOrder[index].label} />}
                 </Fragment>

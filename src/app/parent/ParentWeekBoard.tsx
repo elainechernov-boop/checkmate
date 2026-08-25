@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
@@ -8,6 +8,7 @@ import {
   DndContext,
   PointerSensor,
   closestCenter,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
@@ -16,7 +17,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { DaySeparator, Student } from "@/generated/prisma/client";
-import { DaySeparatorLabel, InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
+import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, parseISODate, toISODate } from "@/lib/dates";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
@@ -35,6 +36,7 @@ import {
   returnReviewAction,
   setDayType,
 } from "./planner-actions";
+import { addCalendarEventToTodoList } from "./calendar/actions";
 import { EditAssignmentModal, type EditableInstance } from "./EditAssignmentModal";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
@@ -63,12 +65,6 @@ const TYPE_TAG: Record<SchoolDayType, string | null> = {
   holiday: "Holiday",
 };
 
-const SEPARATOR_LABEL_TEXT: Record<DaySeparatorLabel, string> = {
-  morning: "Morning",
-  afternoon: "Afternoon",
-  evening: "Evening",
-};
-
 // A day cell's row is either an assignment or a separator (§6) — both share
 // the same sortOrder numbering space (see reorderInstances.ts), so they
 // merge into one ordered, one-SortableContext list here. Unlike the
@@ -78,6 +74,15 @@ type DayRow = { kind: "instance"; instance: EditableInstance } | { kind: "separa
 
 function rowId(row: DayRow): string {
   return row.kind === "instance" ? row.instance.id : row.separator.id;
+}
+
+// The drag-to-place-a-new-separator handle at the bottom of each day card
+// (SeparatorHandle below) isn't a row that exists yet, so it gets its own id
+// namespace rather than a real instance/separator id — handleDragEnd below
+// tells the two apart by this prefix.
+const SEPARATOR_HANDLE_PREFIX = "sep-handle-";
+function separatorHandleId(dateISO: string): string {
+  return `${SEPARATOR_HANDLE_PREFIX}${dateISO}`;
 }
 
 
@@ -332,6 +337,11 @@ function StudentBoard({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const prefersReducedMotion = !!useReducedMotion();
 
+  // Where the drag-to-place SeparatorHandle landed (or the "+ Separator"
+  // button was clicked) — an inline text editor opens at this exact spot in
+  // that day's card until it's submitted or cancelled (SeparatorCreateRow).
+  const [creatingSeparator, setCreatingSeparator] = useState<{ dateISO: string; index: number } | null>(null);
+
   const eventsByDay = new Map<string, FamilyCalendarEvent[]>();
   for (const event of calendarEvents) {
     if (!eventsByDay.has(event.dateISO)) eventsByDay.set(event.dateISO, []);
@@ -361,14 +371,18 @@ function StudentBoard({
   }
 
   /**
-   * One drag gesture, two possible outcomes: dropped within the same day
-   * reorders that day's cards (her own visual ordering, mixing assignments
-   * and separators freely — §6) and dropped on a different day reschedules
-   * it, same as before. A separator never leaves its own day — there's no
-   * "reschedule" for one, so a cross-day drop of one is just ignored.
-   * `over.id` is either a day's own dateISO (dropped on empty space) or
-   * another row's id (dropped on/near a row) — both resolve back to "which
-   * day."
+   * One drag gesture, three possible outcomes. Dragging the bottom-of-card
+   * SeparatorHandle (its id carries SEPARATOR_HANDLE_PREFIX — never a real
+   * row) drops an inline creator at that spot instead of moving anything
+   * (see creatingSeparator below); it never leaves the day it started in,
+   * since a separator has nowhere else to go. Otherwise: dropped within the
+   * same day reorders that day's cards (her own visual ordering, mixing
+   * assignments and separators freely — §6) and dropped on a different day
+   * reschedules it, same as before. A separator never leaves its own day —
+   * there's no "reschedule" for one, so a cross-day drop of one is just
+   * ignored. `over.id` is either a day's own dateISO (dropped on empty
+   * space) or another row's id (dropped on/near a row) — both resolve back
+   * to "which day."
    */
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -376,6 +390,17 @@ function StudentBoard({
 
     const activeId = String(active.id);
     const overId = String(over.id);
+
+    if (activeId.startsWith(SEPARATOR_HANDLE_PREFIX)) {
+      const sourceDateISO = activeId.slice(SEPARATOR_HANDLE_PREFIX.length);
+      const targetDateISO = byDay.has(overId) ? overId : (findRow(overId)?.dateISO ?? null);
+      if (targetDateISO !== sourceDateISO) return;
+      const dayList = byDay.get(sourceDateISO) ?? [];
+      const overIndex = dayList.findIndex((r) => rowId(r) === overId);
+      setCreatingSeparator({ dateISO: sourceDateISO, index: overIndex === -1 ? dayList.length : overIndex });
+      return;
+    }
+
     const found = findRow(activeId);
     if (!found) return;
     const { dateISO: sourceDateISO, row: activeRow } = found;
@@ -394,6 +419,14 @@ function StudentBoard({
     } else if (activeRow.kind === "instance") {
       await onReschedule(activeId, targetDateISO);
     }
+  }
+
+  /** SeparatorCreateRow's submit — one round trip creates the row and lands
+   * it at the exact spot the handle was dropped (see addDaySeparatorAction). */
+  async function handleCreateSeparator(dateISO: string, index: number, label: string) {
+    const existingOrderedIds = (byDay.get(dateISO) ?? []).map(rowId);
+    setCreatingSeparator(null);
+    await addDaySeparatorAction(student.id, dateISO, label, index, existingOrderedIds);
   }
 
   return (
@@ -431,6 +464,10 @@ function StudentBoard({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
+                creatingSeparatorIndex={creatingSeparator?.dateISO === dateISO ? creatingSeparator.index : null}
+                onRequestSeparator={() => setCreatingSeparator({ dateISO, index: (byDay.get(dateISO) ?? []).length })}
+                onSubmitSeparator={(label) => handleCreateSeparator(dateISO, creatingSeparator?.index ?? 0, label)}
+                onCancelSeparator={() => setCreatingSeparator(null)}
               />
             );
           })}
@@ -461,6 +498,10 @@ function StudentBoard({
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
                 enableDrag={false}
+                creatingSeparatorIndex={creatingSeparator?.dateISO === dateISO ? creatingSeparator.index : null}
+                onRequestSeparator={() => setCreatingSeparator({ dateISO, index: (byDay.get(dateISO) ?? []).length })}
+                onSubmitSeparator={(label) => handleCreateSeparator(dateISO, creatingSeparator?.index ?? 0, label)}
+                onCancelSeparator={() => setCreatingSeparator(null)}
               />
             </SwipeDayPager>
           </div>
@@ -483,6 +524,10 @@ function DayCell({
   onDelete,
   onDayTypeChange,
   enableDrag = true,
+  creatingSeparatorIndex,
+  onRequestSeparator,
+  onSubmitSeparator,
+  onCancelSeparator,
 }: {
   studentId: string;
   day: Date;
@@ -503,6 +548,14 @@ function DayCell({
   // DndContext and would otherwise contend with the pager's own swipe
   // gesture for the same touch (see StaticRow).
   enableDrag?: boolean;
+  // §6 divider — set only for the one day whose inline creator (typed text,
+  // or a Morning/Afternoon/Evening quick-pick) is currently open, and only
+  // to the exact row index it should appear at (see StudentBoard's
+  // creatingSeparator and handleDragEnd's SeparatorHandle branch).
+  creatingSeparatorIndex: number | null;
+  onRequestSeparator: () => void;
+  onSubmitSeparator: (label: string) => void;
+  onCancelSeparator: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: dateISO });
   const [adding, setAdding] = useState(false);
@@ -522,13 +575,6 @@ function DayCell({
     if (minutes == null) continue;
     if (row.instance.project) projectMinutes += minutes;
     else assignmentMinutes += minutes;
-  }
-
-  async function handleAddSeparator(event: ChangeEvent<HTMLSelectElement>) {
-    const label = event.target.value as DaySeparatorLabel | "";
-    event.target.value = "";
-    if (!label) return;
-    await addDaySeparatorAction(studentId, dateISO, label);
   }
 
   function submitQuickAdd() {
@@ -616,17 +662,13 @@ function DayCell({
         {events.length > 0 && (
           // §Parent Mode "on top of the view" — the family's own imported
           // calendar, read-only context sitting apart from the day's actual
-          // sortOrder sequence (never draggable, never part of a reorder).
-          <div className="mt-1.5 flex flex-col gap-0.5">
+          // sortOrder sequence (never draggable, never part of a reorder),
+          // but styled with the same amber time-sensitive wash as a timed
+          // assignment row (§12) since it's the same kind of information —
+          // and each one can be pulled onto this student's list.
+          <div className="mt-1.5 flex flex-col gap-1">
             {events.map((event) => (
-              <p
-                key={event.id}
-                className="truncate text-xs italic"
-                style={{ color: COLORS.muted }}
-                title={event.title}
-              >
-                {event.timeLabel ?? "All day"} · {event.title}
-              </p>
+              <CalendarEventRow key={event.id} event={event} studentId={studentId} />
             ))}
           </div>
         )}
@@ -634,23 +676,29 @@ function DayCell({
         {enableDrag ? (
           <SortableContext items={rows.map(rowId)} strategy={verticalListSortingStrategy}>
             <div className="mt-2 flex flex-col">
-              {rows.map((row, index) =>
-                row.kind === "separator" ? (
-                  <SeparatorRow
-                    key={row.separator.id}
-                    separator={row.separator}
-                    onDelete={() => deleteDaySeparatorAction(row.separator.id)}
-                  />
-                ) : (
-                  <DraggableRow
-                    key={row.instance.id}
-                    instance={row.instance}
-                    isLast={index === rows.length - 1}
-                    onClick={() => onEdit(row.instance.id)}
-                    onDelete={() => onDelete(row.instance.id)}
-                  />
-                )
+              {creatingSeparatorIndex === 0 && (
+                <SeparatorCreateRow onSubmit={onSubmitSeparator} onCancel={onCancelSeparator} />
               )}
+              {rows.map((row, index) => (
+                <Fragment key={rowId(row)}>
+                  {row.kind === "separator" ? (
+                    <SeparatorRow
+                      separator={row.separator}
+                      onDelete={() => deleteDaySeparatorAction(row.separator.id)}
+                    />
+                  ) : (
+                    <DraggableRow
+                      instance={row.instance}
+                      isLast={index === rows.length - 1 && creatingSeparatorIndex == null}
+                      onClick={() => onEdit(row.instance.id)}
+                      onDelete={() => onDelete(row.instance.id)}
+                    />
+                  )}
+                  {creatingSeparatorIndex === index + 1 && (
+                    <SeparatorCreateRow onSubmit={onSubmitSeparator} onCancel={onCancelSeparator} />
+                  )}
+                </Fragment>
+              ))}
             </div>
           </SortableContext>
         ) : (
@@ -667,6 +715,9 @@ function DayCell({
                   onDelete={() => onDelete(row.instance.id)}
                 />
               )
+            )}
+            {creatingSeparatorIndex != null && (
+              <SeparatorCreateRow onSubmit={onSubmitSeparator} onCancel={onCancelSeparator} />
             )}
           </div>
         )}
@@ -692,20 +743,20 @@ function DayCell({
             >
               + Add
             </button>
-            {/* §6 "Morning/Afternoon/Evening" — a plain select rather than a
-                second button-and-menu; picking an option adds it immediately
-                and resets, matching the day-type select's own pattern above. */}
-            <select
-              value=""
-              onChange={handleAddSeparator}
-              aria-label="Add a separator"
-              className="rounded border-none bg-transparent text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
-            >
-              <option value="">+ Separator</option>
-              <option value="morning">Morning</option>
-              <option value="afternoon">Afternoon</option>
-              <option value="evening">Evening</option>
-            </select>
+            {/* §6 divider — click to append one at the bottom, or (desktop
+                only) drag this same handle to drop it exactly where it
+                belongs among the day's rows above. */}
+            {enableDrag ? (
+              <SeparatorHandle dateISO={dateISO} onClick={onRequestSeparator} />
+            ) : (
+              <button
+                type="button"
+                onClick={onRequestSeparator}
+                className="text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
+              >
+                + Separator
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -854,10 +905,11 @@ function RowFrame({
   );
 }
 
-/** §6 "Morning/Afternoon/Evening" — Parent Mode's own draggable divider row:
- * a plain hairline-and-label, sortable alongside assignment rows in the
- * same DndContext (unlike a student, a parent can freely reposition one or
- * drag an assignment across it). Hover-X delete, same "no confirm needed"
+/** §6 divider — Parent Mode's own draggable divider row: a plain
+ * hairline-and-label (free text, e.g. "Before breakfast" — see
+ * SeparatorCreateRow), sortable alongside assignment rows in the same
+ * DndContext (unlike a student, a parent can freely reposition one or drag
+ * an assignment across it). Hover-X delete, same "no confirm needed"
  * reasoning as an assignment's own. */
 function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -885,7 +937,7 @@ function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDele
         className="shrink-0 font-medium uppercase"
         style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.06em" }}
       >
-        {SEPARATOR_LABEL_TEXT[separator.label]}
+        {separator.label}
       </span>
       <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
       <button
@@ -894,7 +946,7 @@ function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDele
           event.stopPropagation();
           onDelete();
         }}
-        aria-label={`Delete ${SEPARATOR_LABEL_TEXT[separator.label]} separator`}
+        aria-label={`Delete ${separator.label} separator`}
         title="Delete"
         className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
       >
@@ -915,9 +967,159 @@ function StaticSeparatorRow({ separator }: { separator: DaySeparator }) {
         className="shrink-0 font-medium uppercase"
         style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.06em" }}
       >
-        {SEPARATOR_LABEL_TEXT[separator.label]}
+        {separator.label}
       </span>
       <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+    </div>
+  );
+}
+
+const SEPARATOR_PRESETS = ["Morning", "Afternoon", "Evening"];
+
+/** The inline editor a separator's creation opens into, right at the spot
+ * it'll land (see StudentBoard's creatingSeparator) — free text, or one of
+ * the three quick-pick presets that used to be the only options. Enter or a
+ * preset click submits; Escape or blurring empty cancels. */
+function SeparatorCreateRow({ onSubmit, onCancel }: { onSubmit: (label: string) => void; onCancel: () => void }) {
+  const [text, setText] = useState("");
+  const submittedRef = useRef(false);
+
+  function submit(label: string) {
+    const trimmed = label.trim();
+    if (!trimmed || submittedRef.current) return;
+    submittedRef.current = true;
+    onSubmit(trimmed);
+  }
+
+  function cancel() {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    onCancel();
+  }
+
+  return (
+    <div className="my-1.5 flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+        <input
+          autoFocus
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit(text);
+            } else if (event.key === "Escape") {
+              cancel();
+            }
+          }}
+          onBlur={() => (text.trim() ? submit(text) : cancel())}
+          placeholder="Label (e.g. Before breakfast)"
+          className="min-w-0 flex-1 rounded border border-[#E1E3E6] px-1.5 py-0.5 text-center text-xs outline-none"
+        />
+        <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
+      </div>
+      <div className="flex items-center justify-center gap-1.5">
+        {SEPARATOR_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            // Keeps the input focused through the click so the onBlur above
+            // never fires (and cancels) before this button's own onClick does.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => submit(preset)}
+            className="rounded-full border px-2 py-0.5 text-[10px]"
+            style={{ borderColor: COLORS.hairline, color: COLORS.muted }}
+          >
+            {preset}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** §6 divider — the drag-to-place handle at the bottom of every day card.
+ * Both a click (append at the bottom) and a drag (drop it exactly where it
+ * belongs among the day's rows — see StudentBoard's handleDragEnd) open the
+ * same SeparatorCreateRow; the small activation distance on the shared
+ * PointerSensor is what lets the click still land as a click. */
+function SeparatorHandle({ dateISO, onClick }: { dateISO: string; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: separatorHandleId(dateISO),
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.6 : 1,
+        zIndex: isDragging ? 10 : undefined,
+        position: "relative",
+        cursor: isDragging ? "grabbing" : "grab",
+        touchAction: "none",
+        borderColor: COLORS.hairline,
+        color: COLORS.mutedFaint,
+      }}
+      className="rounded border border-dashed px-2 py-0.5 text-xs hover:text-[#6B6B6B]"
+      title="Click to add a separator, or drag it to where you want it"
+    >
+      ⠿ Separator
+    </div>
+  );
+}
+
+/** A family calendar event overlaid on the day (§ Parent Mode "on top of
+ * the view") — styled with the same amber time-sensitive wash a timed
+ * assignment row gets (§12), since to a parent scanning the day they're the
+ * same kind of thing: something at a fixed time. The "+" pulls it onto this
+ * student's list as a real (editable, completable) task — a timed one if
+ * the event carries a time, an untimed one for an all-day event — with no
+ * subject yet; the parent adds one later via the normal edit sheet. */
+function CalendarEventRow({ event, studentId }: { event: FamilyCalendarEvent; studentId: string }) {
+  const [adding, setAdding] = useState(false);
+
+  async function handleAdd() {
+    setAdding(true);
+    try {
+      await addCalendarEventToTodoList(studentId, event.title, event.dateISO, event.start.toISOString(), event.allDay);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div
+      className="group relative flex items-start gap-2 rounded-sm py-0.5 pr-5 text-xs"
+      style={{
+        background: "rgba(181, 69, 27, 0.07)",
+        boxShadow: `inset 3px 0 0 ${COLORS.amber}`,
+        paddingLeft: "0.5rem",
+      }}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate" style={{ color: COLORS.text }} title={event.title}>
+          {event.title}
+        </span>
+        <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+          🕐 {event.timeLabel ?? "All day"}
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={handleAdd}
+        disabled={adding}
+        aria-label={`Add "${event.title}" to this student's list`}
+        title="Add to this student's list"
+        className="shrink-0 rounded px-1 text-xs opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100 disabled:opacity-100"
+        style={{ color: COLORS.muted }}
+      >
+        {adding ? "…" : "+"}
+      </button>
     </div>
   );
 }

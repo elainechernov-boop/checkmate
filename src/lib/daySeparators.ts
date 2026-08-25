@@ -1,17 +1,19 @@
 import type { PrismaClient } from "@/generated/prisma/client";
-import { DaySeparatorLabel } from "@/generated/prisma/enums";
 import { startOfUTCDay } from "./dates";
 
 type DaySeparatorPrisma = Pick<PrismaClient, "daySeparator" | "assignmentInstance">;
 
-/** Parent-only (§6) — appended after everything already on that day; the
- * parent repositions it afterward the same way she reorders any other row
- * (see reorderInstances.ts's reorderDayRows). */
+/** Parent-only (§6) — free text ("Morning," "Before breakfast," anything she
+ * types — see ParentWeekBoard's SeparatorCreateRow). Appended after
+ * everything already on that day; the parent repositions it afterward the
+ * same way she reorders any other row (see reorderInstances.ts's
+ * reorderDayRows), or the caller can hand it straight to reorderDayRows
+ * itself to land it at a precise spot in one round trip (addDaySeparatorAction). */
 export async function addDaySeparator(
   prisma: DaySeparatorPrisma,
   studentId: string,
   date: Date,
-  label: DaySeparatorLabel
+  label: string
 ) {
   const day = startOfUTCDay(date);
   const [maxInstance, maxSeparator] = await Promise.all([
@@ -34,8 +36,6 @@ export async function addDaySeparator(
 export async function deleteDaySeparator(prisma: Pick<PrismaClient, "daySeparator">, separatorId: string): Promise<void> {
   await prisma.daySeparator.delete({ where: { id: separatorId } });
 }
-
-export { DaySeparatorLabel };
 
 /**
  * Splits a day's open instances into the segments its separators bound —
