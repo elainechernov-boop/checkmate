@@ -11,6 +11,10 @@ const FLIGHT_TIMES = [0, 0.15, 0.75, 1];
 const SPARKLE_COUNT = 8;
 const SPARKLE_STAGGER = 0.045; // seconds between each trailing sparkle's start
 
+// The trailing sparkle stream's colors — homeroom's brand accents, in place
+// of a single generic gold. Each sparkle gets one at random.
+const SPARKLE_COLORS = ["#D8F609", "#F0179E", "#1657FF", "#2FD9A8", "#FF9500"];
+
 function randomFlight() {
   return {
     glyph: CRITTERS[Math.floor(Math.random() * CRITTERS.length)],
@@ -21,6 +25,7 @@ function randomFlight() {
       dy: (Math.random() - 0.5) * 90,
       size: 1.3 + Math.random() * 1.3, // rem — each sparkle its own size, not a smooth taper
       spin: (Math.random() - 0.5) * 70, // deg, its own little twirl
+      color: SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)],
     })),
   };
 }
@@ -108,7 +113,8 @@ export function ItemCelebration({
               lineHeight: 1,
               pointerEvents: "none",
               zIndex: 9998,
-              filter: "drop-shadow(0 0 6px rgba(255,205,60,0.75))",
+              color: s.color,
+              filter: `drop-shadow(0 0 6px ${s.color}bf)`,
             }}
           >
             {SPARKLE}

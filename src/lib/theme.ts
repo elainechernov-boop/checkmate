@@ -1,18 +1,43 @@
-// The near-monochrome palette from SPEC.md §9 — shifted to crisper, cooler
-// neutrals (near-white bg, cool grays, thin cool hairlines) per feedback
-// that the original warm/tan tones read as soft rather than crisp. Color
-// still appears in a small, fixed set of functional places: subject ticks
-// (subjectColors.ts), each student's own accentColor, amber for roll marks
-// / "Show Mom", and — parent's own explicit request — a separate cool blue
-// reserved for the imported family calendar overlay, so an external event
-// reads at a glance as "not schoolwork" rather than blending into the same
-// amber a timed assignment gets.
+// The "homeroom" brand palette (design_handoff_homeroom_redesign/README.md)
+// — cream background, near-black ink, and a small, fixed set of functional
+// colors: crimson for attention-only states (live-now, "Show Mom" — never a
+// student accent, never changes), cobalt as the UI primary / default
+// student accent (also used for the imported family calendar overlay's chip
+// color — there's no longer a separate calendar-only blue), and tennis-ball
+// green as the brand accent itself, used sparingly. Subject ticks
+// (subjectColors.ts) and each student's own accentColor (cycled via
+// STUDENT_ACCENT_ROTATION below) are the other two places color appears.
 export const COLORS = {
-  background: "#FAFAFA",
-  text: "#161616",
+  background: "#FAF7F2",
+  text: "#1A1A1A",
   muted: "#6B6B6B",
   mutedFaint: "#A9ACB2",
   hairline: "#E1E3E6",
-  amber: "#B5451B",
-  calendar: "#3B5B7A",
+  tennis: "#D8F609",
+  cobalt: "#1657FF",
+  crimson: "#E8264B",
+  // Legacy aliases, kept only until every call site is migrated in later
+  // phases: "amber" was the old roll-mark/"Show Mom" tone (now crimson);
+  // "calendar" was a dedicated blue for the family-calendar overlay — the
+  // new design reuses cobalt for that instead of a separate hue.
+  amber: "#E8264B",
+  calendar: "#1657FF",
 } as const;
+
+// Tapping a student's own name cycles through this fixed order (README
+// "New feature: student-editable accent color") — cobalt is the default a
+// freshly-seeded student starts on.
+export const STUDENT_ACCENT_ROTATION = [
+  "#1657FF", // cobalt (default)
+  "#F0179E", // magenta
+  "#2FD9A8", // sea foam
+  "#D8F609", // tennis-ball
+  "#FF9500", // poppy
+  "#B15CFF", // violet
+  "#FF5E00", // bright orange
+] as const;
+
+export function nextAccentColor(current: string): string {
+  const index = STUDENT_ACCENT_ROTATION.indexOf(current as (typeof STUDENT_ACCENT_ROTATION)[number]);
+  return STUDENT_ACCENT_ROTATION[(index + 1) % STUDENT_ACCENT_ROTATION.length];
+}

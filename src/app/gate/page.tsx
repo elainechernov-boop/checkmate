@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { submitFamilyPassword } from "./actions";
 
 export default async function GatePage({
@@ -8,9 +9,16 @@ export default async function GatePage({
   const { error, from } = await searchParams;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FAFAFA] px-6">
+    <main className="flex min-h-screen items-center justify-center bg-[#FAF7F2] px-6">
       <form action={submitFamilyPassword} className="w-full max-w-xs">
-        <h1 className="mb-8 text-center text-2xl font-medium text-[#161616]">Checkmate</h1>
+        <Image
+          src="/homeroom-wordmark.svg"
+          alt="homeroom"
+          width={160}
+          height={34}
+          className="mx-auto mb-8 h-8 w-auto"
+          priority
+        />
         <input type="hidden" name="from" value={from ?? "/"} />
         <label htmlFor="password" className="sr-only">
           Family password

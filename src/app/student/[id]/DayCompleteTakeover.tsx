@@ -5,10 +5,10 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { COLORS } from "@/lib/theme";
 
-// A candy palette just for this moment — the app is near-monochrome
-// everywhere else (§9), but the whole point here is a full-screen "you did
-// it" spectacle, so this one screen is allowed to be loud.
-const CONFETTI_COLORS = ["#E85D5D", "#F2B84B", "#5CA9E8", "#6EC17A", "#B77FE0", "#F27DAE", "#4FC3C0"];
+// The homeroom brand accents just for this moment — the app is otherwise a
+// small, fixed palette (§9), but the whole point here is a full-screen "you
+// did it" spectacle, so this one screen gets to use all five at once.
+const CONFETTI_COLORS = ["#D8F609", "#F0179E", "#1657FF", "#2FD9A8", "#FF9500"];
 
 function generateBurst(count: number) {
   return Array.from({ length: count }, (_, i) => ({

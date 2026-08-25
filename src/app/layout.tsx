@@ -1,20 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Syncopate } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// The one "fun, wide" headline font — reserved for a student's own name and
+// project titles only (see design_handoff_homeroom_redesign/README.md's
+// "Typography" section). It has no real lowercase forms, so every call site
+// using it also applies uppercase + extra letter-spacing.
+const syncopate = Syncopate({
+  variable: "--font-syncopate",
   subsets: ["latin"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Checkmate",
+  title: "homeroom",
   description: "The family's homeschool assignment tracker.",
+  icons: {
+    icon: "/homeroom-favicon.svg",
+  },
 };
 
 // Without this, mobile Safari renders the page at a fixed ~980px virtual
@@ -38,9 +47,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${syncopate.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col" style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
+        {children}
+      </body>
     </html>
   );
 }

@@ -9,10 +9,10 @@ import { arrayMove } from "@dnd-kit/sortable";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, defaultWeekStart, toISODate } from "@/lib/dates";
-import { COLORS } from "@/lib/theme";
+import { COLORS, nextAccentColor } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
-import { approveReviewViaPasscode, reorderOpenItems, toggleInstance } from "./actions";
+import { approveReviewViaPasscode, cycleAccentColorAction, reorderOpenItems, toggleInstance } from "./actions";
 import { moveProjectTaskAction, reorderProjectsAction } from "./projectActions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
@@ -74,6 +74,8 @@ export function StudentWeekView({
   const prefersReducedMotion = !!useReducedMotion();
   const bandSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  const [localAccentColor, setLocalAccentColor] = useState(student.accentColor);
+  const [syncedAccentColor, setSyncedAccentColor] = useState(student.accentColor);
   const [localInstances, setLocalInstances] = useState(instances);
   const [syncedInstances, setSyncedInstances] = useState(instances);
   const [localProjects, setLocalProjects] = useState(projects);
@@ -113,6 +115,10 @@ export function StudentWeekView({
   if (instances !== syncedInstances) {
     setSyncedInstances(instances);
     setLocalInstances(instances);
+  }
+  if (student.accentColor !== syncedAccentColor) {
+    setSyncedAccentColor(student.accentColor);
+    setLocalAccentColor(student.accentColor);
   }
   if (projects !== syncedProjects) {
     setSyncedProjects(projects);
@@ -404,14 +410,30 @@ export function StudentWeekView({
     setSoundMuted(next);
   }
 
+  async function handleCycleAccentColor() {
+    const previous = localAccentColor;
+    setLocalAccentColor(nextAccentColor(previous));
+    try {
+      await cycleAccentColorAction(student.id);
+    } catch {
+      setLocalAccentColor(previous);
+    }
+  }
+
   const selectedInstance = localInstances.find((i) => i.id === selectedInstanceId) ?? null;
 
   return (
     <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-4 py-6 lg:px-10 lg:py-10">
       <header className="flex items-start justify-between">
-        <h1 className="text-xl font-medium lg:text-2xl" style={{ color: student.accentColor }}>
+        <button
+          type="button"
+          onClick={handleCycleAccentColor}
+          title="Tap to change my color"
+          className="text-xl font-medium lg:text-2xl border-b border-dashed"
+          style={{ color: localAccentColor, borderColor: localAccentColor }}
+        >
           {student.name}&rsquo;s week
-        </h1>
+        </button>
         <div className="flex items-center gap-4 text-sm lg:gap-6">
           <button onClick={() => setComingUpOpen(true)} className="hover:underline" style={{ color: COLORS.muted }}>
             Coming Up
@@ -487,7 +509,7 @@ export function StudentWeekView({
                     instances={dayInstances}
                     separators={daySeparatorsForDay}
                     studentName={student.name}
-                    accentColor={student.accentColor}
+                    accentColor={localAccentColor}
                     prefersReducedMotion={prefersReducedMotion}
                     celebrated={celebratedToday}
                     onCelebrate={handleCelebrate}
@@ -504,7 +526,7 @@ export function StudentWeekView({
               <DayPagerControls
                 activeIndex={mobileDayIndex}
                 labels={DAY_SHORT_LABELS}
-                accentColor={student.accentColor}
+                accentColor={localAccentColor}
                 onSelect={goToDayIndex}
                 onPrev={goToPrevDay}
                 onNext={goToNextDay}
@@ -530,7 +552,7 @@ export function StudentWeekView({
                         instances={dayInstances}
                         separators={daySeparatorsForDay}
                         studentName={student.name}
-                        accentColor={student.accentColor}
+                        accentColor={localAccentColor}
                         prefersReducedMotion={prefersReducedMotion}
                         celebrated={celebratedToday}
                         onCelebrate={handleCelebrate}
@@ -550,7 +572,7 @@ export function StudentWeekView({
 
         <ProjectsBand
           studentId={student.id}
-          accentColor={student.accentColor}
+          accentColor={localAccentColor}
           projects={localProjects}
           onPlanTask={(task) => setPlanTaskId(task.id)}
           onNewProject={() => setNewProjectOpen(true)}
@@ -560,7 +582,7 @@ export function StudentWeekView({
 
       {/* Outside the week/projects DndContext above — ideas never drag
           anywhere, they're a plain list (§7's "someday" scratch list). */}
-      <IdeasList studentId={student.id} accentColor={student.accentColor} ideas={projectIdeas} />
+      <IdeasList studentId={student.id} accentColor={localAccentColor} ideas={projectIdeas} />
 
       <ComingUpPanel
         open={comingUpOpen}

@@ -27,5 +27,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Static files under public/ (the wordmark/favicon SVGs, etc.) need to
+  // load on the gate page itself, before any session cookie exists — so
+  // any request for a plain static-asset extension bypasses the gate the
+  // same way _next/static and _next/image already do.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|ico|png|jpg|jpeg|gif|webp)$).*)"],
 };

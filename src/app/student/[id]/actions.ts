@@ -8,6 +8,7 @@ import { recomputeProjectStatus } from "@/lib/projects";
 import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
 import { approveReview } from "@/lib/reviewActions";
 import { secretsMatch } from "@/lib/session";
+import { nextAccentColor } from "@/lib/theme";
 
 /**
  * The student's only two verbs (§2): check and uncheck. §6's undo rule and
@@ -74,4 +75,19 @@ export async function approveReviewViaPasscode(instanceId: string, passcode: str
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
   await approveReview(prisma, instanceId);
   revalidatePath(`/student/${instance.studentId}`);
+}
+
+/**
+ * README "New feature: student-editable accent color" — tapping a
+ * student's own name advances it to the next color in the fixed rotation.
+ * `Student.accentColor` already existed (parent/seed-writable only, per
+ * §students/actions.ts); this is the first student-facing write path for it.
+ */
+export async function cycleAccentColorAction(studentId: string): Promise<{ accentColor: string }> {
+  const student = await prisma.student.findUniqueOrThrow({ where: { id: studentId } });
+  const accentColor = nextAccentColor(student.accentColor);
+  await prisma.student.update({ where: { id: studentId }, data: { accentColor } });
+  revalidatePath(`/student/${studentId}`);
+  revalidatePath("/parent");
+  return { accentColor };
 }
