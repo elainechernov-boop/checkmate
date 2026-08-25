@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { splitBySeparators } from "./daySeparators";
-import { startOfUTCDay, toISODate } from "./dates";
+import { getToday, startOfUTCDay, toISODate } from "./dates";
 
 type ReorderablePrisma = Pick<PrismaClient, "assignmentInstance" | "$transaction">;
 type SeparatorAwarePrisma = ReorderablePrisma & Pick<PrismaClient, "daySeparator">;
@@ -24,7 +24,7 @@ export async function reorderOpenItems(
   prisma: SeparatorAwarePrisma,
   studentId: string,
   orderedIds: string[],
-  asOf: Date = startOfUTCDay(new Date())
+  asOf: Date = getToday()
 ): Promise<void> {
   const today = startOfUTCDay(asOf);
 

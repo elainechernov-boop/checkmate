@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { addDays, startOfUTCDay } from "./dates";
+import { addDays, getToday, startOfUTCDay } from "./dates";
 import { isBlockedDay, loadSchoolDayMap } from "./schoolCalendar";
 
 type RollablePrisma = Pick<PrismaClient, "assignmentInstance" | "schoolDay" | "$transaction">;
@@ -39,7 +39,7 @@ async function nextSchoolDayOnOrAfter(prisma: RollablePrisma, studentId: string,
 export async function rollOverdueInstances(
   prisma: RollablePrisma,
   studentId: string,
-  asOf: Date = startOfUTCDay(new Date())
+  asOf: Date = getToday()
 ): Promise<{ rolledCount: number }> {
   const target = await nextSchoolDayOnOrAfter(prisma, studentId, startOfUTCDay(asOf));
 
@@ -62,7 +62,7 @@ export async function rollOverdueInstances(
 
 export async function rollOverdueInstancesForAllStudents(
   prisma: RollablePrisma & { student: PrismaClient["student"] },
-  asOf: Date = startOfUTCDay(new Date())
+  asOf: Date = getToday()
 ): Promise<void> {
   const students = await prisma.student.findMany({ select: { id: true } });
   for (const student of students) {

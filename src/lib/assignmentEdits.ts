@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, InstanceStatus, type Frequency } from "@/generated/prisma/enums";
-import { addDays, startOfUTCDay } from "./dates";
+import { addDays, getToday, startOfUTCDay } from "./dates";
 import { materializeSeries } from "./materialize";
 
 // Deleting never touches a resolved instance (done/excused) even when the
@@ -206,7 +206,7 @@ export async function promoteInstanceToSeries(
       throw new Error("This assignment already belongs to a series.");
     }
 
-    const startDate = instance.dueDate ? startOfUTCDay(instance.dueDate) : startOfUTCDay(new Date());
+    const startDate = instance.dueDate ? startOfUTCDay(instance.dueDate) : getToday();
 
     const series = await tx.assignmentSeries.create({
       data: {

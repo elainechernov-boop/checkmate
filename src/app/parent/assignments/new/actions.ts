@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { mondayOf, parseISODate, startOfUTCDay, toISODate } from "@/lib/dates";
+import { getToday, mondayOf, parseISODate, toISODate } from "@/lib/dates";
 import { EndCondition, Frequency } from "@/generated/prisma/enums";
 import { materializeSeries } from "@/lib/materialize";
 
@@ -43,7 +43,7 @@ export async function createAssignment(formData: FormData) {
   // Each series/instance belongs to exactly one student (§3), so selecting
   // multiple students fans out an independent copy per student — each kid
   // completes, rolls, and gets reviewed on their own, per §5/§6.
-  const today = startOfUTCDay(new Date());
+  const today = getToday();
   const materializeFrom = startDate < today ? startDate : today;
 
   await Promise.all(

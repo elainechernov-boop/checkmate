@@ -20,6 +20,14 @@ export function startOfUTCDay(date: Date): Date {
   return parseISODate(toISODate(date));
 }
 
+// The family's own timezone (§1 — the app models no other timezone
+// anywhere besides this and the imported family calendar, which defaults
+// to the same). "Today" has to roll over at midnight *here*, not at UTC
+// midnight — the server's clock is UTC, and UTC midnight is 5pm (PDT) or
+// 4pm (PST) in Los Angeles, which used to flip the whole app to "tomorrow"
+// mid-afternoon.
+const APP_TIME_ZONE = "America/Los_Angeles";
+
 // "Today," but overridable outside production so the Mon-Sat student view
 // (and the server-side same-day check on check/uncheck) can be exercised on
 // any day of the week without waiting for the calendar or touching the
@@ -28,7 +36,16 @@ export function startOfUTCDay(date: Date): Date {
 // URL, and it's a no-op in the deployed app regardless of env contents.
 export function getToday(): Date {
   const override = process.env.NODE_ENV !== "production" ? process.env.DEBUG_TODAY : undefined;
-  return override ? parseISODate(override) : startOfUTCDay(new Date());
+  if (override) return parseISODate(override);
+  // en-CA's YYYY-MM-DD output needs no reassembly — same trick
+  // familyCalendar.ts's localDateISO uses for the same reason.
+  const todayISO = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return parseISODate(todayISO);
 }
 
 // True when getToday() is pinned by DEBUG_TODAY. A real "today" advances

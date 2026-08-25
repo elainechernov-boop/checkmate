@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, Frequency, InstanceStatus } from "@/generated/prisma/enums";
-import { addDays, startOfUTCDay, toISODate, WEEKDAYS, type WeekdayCode } from "./dates";
+import { addDays, getToday, startOfUTCDay, toISODate, WEEKDAYS, type WeekdayCode } from "./dates";
 import { isBlockedDay, loadSchoolDayMap, type SchoolDayMap } from "./schoolCalendar";
 
 export const MATERIALIZATION_HORIZON_DAYS = 60;
@@ -163,7 +163,7 @@ type MaterializablePrisma = Pick<
 export async function materializeSeries(
   prisma: MaterializablePrisma,
   seriesId: string,
-  asOf: Date = startOfUTCDay(new Date())
+  asOf: Date = getToday()
 ): Promise<void> {
   const series = await prisma.assignmentSeries.findUnique({
     where: { id: seriesId },
@@ -285,7 +285,7 @@ export async function materializeSeries(
  */
 export async function extendAllMaterializationHorizons(
   prisma: MaterializablePrisma,
-  asOf: Date = startOfUTCDay(new Date())
+  asOf: Date = getToday()
 ): Promise<void> {
   const seriesList = await prisma.assignmentSeries.findMany({ select: { id: true } });
   for (const series of seriesList) {
