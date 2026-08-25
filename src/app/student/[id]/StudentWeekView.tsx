@@ -90,6 +90,11 @@ export function StudentWeekView({
     null
   );
   const [reminderInstance, setReminderInstance] = useState<StudentInstance | null>(null);
+  // Purely to force the live/soon/later/past time badges (lib/reminders.ts's
+  // timeBadge) to recompute against the real wall clock — those are derived
+  // at render, not stored, so something has to actually re-render every so
+  // often for "starts in 45 min" to ever tick down to "starts in 44 min".
+  const [now, setNow] = useState(() => new Date());
 
   const todayISO = toISODate(today);
   const celebratedKey = `checkmate:celebrated:${student.id}:${todayISO}`;
@@ -201,6 +206,11 @@ export function StudentWeekView({
     const interval = window.setInterval(checkReminders, REMINDER_CHECK_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [localInstances, todayISO, reminderInstance, student.id]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), REMINDER_CHECK_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const weekHasAnyItems = localInstances.length > 0;
   // A backlog task needs somewhere to be dropped, even on an otherwise
@@ -508,10 +518,13 @@ export function StudentWeekView({
                     interactive={isToday}
                     instances={dayInstances}
                     separators={daySeparatorsForDay}
+                    studentId={student.id}
                     studentName={student.name}
                     accentColor={localAccentColor}
                     prefersReducedMotion={prefersReducedMotion}
                     celebrated={celebratedToday}
+                    now={now}
+                    canAddTask={dayISO >= todayISO}
                     onCelebrate={handleCelebrate}
                     onToggle={handleToggle}
                     onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
@@ -551,10 +564,13 @@ export function StudentWeekView({
                         interactive={isToday}
                         instances={dayInstances}
                         separators={daySeparatorsForDay}
+                        studentId={student.id}
                         studentName={student.name}
                         accentColor={localAccentColor}
                         prefersReducedMotion={prefersReducedMotion}
                         celebrated={celebratedToday}
+                        now={now}
+                        canAddTask={dayISO >= todayISO}
                         onCelebrate={handleCelebrate}
                         onToggle={handleToggle}
                         onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}

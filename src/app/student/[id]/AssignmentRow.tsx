@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { playCompletionTick } from "@/lib/completionSound";
 import { formatRollMark } from "@/lib/instanceGrouping";
-import { formatScheduledTime } from "@/lib/reminders";
+import { formatScheduledTime, timeBadge, type TimeBadgeState } from "@/lib/reminders";
+import { getSubjectColor } from "@/lib/subjectColors";
 import { COLORS } from "@/lib/theme";
 import { ApprovalPasscodePopover } from "./ApprovalPasscodePopover";
 import type { StudentInstance } from "./types";
@@ -29,12 +30,24 @@ function isFadedLook(status: InstanceStatus): boolean {
   return status === InstanceStatus.pendingReview;
 }
 
+// The row's 3px identity bar (design tokens §"Spacing/shape") — a done row
+// mutes to the hairline gray, a project task or self-typed item (no
+// subject, since a project series never carries one — §3) takes the
+// student's own accent, and everything else takes its subject's color.
+function barColor(instance: StudentInstance, accentColor: string | undefined): string {
+  if (isMutedLook(instance.status)) return COLORS.hairline;
+  if (instance.project) return accentColor ?? COLORS.text;
+  if (instance.subject) return getSubjectColor(instance.subject.name);
+  return accentColor ?? COLORS.text;
+}
+
 export function AssignmentRow({
   instance,
   interactive,
   prefersReducedMotion,
   isLast,
   accentColor,
+  now,
   onToggle,
   onOpenDetails,
   onApproveViaPasscode,
@@ -47,6 +60,10 @@ export function AssignmentRow({
   // in place of the subject/time line (§7: "theirs at a glance, without a
   // second visual system").
   accentColor?: string;
+  // Wall-clock time for the live/soon/later/past callout below — passed
+  // down from StudentWeekView's own 20s-refreshed `now` state rather than
+  // read directly, so every row in the column recomputes together.
+  now: Date;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
   onApproveViaPasscode?: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
@@ -74,15 +91,18 @@ export function AssignmentRow({
   const rollMark = formatRollMark(instance.rolledCount);
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
-  const isTimeSensitive = instance.isTimeSensitive && !!instance.scheduledTime;
+
+  const estMinutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
+  const badge: TimeBadgeState | null =
+    instance.isTimeSensitive && instance.scheduledTime ? timeBadge(instance.scheduledTime, estMinutes, now) : null;
+  const isCallout = badge === "live" || badge === "soon";
+  const calloutColor = badge === "live" ? COLORS.crimson : COLORS.cobalt;
 
   // Subject + estimated time, small and quiet underneath the title — more
-  // useful to a kid than a color they'd have to memorize (§9 tried a
-  // subject-colored tick; a name reads instantly, a color doesn't). A
-  // project task shows its project's name here instead, in the student's
-  // own accent color (§7) — never both at once, since a project series
-  // never carries a subject (§3).
-  const estMinutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
+  // useful to a kid than a color they'd have to memorize (the 3px bar above
+  // now carries that signal instead). A project task shows its project's
+  // name here instead, in the student's own accent color (§7) — never
+  // both at once, since a project series never carries a subject (§3).
   const metaText = instance.project
     ? instance.project.name
     : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null].filter(Boolean).join(" · ");
@@ -119,24 +139,29 @@ export function AssignmentRow({
       className="relative flex items-start gap-2 rounded-sm py-1.5 text-sm"
       style={{
         borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}`,
-        // §12: the whole row carries the highlight, not just its time
-        // badge — amber wash + left accent, still within §9's two-color
-        // budget (student accent + this one amber for roll marks/"Show
-        // Mom"/time-sensitive, nothing else). Negative margins bleed the
-        // highlight to the day column's own edges instead of just insetting
-        // within the row's own text.
-        ...(isTimeSensitive
+        // Design tokens: "1.5px top+bottom rule (not a rounded card) for
+        // time-sensitive callouts" — crimson while live, cobalt while
+        // starting soon; negative margins bleed the highlight to the day
+        // column's own edges instead of just insetting within the row.
+        ...(isCallout
           ? {
-              background: "rgba(181, 69, 27, 0.07)",
-              boxShadow: `inset 3px 0 0 ${COLORS.amber}`,
+              background: `${calloutColor}12`,
+              borderTop: `1.5px solid ${calloutColor}`,
+              borderBottom: `1.5px solid ${calloutColor}`,
               marginLeft: "-0.5rem",
               marginRight: "-0.5rem",
+              marginTop: "0.25rem",
+              marginBottom: "0.25rem",
               paddingLeft: "0.5rem",
               paddingRight: "0.5rem",
             }
           : undefined),
       }}
     >
+      {/* The row's 3px identity bar (design tokens) — subject color, or the
+          student's own accent for a project task / self-typed item. */}
+      <span aria-hidden className="mt-0.5 shrink-0 self-stretch" style={{ width: 3, minHeight: "1.25rem", background: barColor(instance, accentColor) }} />
+
       {/* No checkbox, no dot, no drag handle — the word itself is the
           completion control (TeuxDeux's model, §6 north star), and the
           whole row is now the drag target (dnd-kit listeners live on
@@ -150,6 +175,26 @@ export function AssignmentRow({
         className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
         style={{ cursor: interactive ? "pointer" : "default" }}
       >
+        {isCallout && (
+          <span className="flex items-center gap-1.5">
+            {badge === "live" && (
+              <motion.span
+                aria-hidden
+                className="inline-block rounded-full"
+                style={{ width: 6, height: 6, background: calloutColor }}
+                animate={prefersReducedMotion ? undefined : { opacity: [1, 0.35, 1] }}
+                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+              />
+            )}
+            <span
+              className="font-bold uppercase"
+              style={{ color: calloutColor, fontSize: "0.6rem", letterSpacing: "0.03em" }}
+            >
+              {badge === "live" ? "Live now" : `Starts in ${minutesUntil(instance.scheduledTime!, now)} min`}
+            </span>
+          </span>
+        )}
+
         <span className="flex w-full min-w-0 items-start gap-2">
           <motion.span
             className="relative min-w-0 flex-1 line-clamp-2 break-words"
@@ -200,7 +245,7 @@ export function AssignmentRow({
           {rollMark && (
             <span
               className="mt-0.5 shrink-0"
-              style={{ color: COLORS.amber, fontSize: "0.7rem" }}
+              style={{ color: COLORS.crimson, fontSize: "0.7rem" }}
               title={`Rolled ${instance.rolledCount} day(s)`}
             >
               {rollMark}
@@ -208,12 +253,12 @@ export function AssignmentRow({
           )}
         </span>
 
-        {/* §12: the same amber already reserved for roll marks / "Show Mom"
-            (§9's two-color budget) — a time-sensitive item's own clock time,
-            shown regardless of the subject/project meta line below it. */}
-        {instance.isTimeSensitive && instance.scheduledTime && (
-          <span className="whitespace-nowrap" style={{ color: COLORS.amber, fontSize: "0.7rem", fontWeight: 600 }}>
-            🕐 {formatScheduledTime(instance.scheduledTime)}
+        {/* A time-sensitive item that isn't live/starting-soon right now
+            (badge is "later" or "past") still shows its clock time, just as
+            a quiet chip rather than a callout. */}
+        {badge && !isCallout && instance.scheduledTime && (
+          <span className="whitespace-nowrap" style={{ color: COLORS.muted, fontSize: "0.7rem" }}>
+            Today at {formatScheduledTime(instance.scheduledTime)}
           </span>
         )}
 
@@ -227,7 +272,7 @@ export function AssignmentRow({
         )}
 
         {isPendingReview && (
-          <span className="whitespace-nowrap" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+          <span className="whitespace-nowrap" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>
             ✋ Show Mom
           </span>
         )}
@@ -281,4 +326,15 @@ export function AssignmentRow({
       )}
     </div>
   );
+}
+
+// "Starts in N min" — whole minutes remaining until scheduledTime, floored
+// so the label never rounds up past when the live-now state actually kicks
+// in (a badge of "soon" already guarantees this is >= 0 and <= 60).
+function minutesUntil(scheduledTime: string, now: Date): number {
+  const match = /^(\d{2}):(\d{2})$/.exec(scheduledTime);
+  if (!match) return 0;
+  const scheduled = new Date(now);
+  scheduled.setHours(Number(match[1]), Number(match[2]), 0, 0);
+  return Math.max(0, Math.round((scheduled.getTime() - now.getTime()) / 60_000));
 }

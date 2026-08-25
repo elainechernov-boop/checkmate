@@ -16,9 +16,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
 import { splitBySeparators } from "@/lib/daySeparators";
-import { formatTotalMinutes } from "@/lib/estimatedMinutes";
+import { formatTotalMinutes, minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
+import { addOwnTaskAction } from "./actions";
 import { AssignmentRow } from "./AssignmentRow";
 import { DayCompleteTakeover } from "./DayCompleteTakeover";
 import type { DaySeparator, StudentInstance } from "./types";
@@ -46,6 +47,7 @@ function SortableRow({
   prefersReducedMotion,
   isLast,
   accentColor,
+  now,
   onToggle,
   onOpenDetails,
 }: {
@@ -53,6 +55,7 @@ function SortableRow({
   prefersReducedMotion: boolean;
   isLast: boolean;
   accentColor: string;
+  now: Date;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
   // Open-bucket rows are never pendingReview (§6's ordering), so this
@@ -90,6 +93,7 @@ function SortableRow({
         prefersReducedMotion={prefersReducedMotion}
         isLast={isLast}
         accentColor={accentColor}
+        now={now}
         onToggle={onToggle}
         onOpenDetails={onOpenDetails}
       />
@@ -103,6 +107,7 @@ function DraggableProjectRow({
   prefersReducedMotion,
   isLast,
   accentColor,
+  now,
   onToggle,
   onOpenDetails,
   onApproveViaPasscode,
@@ -112,6 +117,7 @@ function DraggableProjectRow({
   prefersReducedMotion: boolean;
   isLast: boolean;
   accentColor: string;
+  now: Date;
   onToggle: (origin: { x: number; y: number }) => void;
   onOpenDetails: () => void;
   onApproveViaPasscode: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
@@ -144,11 +150,44 @@ function DraggableProjectRow({
         prefersReducedMotion={prefersReducedMotion}
         isLast={isLast}
         accentColor={accentColor}
+        now={now}
         onToggle={onToggle}
         onOpenDetails={onOpenDetails}
         onApproveViaPasscode={onApproveViaPasscode}
       />
     </div>
+  );
+}
+
+/** The redesign's permanent "Type here, press Enter" input (README §1.9) —
+ * same fire-and-forget pattern as IdeasList's bottom input: no optimistic
+ * splicing, the server action's revalidatePath brings the new row back on
+ * the next render. */
+function AddTaskInput({ studentId, dueDateISO }: { studentId: string; dueDateISO: string }) {
+  const [text, setText] = useState("");
+
+  function submit() {
+    const trimmed = text.trim();
+    setText("");
+    if (trimmed) void addOwnTaskAction(studentId, dueDateISO, trimmed);
+  }
+
+  return (
+    <input
+      value={text}
+      onChange={(event) => setText(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          submit();
+        } else if (event.key === "Escape") {
+          setText("");
+        }
+      }}
+      placeholder="Type here, press Enter…"
+      className="mt-1.5 w-full border-b bg-transparent py-1 text-sm outline-none"
+      style={{ borderColor: COLORS.hairline, color: COLORS.text, borderBottomStyle: "dashed" }}
+    />
   );
 }
 
@@ -158,10 +197,13 @@ export function DayColumn({
   interactive,
   instances,
   separators,
+  studentId,
   studentName,
   accentColor,
   prefersReducedMotion,
   celebrated,
+  now,
+  canAddTask,
   onCelebrate,
   onToggle,
   onOpenDetails,
@@ -177,10 +219,19 @@ export function DayColumn({
   // set on, not just today; only today's own SortableContext (below) treats
   // them as reorder boundaries.
   separators: DaySeparator[];
+  studentId: string;
   studentName: string;
   accentColor: string;
   prefersReducedMotion: boolean;
   celebrated: boolean;
+  // Wall-clock time, refreshed every ~20s by StudentWeekView — drives the
+  // live/soon/later/past time badges (see AssignmentRow).
+  now: Date;
+  // Today + every future column gets the permanent "Type here, press
+  // Enter" add-input (a new capability — see actions.ts's addOwnTaskAction);
+  // past columns stay read-only, same as the rest of the app's "today is
+  // the whole truth" treatment of anything already gone.
+  canAddTask: boolean;
   onCelebrate: () => void;
   onToggle: (instance: StudentInstance, origin: { x: number; y: number }) => void;
   onOpenDetails: (instance: StudentInstance) => void;
@@ -219,11 +270,14 @@ export function DayColumn({
   const totalRows = rolled.length + timeSensitive.length + open.length + pendingReview.length + completed.length;
   // A long list of small items adds up to less than it looks like — the
   // same reassurance Parent Mode's own day cells already give the parent
-  // (formatTotalMinutes), now surfaced to the kid whose list it is.
-  const totalMinutes = instances.reduce((sum, instance) => {
-    const minutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
-    return minutes != null ? sum + minutes : sum;
-  }, 0);
+  // (formatTotalMinutes), now surfaced to the kid whose list it is. Both
+  // this total and the progress bar below apply the 30-min fallback to any
+  // task with no real estimate (estimatedMinutes.ts) — otherwise an
+  // untimed task counts as free, which makes the bar meaningless on a day
+  // full of them.
+  const totalMinutes = sumEstimatedMinutes(instances);
+  const { done: doneMinutes, total: progressTotalMinutes } = minutesProgress(instances);
+  const progressPercent = progressTotalMinutes > 0 ? Math.min(100, Math.round((doneMinutes / progressTotalMinutes) * 100)) : 0;
   // The column's true bottom-to-top order (rolled -> segments [time-sensitive
   // and open, interleaved by separator placement] -> pendingReview ->
   // completed, §6/§12) regardless of which bucket a row is rendered from —
@@ -269,6 +323,7 @@ export function DayColumn({
       prefersReducedMotion,
       isLast: instance.id === lastRowId,
       accentColor,
+      now,
       onToggle: (origin: { x: number; y: number }) => onToggle(instance, origin),
       onOpenDetails: () => onOpenDetails(instance),
       // Available even on a non-today column — a pendingReview item holds
@@ -335,6 +390,14 @@ export function DayColumn({
           )}
         </div>
 
+        {/* Minutes-done ÷ minutes-total for the day (design tokens §1.2) —
+            not an assignment-count bar, in the student's own accent color. */}
+        {progressTotalMinutes > 0 && (
+          <span aria-hidden className="mt-1.5 block h-[3px]" style={{ background: COLORS.hairline }}>
+            <span className="block h-full" style={{ width: `${progressPercent}%`, background: accentColor }} />
+          </span>
+        )}
+
         <div className="mt-2 flex flex-col">
           {totalRows === 0 && (
             <p className="py-1 text-center text-sm" style={{ color: COLORS.mutedFaint }}>
@@ -379,6 +442,7 @@ export function DayColumn({
                           prefersReducedMotion={prefersReducedMotion}
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
+                          now={now}
                           onToggle={(origin) => onToggle(instance, origin)}
                           onOpenDetails={() => onOpenDetails(instance)}
                         />
@@ -389,6 +453,7 @@ export function DayColumn({
                           prefersReducedMotion={prefersReducedMotion}
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
+                          now={now}
                           onToggle={(origin) => onToggle(instance, origin)}
                           onOpenDetails={() => onOpenDetails(instance)}
                         />
@@ -410,6 +475,8 @@ export function DayColumn({
 
           {pendingReview.map(plainRow)}
           {completed.map(plainRow)}
+
+          {canAddTask && <AddTaskInput studentId={studentId} dueDateISO={toISODate(day)} />}
         </div>
       </div>
       {totalMinutes > 0 && (

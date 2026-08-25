@@ -3,6 +3,7 @@
 // pattern as completionSound.ts's mute flag and StudentWeekView's
 // celebratedKey).
 import { InstanceStatus } from "@/generated/prisma/enums";
+import { DEFAULT_ESTIMATED_MINUTES } from "@/lib/estimatedMinutes";
 
 export interface ReminderCandidate {
   id: string;
@@ -38,6 +39,34 @@ export function isReminderDue(instance: ReminderCandidate, now: Date): boolean {
   const remindAt = new Date(scheduled.getTime() - instance.reminderMinutesBefore * 60_000);
   const expiresAt = new Date(scheduled.getTime() + GRACE_MINUTES_AFTER * 60_000);
   return now >= remindAt && now <= expiresAt;
+}
+
+export type TimeBadgeState = "live" | "soon" | "later" | "past";
+
+const SOON_WINDOW_MINUTES = 60;
+
+/** README §"Time-sensitive computation" — given a clock time + estimated
+ * duration, which of the four callout states (§ Screens §1.2) an item is in
+ * right now: `live` (currently happening, pulsing dot), `soon` (starts
+ * within an hour, a quiet cobalt callout), `later` (a plain row with a
+ * quiet time chip), or `past` (already over). Reuses `isReminderDue`'s
+ * scheduled-time parsing; the fallback duration matches the day's own
+ * minutes-total fallback (estimatedMinutes.ts) so an untimed live-now item
+ * still resolves to a sensible one-item-long window instead of never
+ * ending. Recomputed at render, not stored — see StudentWeekView's 60s poll
+ * and the 20s reminder-check interval, both of which re-render this. */
+export function timeBadge(scheduledTime: string, estimatedMinutes: number | null, now: Date): TimeBadgeState {
+  const scheduled = parseTimeOn(scheduledTime, now);
+  if (!scheduled) return "past";
+
+  const durationMs = (estimatedMinutes ?? DEFAULT_ESTIMATED_MINUTES) * 60_000;
+  const end = new Date(scheduled.getTime() + durationMs);
+  const soonAt = new Date(scheduled.getTime() - SOON_WINDOW_MINUTES * 60_000);
+
+  if (now >= scheduled && now <= end) return "live";
+  if (now >= soonAt && now < scheduled) return "soon";
+  if (now < soonAt) return "later";
+  return "past";
 }
 
 /** "15:00" -> "3:00 PM". Falls back to the raw string if it's malformed. */

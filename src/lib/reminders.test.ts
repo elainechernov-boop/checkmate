@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { formatScheduledTime, isReminderDue, type ReminderCandidate } from "./reminders";
+import { formatScheduledTime, isReminderDue, timeBadge, type ReminderCandidate } from "./reminders";
 
 function candidate(overrides: Partial<ReminderCandidate> = {}): ReminderCandidate {
   return {
@@ -54,6 +54,39 @@ describe("isReminderDue", () => {
   it("is false when scheduledTime or reminderMinutesBefore is missing", () => {
     expect(isReminderDue(candidate({ scheduledTime: null }), at(14, 55))).toBe(false);
     expect(isReminderDue(candidate({ reminderMinutesBefore: null }), at(14, 55))).toBe(false);
+  });
+});
+
+describe("timeBadge", () => {
+  // A 15:00 class, 30 min long (the estimatedMinutes default fallback).
+  it("is 'later' more than an hour before the scheduled time", () => {
+    expect(timeBadge("15:00", 30, at(13, 30))).toBe("later");
+  });
+
+  it("is 'soon' the moment the 60-minute window opens", () => {
+    expect(timeBadge("15:00", 30, at(14, 0))).toBe("soon");
+  });
+
+  it("stays 'soon' right up to the scheduled start", () => {
+    expect(timeBadge("15:00", 30, at(14, 59))).toBe("soon");
+  });
+
+  it("is 'live' at the scheduled start and through its estimated duration", () => {
+    expect(timeBadge("15:00", 30, at(15, 0))).toBe("live");
+    expect(timeBadge("15:00", 30, at(15, 30))).toBe("live");
+  });
+
+  it("is 'past' once the estimated duration has elapsed", () => {
+    expect(timeBadge("15:00", 30, at(15, 31))).toBe("past");
+  });
+
+  it("falls back to a 30-minute duration when no estimate is given", () => {
+    expect(timeBadge("15:00", null, at(15, 25))).toBe("live");
+    expect(timeBadge("15:00", null, at(15, 31))).toBe("past");
+  });
+
+  it("is 'past' for a malformed scheduled time", () => {
+    expect(timeBadge("not-a-time", 30, at(15, 0))).toBe("past");
   });
 });
 
