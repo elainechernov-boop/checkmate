@@ -137,8 +137,9 @@ export function ParentWeekBoard({
   // over the old per-student-duplicated agenda).
   calendarEvents: FamilyCalendarEvent[];
   // Which events are assigned to which student (CalendarEventAssignment) —
-  // an assigned event disappears from the shared strip and renders under
-  // that student's board instead.
+  // an assigned event also renders under that student's board, but it stays
+  // visible in the shared strip too (a family event can apply to more than
+  // one kid, and a parent may want to assign it again after unassigning).
   calendarEventAssignments: { eventKey: string; studentId: string }[];
   schoolDayTypesByStudent: Record<string, Record<string, SchoolDayType>>;
   // Set only when a mobile swipe/arrow carried the parent across a week
@@ -162,14 +163,70 @@ export function ParentWeekBoard({
   }, []);
 
   const eventById = new Map(calendarEvents.map((event) => [event.id, event]));
-  const assignedEventKeys = new Set(calendarEventAssignments.map((a) => a.eventKey));
-  const unassignedEvents = calendarEvents.filter((event) => !assignedEventKeys.has(event.id));
+
+  // Optimistic mirrors of the server props — without these, a drag (reorder
+  // or reschedule) has nothing to show until the server action resolves and
+  // Next.js revalidates, so dnd-kit's own transform resets to zero the
+  // instant the drag ends and the row visibly snaps back to its old spot
+  // before catching up a moment later. Same render-time resync pattern
+  // StudentWeekView already uses for its own local state. Assign/unassign
+  // needs this exactly as much as reorder/reschedule do — without it, a
+  // dragged (or tapped) calendar event just sits still until the next
+  // server round trip finishes, which reads as "it didn't work."
+  const [localInstances, setLocalInstances] = useState(instances);
+  const [syncedInstances, setSyncedInstances] = useState(instances);
+  const [localDaySeparators, setLocalDaySeparators] = useState(daySeparators);
+  const [syncedDaySeparators, setSyncedDaySeparators] = useState(daySeparators);
+  const [localAssignments, setLocalAssignments] = useState(calendarEventAssignments);
+  const [syncedAssignments, setSyncedAssignments] = useState(calendarEventAssignments);
+  if (instances !== syncedInstances) {
+    setSyncedInstances(instances);
+    setLocalInstances(instances);
+  }
+  if (daySeparators !== syncedDaySeparators) {
+    setSyncedDaySeparators(daySeparators);
+    setLocalDaySeparators(daySeparators);
+  }
+  if (calendarEventAssignments !== syncedAssignments) {
+    setSyncedAssignments(calendarEventAssignments);
+    setLocalAssignments(calendarEventAssignments);
+  }
+
+  // The shared strip stays a plain list of every calendar event regardless
+  // of assignment state — a family event (e.g. a doctor's appointment) can
+  // apply to more than one kid, so assigning it to one student's board must
+  // not remove it from the shared agenda everyone else still sees.
   const eventsByStudent = new Map<string, FamilyCalendarEvent[]>();
-  for (const assignment of calendarEventAssignments) {
+  const assignedStudentIdsByEvent = new Map<string, Set<string>>();
+  for (const assignment of localAssignments) {
     const calEvent = eventById.get(assignment.eventKey);
     if (!calEvent) continue;
     if (!eventsByStudent.has(assignment.studentId)) eventsByStudent.set(assignment.studentId, []);
     eventsByStudent.get(assignment.studentId)!.push(calEvent);
+    if (!assignedStudentIdsByEvent.has(assignment.eventKey)) assignedStudentIdsByEvent.set(assignment.eventKey, new Set());
+    assignedStudentIdsByEvent.get(assignment.eventKey)!.add(assignment.studentId);
+  }
+
+  async function handleAssign(eventId: string, studentId: string) {
+    const previous = localAssignments;
+    if (!previous.some((a) => a.eventKey === eventId && a.studentId === studentId)) {
+      setLocalAssignments((current) => [...current, { eventKey: eventId, studentId }]);
+    }
+    try {
+      await assignCalendarEventAction(eventId, studentId);
+    } catch {
+      setLocalAssignments(previous);
+    }
+  }
+
+  async function handleUnassign(eventId: string, studentId: string) {
+    const previous = localAssignments;
+    setLocalAssignments((current) => current.filter((a) => !(a.eventKey === eventId && a.studentId === studentId)));
+    try {
+      await unassignCalendarEventAction(eventId, studentId);
+    } catch {
+      setLocalAssignments(previous);
+    }
   }
 
   async function handleAssignDragEnd(event: DragEndEvent) {
@@ -180,26 +237,7 @@ export function ParentWeekBoard({
     if (!activeId.startsWith(CALENDAR_EVENT_PREFIX) || !overId.startsWith(ASSIGN_DROP_PREFIX)) return;
     const eventId = activeId.slice(CALENDAR_EVENT_PREFIX.length);
     const studentId = overId.slice(ASSIGN_DROP_PREFIX.length);
-    await assignCalendarEventAction(eventId, studentId);
-  }
-
-  // Optimistic mirrors of the server props — without these, a drag (reorder
-  // or reschedule) has nothing to show until the server action resolves and
-  // Next.js revalidates, so dnd-kit's own transform resets to zero the
-  // instant the drag ends and the row visibly snaps back to its old spot
-  // before catching up a moment later. Same render-time resync pattern
-  // StudentWeekView already uses for its own local state.
-  const [localInstances, setLocalInstances] = useState(instances);
-  const [syncedInstances, setSyncedInstances] = useState(instances);
-  const [localDaySeparators, setLocalDaySeparators] = useState(daySeparators);
-  const [syncedDaySeparators, setSyncedDaySeparators] = useState(daySeparators);
-  if (instances !== syncedInstances) {
-    setSyncedInstances(instances);
-    setLocalInstances(instances);
-  }
-  if (daySeparators !== syncedDaySeparators) {
-    setSyncedDaySeparators(daySeparators);
-    setLocalDaySeparators(daySeparators);
+    await handleAssign(eventId, studentId);
   }
 
   // The mobile pager's day, shared across every student's board below (a
@@ -337,7 +375,13 @@ export function ParentWeekBoard({
           per-student initial chip works too, no drag required. */}
       {students.length > 0 && (
         <DndContext id="calendar-assign" sensors={assignSensors} onDragEnd={handleAssignDragEnd}>
-          <CalendarStrip days={days} events={unassignedEvents} students={students} />
+          <CalendarStrip
+            days={days}
+            events={calendarEvents}
+            students={students}
+            assignedStudentIdsByEvent={assignedStudentIdsByEvent}
+            onAssign={handleAssign}
+          />
 
           {students.map((student) => (
             <AssignDropZone key={student.id} studentId={student.id}>
@@ -348,6 +392,7 @@ export function ParentWeekBoard({
                 instances={localInstances.filter((i) => i.studentId === student.id)}
                 daySeparators={localDaySeparators.filter((s) => s.studentId === student.id)}
                 assignedEvents={eventsByStudent.get(student.id) ?? []}
+                onUnassign={(eventId) => handleUnassign(eventId, student.id)}
                 now={now}
                 subjects={subjects}
                 schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
@@ -374,6 +419,7 @@ function StudentBoard({
   instances,
   daySeparators,
   assignedEvents,
+  onUnassign,
   now,
   subjects,
   schoolDayTypes,
@@ -390,10 +436,11 @@ function StudentBoard({
   todayISO: string;
   instances: EditableInstance[];
   daySeparators: DaySeparator[];
-  // Calendar events assigned to this student (CalendarEventAssignment) —
-  // the shared CalendarStrip owns the unassigned pool; this board only ever
-  // sees its own.
+  // Calendar events assigned to this student (CalendarEventAssignment) — the
+  // shared CalendarStrip keeps showing every event regardless, so this is
+  // purely "which of them are also on this student's board."
   assignedEvents: FamilyCalendarEvent[];
+  onUnassign: (eventId: string) => void;
   now: Date;
   subjects: { id: string; name: string }[];
   schoolDayTypes: Record<string, SchoolDayType>;
@@ -550,6 +597,7 @@ function StudentBoard({
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 rows={byDay.get(dateISO) ?? []}
                 events={eventsByDay.get(dateISO) ?? []}
+                onUnassign={onUnassign}
                 now={now}
                 subjects={subjects}
                 onDelete={onDelete}
@@ -584,6 +632,7 @@ function StudentBoard({
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 rows={byDay.get(dateISO) ?? []}
                 events={eventsByDay.get(dateISO) ?? []}
+                onUnassign={onUnassign}
                 now={now}
                 subjects={subjects}
                 onDelete={onDelete}
@@ -611,6 +660,7 @@ function DayCell({
   dayType,
   rows,
   events,
+  onUnassign,
   now,
   subjects,
   onDelete,
@@ -632,6 +682,7 @@ function DayCell({
   // "on top of the view") — read-only-ish context (unassign only), not part
   // of the day's own sortOrder sequence at all.
   events: FamilyCalendarEvent[];
+  onUnassign: (eventId: string) => void;
   now: Date;
   subjects: { id: string; name: string }[];
   onDelete: (id: string) => void;
@@ -755,7 +806,7 @@ function DayCell({
           // agenda (unassignCalendarEventAction) rather than deleting it.
           <div className="mt-1.5 flex flex-col gap-1">
             {events.map((event) => (
-              <AssignedCalendarEventRow key={event.id} event={event} studentId={studentId} now={now} />
+              <AssignedCalendarEventRow key={event.id} event={event} onUnassign={() => onUnassign(event.id)} now={now} />
             ))}
           </div>
         )}
@@ -1169,7 +1220,15 @@ function SeparatorHandle({ dateISO, onClick }: { dateISO: string; onClick: () =>
  * schoolwork, never checked off; it marks itself done on its own once
  * `now` passes its end time. Hover-✕ unassigns (back to the shared strip),
  * it never deletes anything (the feed itself is read-only). */
-function AssignedCalendarEventRow({ event, studentId, now }: { event: FamilyCalendarEvent; studentId: string; now: Date }) {
+function AssignedCalendarEventRow({
+  event,
+  onUnassign,
+  now,
+}: {
+  event: FamilyCalendarEvent;
+  onUnassign: () => void;
+  now: Date;
+}) {
   const isPast = now > event.end;
   return (
     <div
@@ -1196,10 +1255,10 @@ function AssignedCalendarEventRow({ event, studentId, now }: { event: FamilyCale
         type="button"
         onClick={(domEvent) => {
           domEvent.stopPropagation();
-          void unassignCalendarEventAction(event.id, studentId);
+          onUnassign();
         }}
-        aria-label={`Move "${event.title}" back to the shared agenda`}
-        title="Move back to the shared agenda"
+        aria-label={`Remove "${event.title}" from this board`}
+        title="Remove from this board"
         className="shrink-0 rounded px-1 text-xs opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
         style={{ color: COLORS.muted }}
       >
@@ -1215,7 +1274,19 @@ function AssignedCalendarEventRow({ event, studentId, now }: { event: FamilyCale
  * Each row is a drag source (dropped on any student's board below assigns
  * it — ParentWeekBoard's own handleAssignDragEnd) and carries a small
  * per-student initial chip for the no-drag-required tap-to-assign path. */
-function CalendarStrip({ days, events, students }: { days: Date[]; events: FamilyCalendarEvent[]; students: Student[] }) {
+function CalendarStrip({
+  days,
+  events,
+  students,
+  assignedStudentIdsByEvent,
+  onAssign,
+}: {
+  days: Date[];
+  events: FamilyCalendarEvent[];
+  students: Student[];
+  assignedStudentIdsByEvent: Map<string, Set<string>>;
+  onAssign: (eventId: string, studentId: string) => void;
+}) {
   const eventsByDay = new Map<string, FamilyCalendarEvent[]>();
   for (const day of days) eventsByDay.set(toISODate(day), []);
   for (const event of events) eventsByDay.get(event.dateISO)?.push(event);
@@ -1232,7 +1303,7 @@ function CalendarStrip({ days, events, students }: { days: Date[]; events: Famil
       </div>
       {events.length === 0 ? (
         <p className="mt-3 text-xs" style={{ color: COLORS.mutedFaint }}>
-          Nothing unassigned this week.
+          Nothing this week.
         </p>
       ) : (
         <div className="mt-3 grid grid-flow-col auto-cols-[150px] gap-4 overflow-x-auto pb-1 lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-6 lg:overflow-visible lg:pb-0">
@@ -1245,7 +1316,13 @@ function CalendarStrip({ days, events, students }: { days: Date[]; events: Famil
                 </span>
                 <div className="mt-1.5 flex flex-col gap-1.5">
                   {(eventsByDay.get(dateISO) ?? []).map((event) => (
-                    <CalendarStripEventRow key={event.id} event={event} students={students} />
+                    <CalendarStripEventRow
+                      key={event.id}
+                      event={event}
+                      students={students}
+                      assignedStudentIds={assignedStudentIdsByEvent.get(event.id) ?? EMPTY_STUDENT_ID_SET}
+                      onAssign={onAssign}
+                    />
                   ))}
                 </div>
               </div>
@@ -1257,7 +1334,22 @@ function CalendarStrip({ days, events, students }: { days: Date[]; events: Famil
   );
 }
 
-function CalendarStripEventRow({ event, students }: { event: FamilyCalendarEvent; students: Student[] }) {
+const EMPTY_STUDENT_ID_SET = new Set<string>();
+
+function CalendarStripEventRow({
+  event,
+  students,
+  assignedStudentIds,
+  onAssign,
+}: {
+  event: FamilyCalendarEvent;
+  students: Student[];
+  // Stays visible in the strip even once assigned (a family event can apply
+  // to more than one kid), so each per-student chip needs to show whether
+  // it's already assigned rather than just "tap to assign."
+  assignedStudentIds: Set<string>;
+  onAssign: (eventId: string, studentId: string) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: calendarEventDragId(event.id),
   });
@@ -1303,22 +1395,30 @@ function CalendarStripEventRow({ event, students }: { event: FamilyCalendarEvent
       <span style={{ color: COLORS.cobalt, fontWeight: 700 }}>{event.timeLabel ?? "All day"}</span>
       <div className="flex items-center gap-1">
         <span style={{ color: COLORS.mutedFaint }}>drag to a kid, or</span>
-        {students.map((student) => (
-          <button
-            key={student.id}
-            type="button"
-            onClick={(domEvent) => {
-              domEvent.stopPropagation();
-              void assignCalendarEventAction(event.id, student.id);
-            }}
-            title={`Assign to ${student.name}`}
-            aria-label={`Assign "${event.title}" to ${student.name}`}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
-            style={{ background: student.accentColor }}
-          >
-            {student.name.charAt(0).toUpperCase()}
-          </button>
-        ))}
+        {students.map((student) => {
+          const isAssigned = assignedStudentIds.has(student.id);
+          return (
+            <button
+              key={student.id}
+              type="button"
+              onClick={(domEvent) => {
+                domEvent.stopPropagation();
+                if (isAssigned) return;
+                onAssign(event.id, student.id);
+              }}
+              title={isAssigned ? `Already on ${student.name}'s board` : `Assign to ${student.name}`}
+              aria-label={isAssigned ? `"${event.title}" is already on ${student.name}'s board` : `Assign "${event.title}" to ${student.name}`}
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
+              style={
+                isAssigned
+                  ? { background: "transparent", border: `1.5px solid ${student.accentColor}`, color: student.accentColor }
+                  : { background: student.accentColor, color: "white" }
+              }
+            >
+              {student.name.charAt(0).toUpperCase()}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

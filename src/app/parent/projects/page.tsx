@@ -38,10 +38,7 @@ export default async function ParentProjectsPage() {
       </p>
 
       {students.length > 0 && (
-        <form
-          action={createProjectForStudentAction}
-          className="mt-6 flex flex-wrap items-end gap-3 rounded border border-[#E1E3E6] bg-white p-4 text-sm"
-        >
+        <form action={createProjectForStudentAction} className="mt-6 flex flex-wrap items-end gap-4 border-b pb-4 text-sm" style={{ borderColor: COLORS.hairline }}>
           <div>
             <label className="block text-xs" style={{ color: COLORS.muted }}>
               Student
@@ -50,7 +47,7 @@ export default async function ParentProjectsPage() {
               name="studentId"
               required
               defaultValue={students[0]?.id}
-              className="mt-1 rounded border px-2 py-1.5"
+              className="mt-1 border-b bg-transparent py-1 outline-none"
               style={{ borderColor: COLORS.hairline }}
             >
               {students.map((student) => (
@@ -68,7 +65,7 @@ export default async function ParentProjectsPage() {
               name="name"
               required
               placeholder="Learn Clair de Lune"
-              className="mt-1 w-full rounded border px-2 py-1.5"
+              className="mt-1 w-full border-b bg-transparent py-1 outline-none"
               style={{ borderColor: COLORS.hairline }}
             />
           </div>
@@ -79,11 +76,11 @@ export default async function ParentProjectsPage() {
             <input
               type="date"
               name="targetDate"
-              className="mt-1 rounded border px-2 py-1.5"
+              className="mt-1 border-b bg-transparent py-1 outline-none"
               style={{ borderColor: COLORS.hairline }}
             />
           </div>
-          <button type="submit" className="rounded bg-[#1A1A1A] px-3 py-1.5 text-white hover:bg-[#333]">
+          <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
             + New project
           </button>
         </form>
@@ -99,10 +96,13 @@ export default async function ParentProjectsPage() {
         if (studentProjects.length === 0) return null;
         return (
           <section key={student.id} className="mt-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: student.accentColor }}>
+            <h2
+              className="uppercase"
+              style={{ color: student.accentColor, fontFamily: "var(--font-syncopate)", fontWeight: 700, fontSize: 15, letterSpacing: "0.03em" }}
+            >
               {student.name}
             </h2>
-            <div className="mt-3 space-y-3">
+            <div className="mt-2 max-w-xl">
               {studentProjects.map((project) => (
                 <ProjectCard key={project.id} project={project} subjects={subjects} />
               ))}
@@ -118,10 +118,10 @@ function ProjectCard({ project, subjects }: { project: ProjectRow; subjects: { i
   const doneCount = project.instances.filter((i) => i.status === "done" || i.status === "excused").length;
 
   return (
-    <div className="rounded border border-[#E1E3E6] bg-white p-4">
+    <div className="border-b py-3" style={{ borderColor: COLORS.hairline }}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-medium" style={{ textDecoration: project.status === "completed" ? "line-through" : undefined }}>
+          <p className="text-sm font-medium" style={{ textDecoration: project.status === "completed" ? "line-through" : undefined }}>
             {project.name}
           </p>
           <p className="mt-0.5 text-xs" style={{ color: COLORS.muted }}>
@@ -138,15 +138,13 @@ function ProjectCard({ project, subjects }: { project: ProjectRow; subjects: { i
         </form>
       </div>
 
-      <form action={setProjectSubjectAction} className="mt-3 flex items-center gap-2 text-sm">
+      <form action={setProjectSubjectAction} className="mt-2 flex items-center gap-2 text-xs">
+        <label style={{ color: COLORS.muted }}>HST subject</label>
         <input type="hidden" name="projectId" value={project.id} />
-        <label className="text-xs" style={{ color: COLORS.muted }}>
-          HST subject
-        </label>
         <select
           name="subjectId"
           defaultValue={project.subjectId ?? ""}
-          className="rounded border px-2 py-1 text-sm"
+          className="border-b bg-transparent py-1 outline-none"
           style={{ borderColor: COLORS.hairline }}
         >
           <option value="">Untagged (excluded from reports)</option>
@@ -156,7 +154,7 @@ function ProjectCard({ project, subjects }: { project: ProjectRow; subjects: { i
             </option>
           ))}
         </select>
-        <button type="submit" className="rounded bg-[#1A1A1A] px-2 py-1 text-xs text-white hover:bg-[#333]">
+        <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
           Save
         </button>
       </form>

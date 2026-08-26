@@ -159,7 +159,7 @@ export function ProjectsBand({
             setNewProjectName("");
           }
         }}
-        placeholder="Start a new project, press Enter…"
+        placeholder="Start a new project, press Enter"
         className="mt-3 w-full max-w-xs border-b bg-transparent py-1.5 text-sm outline-none"
         style={{ borderColor: COLORS.hairline, color: COLORS.text, borderBottomStyle: "dashed" }}
       />

@@ -64,7 +64,7 @@ export function IdeasList({
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Type an idea, press Enter…"
+        placeholder="Type an idea, press Enter"
         className="mt-1 w-full max-w-sm border-b bg-transparent py-1.5 text-sm outline-none"
         style={{ borderColor: COLORS.hairline, color: COLORS.text }}
       />

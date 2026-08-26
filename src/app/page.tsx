@@ -10,13 +10,20 @@ export default async function Home() {
       <Image src="/homeroom-wordmark.svg" alt="homeroom" width={160} height={34} className="h-9 w-auto" priority />
       <p className="mt-4 text-sm text-[#6B6B6B]">Who&rsquo;s working today?</p>
 
-      <div className="mt-10 flex gap-6">
+      <div className="mt-10 flex gap-10">
         {students.map((student) => (
           <Link
             key={student.id}
             href={`/student/${student.id}`}
-            className="rounded-lg border border-[#E1E3E6] bg-white px-8 py-6 text-lg font-medium transition hover:border-[#1A1A1A]"
-            style={{ borderTopColor: student.accentColor, borderTopWidth: 3 }}
+            className="border-b border-dashed pb-1 uppercase transition-colors hover:border-solid"
+            style={{
+              color: student.accentColor,
+              borderColor: student.accentColor,
+              fontFamily: "var(--font-syncopate)",
+              fontWeight: 700,
+              fontSize: 19,
+              letterSpacing: "0.03em",
+            }}
           >
             {student.name}
           </Link>

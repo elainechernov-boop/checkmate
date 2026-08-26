@@ -439,20 +439,7 @@ export function StudentWeekView({
     <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-4 py-6 lg:px-10 lg:py-10">
       <div className="flex items-center justify-between">
         <Image src="/homeroom-wordmark.svg" alt="homeroom" width={110} height={20} className="h-5 w-auto" priority />
-        <div className="flex items-center gap-4 text-sm">
-          <button onClick={() => setComingUpOpen(true)} className="hover:underline" style={{ color: COLORS.muted }}>
-            Coming Up
-          </button>
-          <button
-            onClick={toggleMute}
-            aria-label={muted ? "Turn completion sound on" : "Turn completion sound off"}
-            className="text-base"
-            style={{ color: COLORS.muted }}
-          >
-            {muted ? "🔈" : "🔊"}
-          </button>
-          <StudentMenu />
-        </div>
+        <StudentMenu muted={muted} onToggleMute={toggleMute} onOpenComingUp={() => setComingUpOpen(true)} />
       </div>
 
       <header
@@ -647,7 +634,15 @@ export function StudentWeekView({
 /** "Switch student" tucked behind a small "⋯" menu rather than sitting
  * next to the student's name — it's used rarely, so it shouldn't visually
  * compete with the week itself. */
-function StudentMenu() {
+function StudentMenu({
+  muted,
+  onToggleMute,
+  onOpenComingUp,
+}: {
+  muted: boolean;
+  onToggleMute: () => void;
+  onOpenComingUp: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -678,6 +673,28 @@ function StudentMenu() {
           className="absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded border py-1 shadow-sm"
           style={{ borderColor: COLORS.hairline, background: COLORS.background }}
         >
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onOpenComingUp();
+            }}
+            className="block w-full px-3 py-1.5 text-left text-sm hover:underline"
+            style={{ color: COLORS.muted }}
+          >
+            Coming Up
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onToggleMute();
+            }}
+            className="block w-full px-3 py-1.5 text-left text-sm hover:underline"
+            style={{ color: COLORS.muted }}
+          >
+            {muted ? "🔈 Turn sound on" : "🔊 Turn sound off"}
+          </button>
           <Link
             href="/"
             className="block px-3 py-1.5 text-sm hover:underline"
