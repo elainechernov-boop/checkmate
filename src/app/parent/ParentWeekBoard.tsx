@@ -513,8 +513,9 @@ function StudentBoard({
           style={{
             color: student.accentColor,
             fontFamily: "var(--font-syncopate)",
-            fontSize: "1.05rem",
-            letterSpacing: "0.03em",
+            fontWeight: 700,
+            fontSize: 17,
+            letterSpacing: "0.04em",
             textTransform: "uppercase",
           }}
         >
@@ -815,7 +816,7 @@ function DayCell({
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type here, press Enter…"
+          placeholder="Type here, press Enter"
           className="mt-2 w-full border-b bg-transparent py-1 text-sm outline-none"
           style={{ borderColor: COLORS.hairline, color: COLORS.text, borderBottomStyle: "dashed" }}
         />
@@ -905,7 +906,7 @@ function RowContents({ instance }: { instance: EditableInstance }) {
         )}
         {isPendingReview && (
           <span className="block" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>
-            ✋ Show Mom
+            🤚 Mom
           </span>
         )}
       </span>

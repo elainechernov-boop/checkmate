@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { CreatedBy, InstanceStatus } from "@/generated/prisma/enums";
-import { getToday, parseISODate, toISODate } from "@/lib/dates";
+import { InstanceStatus } from "@/generated/prisma/enums";
+import { getToday, toISODate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { recomputeProjectStatus } from "@/lib/projects";
 import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
@@ -75,39 +75,6 @@ export async function approveReviewViaPasscode(instanceId: string, passcode: str
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
   await approveReview(prisma, instanceId);
   revalidatePath(`/student/${instance.studentId}`);
-}
-
-/**
- * The redesign's permanent "Type here, press Enter" input on a student's
- * own today-and-future columns — a bare, self-authored one-off task (no
- * subject, no project), a new capability that loosens SPEC.md §2's
- * "students can only create inside Projects" rule by explicit request.
- * Past days stay read-only server-side, not just hidden in the UI —
- * today's column (and everything after it) is the only place a student's
- * own write ever lands, matching toggleInstance's "today only" enforcement
- * above.
- */
-export async function addOwnTaskAction(studentId: string, dueDateISO: string, title: string): Promise<void> {
-  const trimmed = title.trim();
-  if (!trimmed) return;
-
-  const todayISO = toISODate(getToday());
-  if (dueDateISO < todayISO) {
-    throw new Error("Can't add a task to a day that's already passed.");
-  }
-
-  const dueDate = parseISODate(dueDateISO);
-  await prisma.assignmentInstance.create({
-    data: {
-      studentId,
-      title: trimmed,
-      dueDate,
-      originalDueDate: dueDate,
-      createdBy: CreatedBy.student,
-      status: InstanceStatus.open,
-    },
-  });
-  revalidatePath(`/student/${studentId}`);
 }
 
 /**

@@ -19,7 +19,6 @@ import { splitBySeparators } from "@/lib/daySeparators";
 import { formatTotalMinutes, minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
-import { addOwnTaskAction } from "./actions";
 import { AssignmentRow } from "./AssignmentRow";
 import { DayCompleteTakeover } from "./DayCompleteTakeover";
 import type { DaySeparator, StudentInstance } from "./types";
@@ -159,38 +158,6 @@ function DraggableProjectRow({
   );
 }
 
-/** The redesign's permanent "Type here, press Enter" input (README §1.9) —
- * same fire-and-forget pattern as IdeasList's bottom input: no optimistic
- * splicing, the server action's revalidatePath brings the new row back on
- * the next render. */
-function AddTaskInput({ studentId, dueDateISO }: { studentId: string; dueDateISO: string }) {
-  const [text, setText] = useState("");
-
-  function submit() {
-    const trimmed = text.trim();
-    setText("");
-    if (trimmed) void addOwnTaskAction(studentId, dueDateISO, trimmed);
-  }
-
-  return (
-    <input
-      value={text}
-      onChange={(event) => setText(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          submit();
-        } else if (event.key === "Escape") {
-          setText("");
-        }
-      }}
-      placeholder="Type here, press Enter…"
-      className="mt-1.5 w-full border-b bg-transparent py-1 text-sm outline-none"
-      style={{ borderColor: COLORS.hairline, color: COLORS.text, borderBottomStyle: "dashed" }}
-    />
-  );
-}
-
 export function DayColumn({
   day,
   isToday,
@@ -203,7 +170,6 @@ export function DayColumn({
   prefersReducedMotion,
   celebrated,
   now,
-  canAddTask,
   onCelebrate,
   onToggle,
   onReorderOpen,
@@ -226,11 +192,6 @@ export function DayColumn({
   // Wall-clock time, refreshed every ~20s by StudentWeekView — drives the
   // live/soon/later/past time badges (see AssignmentRow).
   now: Date;
-  // Today + every future column gets the permanent "Type here, press
-  // Enter" add-input (a new capability — see actions.ts's addOwnTaskAction);
-  // past columns stay read-only, same as the rest of the app's "today is
-  // the whole truth" treatment of anything already gone.
-  canAddTask: boolean;
   onCelebrate: () => void;
   onToggle: (instance: StudentInstance, origin: { x: number; y: number }) => void;
   onReorderOpen: (orderedIds: string[]) => void;
@@ -471,8 +432,6 @@ export function DayColumn({
 
           {pendingReview.map(plainRow)}
           {completed.map(plainRow)}
-
-          {canAddTask && <AddTaskInput studentId={studentId} dueDateISO={toISODate(day)} />}
         </div>
       </div>
       {totalMinutes > 0 && (

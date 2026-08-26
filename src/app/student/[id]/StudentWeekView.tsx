@@ -456,10 +456,10 @@ export function StudentWeekView({
       </div>
 
       <header
-        className="mt-4 flex flex-wrap items-baseline justify-between gap-3 pb-3"
-        style={{ borderBottom: `2px solid ${COLORS.text}` }}
+        className="mt-4 flex flex-wrap items-baseline justify-between gap-3"
+        style={{ borderBottom: `2px solid ${COLORS.text}`, paddingBottom: 18 }}
       >
-        <div className="flex items-baseline gap-3">
+        <div className="flex items-center gap-3.5">
           <button
             type="button"
             onClick={handleCycleAccentColor}
@@ -469,45 +469,40 @@ export function StudentWeekView({
               color: localAccentColor,
               borderColor: localAccentColor,
               fontFamily: "var(--font-syncopate)",
-              fontSize: "1.15rem",
+              fontWeight: 700,
+              fontSize: 19,
               letterSpacing: "0.03em",
             }}
           >
             {student.name}&rsquo;s week
           </button>
-          <span className="text-xs" style={{ color: COLORS.muted }}>
-            {formatWeekRange(monday, addDays(monday, 5))}
-          </span>
+          <span style={{ color: COLORS.muted, fontSize: 12 }}>{formatWeekRange(monday, addDays(monday, 5))}</span>
         </div>
-        <div className="flex items-center gap-4 text-xs">
-          <span className="font-bold uppercase" style={{ color: localAccentColor, letterSpacing: "0.03em" }}>
+        <div className="flex items-center gap-4">
+          <span className="uppercase" style={{ color: localAccentColor, fontWeight: 700, letterSpacing: "0.04em", fontSize: 12 }}>
             {streak}-day streak · {todayDoneCount}/{todayInstances.length} today
           </span>
           <Link
             href={`/student/${student.id}?week=${toISODate(addDays(monday, -7))}`}
             className="uppercase hover:underline"
-            style={{ color: COLORS.muted, letterSpacing: "0.03em" }}
+            style={{ color: COLORS.muted, letterSpacing: "0.04em", fontSize: 12 }}
           >
             ← Prev week
           </Link>
           {!isCurrentWeek && (
-            <Link href={`/student/${student.id}`} className="hover:underline" style={{ color: COLORS.muted }}>
+            <Link href={`/student/${student.id}`} className="hover:underline" style={{ color: COLORS.muted, fontSize: 12 }}>
               📅 Today
             </Link>
           )}
           <Link
             href={`/student/${student.id}?week=${toISODate(addDays(monday, 7))}`}
             className="uppercase hover:underline"
-            style={{ color: COLORS.muted, letterSpacing: "0.03em" }}
+            style={{ color: COLORS.muted, letterSpacing: "0.04em", fontSize: 12 }}
           >
             Next week →
           </Link>
         </div>
       </header>
-      <p className="mt-1.5 text-xs" style={{ color: COLORS.mutedFaint }}>
-        Tap {student.name}&rsquo;s own name to cycle their color — each tap advances to the next one, becomes
-        their &ldquo;today&rdquo; and accent color everywhere on their board.
-      </p>
 
       {todayIsSunday && (
         <p className="mt-3 text-sm" style={{ color: COLORS.mutedFaint }}>
@@ -551,7 +546,6 @@ export function StudentWeekView({
                     prefersReducedMotion={prefersReducedMotion}
                     celebrated={celebratedToday}
                     now={now}
-                    canAddTask={dayISO >= todayISO}
                     onCelebrate={handleCelebrate}
                     onToggle={handleToggle}
                     onReorderOpen={handleReorderOpen}
@@ -596,7 +590,6 @@ export function StudentWeekView({
                         prefersReducedMotion={prefersReducedMotion}
                         celebrated={celebratedToday}
                         now={now}
-                        canAddTask={dayISO >= todayISO}
                         onCelebrate={handleCelebrate}
                         onToggle={handleToggle}
                             onReorderOpen={handleReorderOpen}

@@ -8,7 +8,11 @@
 // (subjectColors.ts) and each student's own accentColor (cycled via
 // STUDENT_ACCENT_ROTATION below) are the other two places color appears.
 export const COLORS = {
-  background: "#FAF7F2",
+  // The mockup's own rendered screens sit on a plain white page (its
+  // "cream" token only ever appears as the surrounding *documentation*
+  // canvas around multiple mockups, not the app screens themselves) — white
+  // here to match exactly, per direct comparison against Canvas.dc.html.
+  background: "#FFFFFF",
   text: "#1A1A1A",
   muted: "#6B6B6B",
   mutedFaint: "#A9ACB2",

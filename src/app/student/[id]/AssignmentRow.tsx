@@ -306,7 +306,7 @@ export function AssignmentRow({
 
           {isPendingReview && (
             <span className="whitespace-nowrap" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>
-              ✋ Show Mom
+              🤚 Mom
             </span>
           )}
 

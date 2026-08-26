@@ -9,7 +9,7 @@ export default async function ParentUnlockPage({
   const { error } = await searchParams;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FAF7F2] px-6">
+    <main className="flex min-h-screen items-center justify-center bg-[#FFFFFF] px-6">
       <form action={submitParentPasscode} className="w-full max-w-xs">
         <Image
           src="/homeroom-wordmark.svg"

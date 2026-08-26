@@ -215,8 +215,9 @@ function ProjectCard({
   return (
     <div
       ref={setNodeRef}
-      className="group w-56 shrink-0 border-l pl-4"
+      className="group shrink-0 border-l pl-4"
       style={{
+        width: 240,
         borderColor: COLORS.hairline,
         transform: CSS.Transform.toString(transform),
         transition: transition ?? undefined,
@@ -240,23 +241,19 @@ function ProjectCard({
         >
           ⠿
         </button>
-        <span
-          className="block min-w-0 flex-1 truncate text-sm font-medium"
-          style={{ fontFamily: "var(--font-syncopate)", letterSpacing: "0.02em", textTransform: "uppercase", fontSize: "0.8rem", color: COLORS.text }}
-        >
-          {project.name}
+        <span className="min-w-0 flex-1 truncate">
+          <span style={{ fontFamily: "var(--font-syncopate)", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase", fontSize: 14, color: COLORS.text }}>
+            {project.name}
+          </span>
+          {project.targetDate && !awaitingCelebration && (
+            <span style={{ fontSize: 11, color: COLORS.muted }}> by {formatComingUpDate(project.targetDate)}</span>
+          )}
         </span>
       </div>
-      {awaitingCelebration ? (
+      {awaitingCelebration && (
         <button type="button" onClick={onFinish} className="text-xs hover:underline" style={{ color: accentColor }}>
           🎉 All done — open to finish!
         </button>
-      ) : (
-        project.targetDate && (
-          <p className="text-xs" style={{ color: COLORS.mutedFaint }}>
-            by {formatComingUpDate(project.targetDate)}
-          </p>
-        )
       )}
 
       {project.progress.total > 0 && (

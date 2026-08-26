@@ -21,10 +21,18 @@ const syncopate = Syncopate({
 export const metadata: Metadata = {
   title: "homeroom",
   description: "The family's homeschool assignment tracker.",
+  manifest: "/manifest.json",
   icons: {
-    icon: [{ url: "/homeroom-favicon.svg", type: "image/svg+xml" }],
-    shortcut: ["/homeroom-favicon.svg"],
-    apple: ["/homeroom-favicon.svg"],
+    icon: [
+      { url: "/homeroom-favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+    ],
+    shortcut: ["/favicon-32.png"],
+    // Safari's "Add to Dock" (§1's install path) reads this specifically —
+    // and, unlike the tab favicon above, Safari does not rasterize SVG for
+    // it, so this has to be a real PNG or the dock icon silently falls back
+    // to a screenshot of the page instead of the mascot mark.
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
 };
 

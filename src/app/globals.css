@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
-/* §9: one typeface, used well — a fixed warm-off-white palette regardless
- * of system light/dark preference, not an adaptive theme. */
+/* §9: one typeface, used well — a fixed palette regardless of system
+ * light/dark preference, not an adaptive theme. White, matching the
+ * mockup's own rendered screens exactly (see lib/theme.ts's COLORS). */
 :root {
-  --background: #faf7f2;
+  --background: #ffffff;
   --foreground: #1a1a1a;
 }
 
