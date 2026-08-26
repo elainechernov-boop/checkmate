@@ -63,6 +63,34 @@ export async function getDismissedEventKeys(prisma: DismissedPrisma): Promise<Se
   return new Set(rows.map((row) => row.eventKey));
 }
 
+type CalendarAssignmentPrisma = Pick<PrismaClient, "calendarEventAssignment">;
+
+/** The redesign's drag-or-tap-to-assign (replaces the old one-way "convert
+ * to a real to-do" — see design_handoff_homeroom_redesign/README.md). Same
+ * upsert-on-conflict shape as dismissCalendarEvent above, keyed on the
+ * (event, student) pair since one event can be assigned to more than one kid. */
+export async function assignCalendarEvent(prisma: CalendarAssignmentPrisma, eventKey: string, studentId: string): Promise<void> {
+  await prisma.calendarEventAssignment.upsert({
+    where: { eventKey_studentId: { eventKey, studentId } },
+    update: {},
+    create: { eventKey, studentId },
+  });
+}
+
+export async function unassignCalendarEvent(prisma: CalendarAssignmentPrisma, eventKey: string, studentId: string): Promise<void> {
+  await prisma.calendarEventAssignment.deleteMany({ where: { eventKey, studentId } });
+}
+
+/** All (eventKey, studentId) assignments at once — the shared agenda strip
+ * needs to know which events to hide (any row with >=1 assignment), and
+ * each student's board needs to know which events are theirs, so one query
+ * feeds both instead of round-tripping per student. */
+export async function getCalendarEventAssignments(
+  prisma: CalendarAssignmentPrisma
+): Promise<{ eventKey: string; studentId: string }[]> {
+  return prisma.calendarEventAssignment.findMany({ select: { eventKey: true, studentId: true } });
+}
+
 export interface FamilyCalendarEvent {
   id: string;
   title: string;

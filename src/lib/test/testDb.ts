@@ -16,6 +16,7 @@ export function createTestClient(): PrismaClient {
 // for the FK-constrained tables (children before parents).
 export async function resetDb(prisma: PrismaClient) {
   await prisma.undoLogEntry.deleteMany();
+  await prisma.calendarEventAssignment.deleteMany();
   await prisma.assignmentInstance.deleteMany();
   await prisma.recurrenceRule.deleteMany();
   await prisma.removedOccurrence.deleteMany();

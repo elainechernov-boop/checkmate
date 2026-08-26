@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
@@ -36,7 +36,7 @@ import {
   returnReviewAction,
   setDayType,
 } from "./planner-actions";
-import { addCalendarEventToTodoList, dismissCalendarEventAction } from "./calendar/actions";
+import { assignCalendarEventAction, dismissCalendarEventAction, unassignCalendarEventAction } from "./calendar/actions";
 import { EditAssignmentModal, type EditableInstance } from "./EditAssignmentModal";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
@@ -85,15 +85,24 @@ function separatorHandleId(dateISO: string): string {
   return `${SEPARATOR_HANDLE_PREFIX}${dateISO}`;
 }
 
-// A dragged calendar-event overlay row (CalendarEventRow) — same "not a
-// real row yet" reasoning as the separator handle above, its own prefix so
-// handleDragEnd can tell a calendar-event drag apart from a real
-// instance/separator id or a separator-handle drag. Scoped per student
-// (`studentId`) since the same imported event overlays every student's
-// board, but "add to list" always means one specific kid's list.
+// A dragged CalendarStrip row's drag id — the strip is shared (not
+// per-student, §"one shared 6-column agenda"), so unlike the old
+// per-student-prefixed scheme, this carries only the event's own id; *which*
+// student it lands on comes from whichever ASSIGN_DROP_PREFIX droppable it's
+// released over (see the top-level assign DndContext in ParentWeekBoard).
 const CALENDAR_EVENT_PREFIX = "cal-event-";
-function calendarEventDragId(studentId: string, eventId: string): string {
-  return `${CALENDAR_EVENT_PREFIX}${studentId}:${eventId}`;
+function calendarEventDragId(eventId: string): string {
+  return `${CALENDAR_EVENT_PREFIX}${eventId}`;
+}
+
+// The whole-board drop target each StudentBoard is wrapped in, inside the
+// top-level assign DndContext — dropping a CalendarStrip event anywhere on
+// a student's board assigns it to them (using the event's own fixed date,
+// not whichever day cell it happened to land on — a parent's precise drop
+// accuracy shouldn't matter more than that).
+const ASSIGN_DROP_PREFIX = "assign-";
+function assignDropId(studentId: string): string {
+  return `${ASSIGN_DROP_PREFIX}${studentId}`;
 }
 
 
@@ -105,6 +114,7 @@ export function ParentWeekBoard({
   instances,
   daySeparators,
   calendarEvents,
+  calendarEventAssignments,
   schoolDayTypesByStudent,
   requestedDayIndex,
 }: {
@@ -114,9 +124,14 @@ export function ParentWeekBoard({
   today: Date;
   instances: EditableInstance[];
   daySeparators: DaySeparator[];
-  // The family's imported Google Calendar (§ "on top of the view") — the
-  // same list for every student, since it's not per-kid.
+  // The family's imported Google Calendar — one shared list, rendered once
+  // in CalendarStrip below (the redesign's "single biggest structural fix"
+  // over the old per-student-duplicated agenda).
   calendarEvents: FamilyCalendarEvent[];
+  // Which events are assigned to which student (CalendarEventAssignment) —
+  // an assigned event disappears from the shared strip and renders under
+  // that student's board instead.
+  calendarEventAssignments: { eventKey: string; studentId: string }[];
   schoolDayTypesByStudent: Record<string, Record<string, SchoolDayType>>;
   // Set only when a mobile swipe/arrow carried the parent across a week
   // edge (see page.tsx) — otherwise null, and the smart default applies.
@@ -129,6 +144,37 @@ export function ParentWeekBoard({
   const prevWeek = toISODate(addDays(monday, -7));
   const nextWeek = toISODate(addDays(monday, 7));
   const isCurrentWeek = toISODate(monday) === toISODate(defaultWeekStart(today));
+  const assignSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // Recomputed every 60s, purely so an assigned event's own auto-complete
+  // (now > event.end) actually ticks over without a full page reload.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const eventById = new Map(calendarEvents.map((event) => [event.id, event]));
+  const assignedEventKeys = new Set(calendarEventAssignments.map((a) => a.eventKey));
+  const unassignedEvents = calendarEvents.filter((event) => !assignedEventKeys.has(event.id));
+  const eventsByStudent = new Map<string, FamilyCalendarEvent[]>();
+  for (const assignment of calendarEventAssignments) {
+    const calEvent = eventById.get(assignment.eventKey);
+    if (!calEvent) continue;
+    if (!eventsByStudent.has(assignment.studentId)) eventsByStudent.set(assignment.studentId, []);
+    eventsByStudent.get(assignment.studentId)!.push(calEvent);
+  }
+
+  async function handleAssignDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (!activeId.startsWith(CALENDAR_EVENT_PREFIX) || !overId.startsWith(ASSIGN_DROP_PREFIX)) return;
+    const eventId = activeId.slice(CALENDAR_EVENT_PREFIX.length);
+    const studentId = overId.slice(ASSIGN_DROP_PREFIX.length);
+    await assignCalendarEventAction(eventId, studentId);
+  }
 
   // Optimistic mirrors of the server props — without these, a drag (reorder
   // or reschedule) has nothing to show until the server action resolves and
@@ -279,26 +325,39 @@ export function ParentWeekBoard({
         </p>
       )}
 
-      {students.map((student) => (
-        <StudentBoard
-          key={student.id}
-          student={student}
-          days={days}
-          todayISO={todayISO}
-          instances={localInstances.filter((i) => i.studentId === student.id)}
-          daySeparators={localDaySeparators.filter((s) => s.studentId === student.id)}
-          calendarEvents={calendarEvents}
-          schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
-          onEdit={setSelectedInstanceId}
-          onDelete={handleDeleteInstance}
-          onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
-          onReorderDay={(dateISO, orderedIds) => handleReorderDay(student.id, dateISO, orderedIds)}
-          onReschedule={handleReschedule}
-          mobileDayIndex={mobileDayIndex}
-          onSwipeLeft={goToNextDay}
-          onSwipeRight={goToPrevDay}
-        />
-      ))}
+      {/* One shared agenda strip (the redesign's "single biggest structural
+          fix" over the old per-student-duplicated feed) — draggable events
+          live in the same DndContext as every student's board-wide drop
+          target below, so a drag from here can land on any of them. Tap the
+          per-student initial chip works too, no drag required. */}
+      {students.length > 0 && (
+        <DndContext id="calendar-assign" sensors={assignSensors} onDragEnd={handleAssignDragEnd}>
+          <CalendarStrip days={days} events={unassignedEvents} students={students} />
+
+          {students.map((student) => (
+            <AssignDropZone key={student.id} studentId={student.id}>
+              <StudentBoard
+                student={student}
+                days={days}
+                todayISO={todayISO}
+                instances={localInstances.filter((i) => i.studentId === student.id)}
+                daySeparators={localDaySeparators.filter((s) => s.studentId === student.id)}
+                assignedEvents={eventsByStudent.get(student.id) ?? []}
+                now={now}
+                schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
+                onEdit={setSelectedInstanceId}
+                onDelete={handleDeleteInstance}
+                onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
+                onReorderDay={(dateISO, orderedIds) => handleReorderDay(student.id, dateISO, orderedIds)}
+                onReschedule={handleReschedule}
+                mobileDayIndex={mobileDayIndex}
+                onSwipeLeft={goToNextDay}
+                onSwipeRight={goToPrevDay}
+              />
+            </AssignDropZone>
+          ))}
+        </DndContext>
+      )}
 
       <EditAssignmentModal
         instance={selectedInstance}
@@ -316,7 +375,8 @@ function StudentBoard({
   todayISO,
   instances,
   daySeparators,
-  calendarEvents,
+  assignedEvents,
+  now,
   schoolDayTypes,
   onEdit,
   onDelete,
@@ -332,7 +392,11 @@ function StudentBoard({
   todayISO: string;
   instances: EditableInstance[];
   daySeparators: DaySeparator[];
-  calendarEvents: FamilyCalendarEvent[];
+  // Calendar events assigned to this student (CalendarEventAssignment) —
+  // the shared CalendarStrip owns the unassigned pool; this board only ever
+  // sees its own.
+  assignedEvents: FamilyCalendarEvent[];
+  now: Date;
   schoolDayTypes: Record<string, SchoolDayType>;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -354,11 +418,9 @@ function StudentBoard({
   const [creatingSeparator, setCreatingSeparator] = useState<{ dateISO: string; index: number } | null>(null);
 
   const eventsByDay = new Map<string, FamilyCalendarEvent[]>();
-  const eventById = new Map<string, FamilyCalendarEvent>();
-  for (const event of calendarEvents) {
+  for (const event of assignedEvents) {
     if (!eventsByDay.has(event.dateISO)) eventsByDay.set(event.dateISO, []);
     eventsByDay.get(event.dateISO)!.push(event);
-    eventById.set(event.id, event);
   }
 
   const byDay = new Map<string, DayRow[]>();
@@ -384,23 +446,20 @@ function StudentBoard({
   }
 
   /**
-   * One drag gesture, four possible outcomes. Dragging the bottom-of-card
-   * SeparatorHandle (its id carries SEPARATOR_HANDLE_PREFIX — never a real
-   * row) drops an inline creator at that spot instead of moving anything
-   * (see creatingSeparator below); it never leaves the day it started in,
-   * since a separator has nowhere else to go. Dragging a CalendarEventRow
-   * (CALENDAR_EVENT_PREFIX) pulls that event onto the list exactly the way
-   * its own "+" button does — dropped anywhere within the same day it's
-   * already showing on, since the event has no other date to land on; a
-   * drop on a different day is just ignored, same reasoning as the
-   * separator handle. Otherwise: dropped within the same day reorders that
-   * day's cards (her own visual ordering, mixing assignments and
-   * separators freely — §6) and dropped on a different day reschedules it,
-   * same as before. A separator never leaves its own day — there's no
-   * "reschedule" for one, so a cross-day drop of one is just ignored.
-   * `over.id` is either a day's own dateISO (dropped on empty space) or
-   * another row's id (dropped on/near a row) — both resolve back to "which
-   * day."
+   * One drag gesture, three possible outcomes (a calendar-event drag is a
+   * separate DndContext entirely now — see ParentWeekBoard's own
+   * handleAssignDragEnd — so this one never sees CALENDAR_EVENT_PREFIX
+   * ids). Dragging the bottom-of-card SeparatorHandle (its id carries
+   * SEPARATOR_HANDLE_PREFIX — never a real row) drops an inline creator at
+   * that spot instead of moving anything (see creatingSeparator below); it
+   * never leaves the day it started in, since a separator has nowhere else
+   * to go. Otherwise: dropped within the same day reorders that day's cards
+   * (her own visual ordering, mixing assignments and separators freely —
+   * §6) and dropped on a different day reschedules it. A separator never
+   * leaves its own day — there's no "reschedule" for one, so a cross-day
+   * drop of one is just ignored. `over.id` is either a day's own dateISO
+   * (dropped on empty space) or another row's id (dropped on/near a row) —
+   * both resolve back to "which day."
    */
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -416,20 +475,6 @@ function StudentBoard({
       const dayList = byDay.get(sourceDateISO) ?? [];
       const overIndex = dayList.findIndex((r) => rowId(r) === overId);
       setCreatingSeparator({ dateISO: sourceDateISO, index: overIndex === -1 ? dayList.length : overIndex });
-      return;
-    }
-
-    if (activeId.startsWith(CALENDAR_EVENT_PREFIX)) {
-      // studentId is a fixed-format cuid (no colons); the event id itself
-      // can contain colons (it embeds an ISO timestamp), so only the
-      // *first* colon after the prefix is the real separator.
-      const rest = activeId.slice(CALENDAR_EVENT_PREFIX.length);
-      const splitAt = rest.indexOf(":");
-      const dragStudentId = rest.slice(0, splitAt);
-      const calEvent = eventById.get(rest.slice(splitAt + 1));
-      const targetDateISO = byDay.has(overId) ? overId : (findRow(overId)?.dateISO ?? null);
-      if (!calEvent || !targetDateISO || targetDateISO !== calEvent.dateISO) return;
-      await addCalendarEventToTodoList(dragStudentId, calEvent.title, calEvent.dateISO, calEvent.start.toISOString(), calEvent.allDay);
       return;
     }
 
@@ -493,6 +538,7 @@ function StudentBoard({
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 rows={byDay.get(dateISO) ?? []}
                 events={eventsByDay.get(dateISO) ?? []}
+                now={now}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
@@ -526,6 +572,7 @@ function StudentBoard({
                 dayType={schoolDayTypes[dateISO] ?? SchoolDayType.schoolDay}
                 rows={byDay.get(dateISO) ?? []}
                 events={eventsByDay.get(dateISO) ?? []}
+                now={now}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
@@ -552,6 +599,7 @@ function DayCell({
   dayType,
   rows,
   events,
+  now,
   onEdit,
   onDelete,
   onDayTypeChange,
@@ -568,10 +616,11 @@ function DayCell({
   accentColor: string;
   dayType: SchoolDayType;
   rows: DayRow[];
-  // The family's imported Google Calendar, already filtered to this day
-  // (§ Parent Mode "on top of the view") — read-only context, not part of
-  // the day's own sortOrder sequence at all.
+  // This student's own assigned calendar events for this day (§ Parent Mode
+  // "on top of the view") — read-only-ish context (unassign only), not part
+  // of the day's own sortOrder sequence at all.
   events: FamilyCalendarEvent[];
+  now: Date;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
@@ -692,24 +741,17 @@ function DayCell({
         )}
 
         {events.length > 0 && (
-          // §Parent Mode "on top of the view" — the family's own imported
-          // calendar, read-only context sitting apart from the day's actual
-          // sortOrder sequence (never part of a reorder), styled with its
-          // own dedicated color so it reads as "not schoolwork" rather than
-          // blending into the amber a timed assignment gets. Each one can
-          // be dragged onto this student's list (desktop grid only, same
-          // "would fight the pager's swipe" reasoning as every other row's
-          // enableDrag split below) or dismissed with the hover-X — the
-          // feed itself is read-only, so dismissing just hides that one
-          // occurrence going forward (see dismissCalendarEventAction).
+          // This student's own assigned calendar events (README's drag-or-
+          // tap-to-assign) — read-only context sitting apart from the day's
+          // actual sortOrder sequence, cobalt-chip styled so it reads as
+          // "something else going on," not schoolwork. Never checked off by
+          // the student; it just marks itself done once its own end time
+          // passes (see isPast below). Hover-✕ sends it back to the shared
+          // agenda (unassignCalendarEventAction) rather than deleting it.
           <div className="mt-1.5 flex flex-col gap-1">
-            {events.map((event) =>
-              enableDrag ? (
-                <CalendarEventRow key={event.id} event={event} studentId={studentId} />
-              ) : (
-                <StaticCalendarEventRow key={event.id} event={event} studentId={studentId} />
-              )
-            )}
+            {events.map((event) => (
+              <AssignedCalendarEventRow key={event.id} event={event} studentId={studentId} now={now} />
+            ))}
           </div>
         )}
 
@@ -1113,96 +1155,101 @@ function SeparatorHandle({ dateISO, onClick }: { dateISO: string; onClick: () =>
   );
 }
 
-/** The visual content shared by both CalendarEventRow variants below —
- * title, time, the "+" add-to-list button, and the hover-X dismiss —
- * everything except the outer element that carries (or doesn't carry)
- * dnd-kit's draggable wiring. Its own dedicated color (COLORS.calendar,
- * not the amber a timed assignment gets) so an imported event reads at a
- * glance as "something from outside," not schoolwork. */
-function CalendarEventContents({
-  event,
-  adding,
-  onAdd,
-  onDismiss,
-}: {
-  event: FamilyCalendarEvent;
-  adding: boolean;
-  onAdd: () => void;
-  onDismiss: () => void;
-}) {
+/** A calendar event assigned to this student, under their own board — not
+ * schoolwork, never checked off; it marks itself done on its own once
+ * `now` passes its end time. Hover-✕ unassigns (back to the shared strip),
+ * it never deletes anything (the feed itself is read-only). */
+function AssignedCalendarEventRow({ event, studentId, now }: { event: FamilyCalendarEvent; studentId: string; now: Date }) {
+  const isPast = now > event.end;
   return (
-    <>
+    <div
+      className="group relative flex items-start gap-2 rounded-sm py-0.5 pr-1 text-xs"
+      style={{
+        background: isPast ? undefined : "rgba(22,87,255,0.07)",
+        boxShadow: isPast ? undefined : `inset 3px 0 0 ${COLORS.cobalt}`,
+        paddingLeft: "0.5rem",
+      }}
+    >
       <span className="min-w-0 flex-1">
-        <span className="block truncate" style={{ color: COLORS.text }} title={event.title}>
+        <span
+          className="block truncate"
+          style={isPast ? { color: COLORS.muted, textDecorationLine: "line-through" } : { color: COLORS.text }}
+          title={event.title}
+        >
           {event.title}
         </span>
-        <span className="block" style={{ color: COLORS.calendar, fontSize: "0.7rem" }}>
+        <span className="block" style={{ color: isPast ? COLORS.mutedFaint : COLORS.cobalt, fontSize: "0.7rem" }}>
           🕐 {event.timeLabel ?? "All day"}
         </span>
       </span>
-      <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        {/* stopPropagation matches SeparatorRow's own hover-X — these sit
-            inside CalendarEventRow's draggable node (below), so a click
-            here shouldn't also register as the start of a drag. */}
-        <button
-          type="button"
-          onClick={(domEvent) => {
-            domEvent.stopPropagation();
-            onAdd();
-          }}
-          disabled={adding}
-          aria-label={`Add "${event.title}" to this student's list`}
-          title="Add to this student's list"
-          className="rounded px-1 text-xs hover:text-[#161616] disabled:opacity-100"
-          style={{ color: COLORS.muted }}
-        >
-          {adding ? "…" : "+"}
-        </button>
-        <button
-          type="button"
-          onClick={(domEvent) => {
-            domEvent.stopPropagation();
-            onDismiss();
-          }}
-          aria-label={`Hide "${event.title}" from this overlay`}
-          title="Hide this event"
-          className="rounded px-1 text-xs hover:text-[#161616]"
-          style={{ color: COLORS.muted }}
-        >
-          ✕
-        </button>
-      </span>
-    </>
+      <button
+        type="button"
+        onClick={(domEvent) => {
+          domEvent.stopPropagation();
+          void unassignCalendarEventAction(event.id, studentId);
+        }}
+        aria-label={`Move "${event.title}" back to the shared agenda`}
+        title="Move back to the shared agenda"
+        className="shrink-0 rounded px-1 text-xs opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+        style={{ color: COLORS.muted }}
+      >
+        ✕
+      </button>
+    </div>
   );
 }
 
-function useCalendarEventActions(event: FamilyCalendarEvent, studentId: string) {
-  const [adding, setAdding] = useState(false);
+/** The one shared "This Week — Family Calendar" agenda (README's "single
+ * biggest structural fix" over the old per-student-duplicated feed) —
+ * every event not yet assigned to a student, once, above every board.
+ * Each row is a drag source (dropped on any student's board below assigns
+ * it — ParentWeekBoard's own handleAssignDragEnd) and carries a small
+ * per-student initial chip for the no-drag-required tap-to-assign path. */
+function CalendarStrip({ days, events, students }: { days: Date[]; events: FamilyCalendarEvent[]; students: Student[] }) {
+  const eventsByDay = new Map<string, FamilyCalendarEvent[]>();
+  for (const day of days) eventsByDay.set(toISODate(day), []);
+  for (const event of events) eventsByDay.get(event.dateISO)?.push(event);
 
-  async function handleAdd() {
-    setAdding(true);
-    try {
-      await addCalendarEventToTodoList(studentId, event.title, event.dateISO, event.start.toISOString(), event.allDay);
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  function handleDismiss() {
-    void dismissCalendarEventAction(event.id);
-  }
-
-  return { adding, handleAdd, handleDismiss };
+  return (
+    <section className="mt-8 rounded border p-4" style={{ borderColor: COLORS.hairline, background: "white" }}>
+      <div className="flex items-baseline justify-between border-b pb-2" style={{ borderColor: COLORS.hairline }}>
+        <h2 className="text-sm font-bold" style={{ color: COLORS.text }}>
+          This Week — Family Calendar
+        </h2>
+        <span className="text-xs" style={{ color: COLORS.muted }}>
+          from your Google Calendar
+        </span>
+      </div>
+      {events.length === 0 ? (
+        <p className="mt-3 text-xs" style={{ color: COLORS.mutedFaint }}>
+          Nothing unassigned this week.
+        </p>
+      ) : (
+        <div className="mt-3 grid grid-cols-6 gap-4">
+          {days.map((day) => {
+            const dateISO = toISODate(day);
+            return (
+              <div key={dateISO}>
+                <span className="block text-xs font-bold" style={{ color: COLORS.text }}>
+                  {formatDayWeekdayName(day).slice(0, 3).toUpperCase()}
+                </span>
+                <div className="mt-1.5 flex flex-col gap-1.5">
+                  {(eventsByDay.get(dateISO) ?? []).map((event) => (
+                    <CalendarStripEventRow key={event.id} event={event} students={students} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 }
 
-/** A family calendar event overlaid on the day (§ Parent Mode "on top of
- * the view") — draggable onto this student's list exactly like the "+"
- * button below adds it (see handleDragEnd's CALENDAR_EVENT_PREFIX branch),
- * for the desktop grid where a DndContext ancestor actually exists. */
-function CalendarEventRow({ event, studentId }: { event: FamilyCalendarEvent; studentId: string }) {
-  const { adding, handleAdd, handleDismiss } = useCalendarEventActions(event, studentId);
+function CalendarStripEventRow({ event, students }: { event: FamilyCalendarEvent; students: Student[] }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: calendarEventDragId(studentId, event.id),
+    id: calendarEventDragId(event.id),
   });
 
   return (
@@ -1210,11 +1257,10 @@ function CalendarEventRow({ event, studentId }: { event: FamilyCalendarEvent; st
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className="group relative flex items-start gap-2 rounded-sm py-0.5 pr-1 text-xs"
+      className="group flex flex-col gap-1 rounded-sm p-1.5 text-xs"
       style={{
-        background: "rgba(59, 91, 122, 0.08)",
-        boxShadow: `inset 3px 0 0 ${COLORS.calendar}`,
-        paddingLeft: "0.5rem",
+        background: "rgba(22,87,255,0.07)",
+        boxShadow: `inset 3px 0 0 ${COLORS.cobalt}`,
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.6 : 1,
         zIndex: isDragging ? 10 : undefined,
@@ -1223,29 +1269,59 @@ function CalendarEventRow({ event, studentId }: { event: FamilyCalendarEvent; st
         touchAction: "none",
       }}
     >
-      <CalendarEventContents event={event} adding={adding} onAdd={handleAdd} onDismiss={handleDismiss} />
+      <div className="flex items-start justify-between gap-1">
+        <span className="min-w-0 flex-1 truncate" style={{ color: COLORS.text }} title={event.title}>
+          {event.title}
+        </span>
+        {/* stopPropagation matches every other hover-X in this file — sits
+            inside this row's own draggable node, so a click here shouldn't
+            also register as the start of a drag. */}
+        <button
+          type="button"
+          onClick={(domEvent) => {
+            domEvent.stopPropagation();
+            void dismissCalendarEventAction(event.id);
+          }}
+          aria-label={`Hide "${event.title}" from this overlay`}
+          title="Hide this event"
+          className="shrink-0 text-xs opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+          style={{ color: COLORS.mutedFaint }}
+        >
+          ✕
+        </button>
+      </div>
+      <span style={{ color: COLORS.cobalt, fontWeight: 700 }}>{event.timeLabel ?? "All day"}</span>
+      <div className="flex items-center gap-1">
+        <span style={{ color: COLORS.mutedFaint }}>drag to a kid, or</span>
+        {students.map((student) => (
+          <button
+            key={student.id}
+            type="button"
+            onClick={(domEvent) => {
+              domEvent.stopPropagation();
+              void assignCalendarEventAction(event.id, student.id);
+            }}
+            title={`Assign to ${student.name}`}
+            aria-label={`Assign "${event.title}" to ${student.name}`}
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
+            style={{ background: student.accentColor }}
+          >
+            {student.name.charAt(0).toUpperCase()}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
-/** The mobile day pager's calendar-event row: same look and the same "+"
- * / hover-X actions as CalendarEventRow, minus dnd-kit's draggable wiring
- * — that gesture surface would otherwise fight SwipeDayPager's own
- * horizontal swipe for the same touch (matching every other row's own
- * enableDrag split, e.g. StaticRow). */
-function StaticCalendarEventRow({ event, studentId }: { event: FamilyCalendarEvent; studentId: string }) {
-  const { adding, handleAdd, handleDismiss } = useCalendarEventActions(event, studentId);
-
+/** Every student's board sits inside this droppable in the top-level assign
+ * DndContext — dropping a CalendarStrip event anywhere on it assigns that
+ * event to this student (see ParentWeekBoard's handleAssignDragEnd). */
+function AssignDropZone({ studentId, children }: { studentId: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: assignDropId(studentId) });
   return (
-    <div
-      className="group relative flex items-start gap-2 rounded-sm py-0.5 pr-1 text-xs"
-      style={{
-        background: "rgba(59, 91, 122, 0.08)",
-        boxShadow: `inset 3px 0 0 ${COLORS.calendar}`,
-        paddingLeft: "0.5rem",
-      }}
-    >
-      <CalendarEventContents event={event} adding={adding} onAdd={handleAdd} onDismiss={handleDismiss} />
+    <div ref={setNodeRef} className="rounded transition-shadow" style={isOver ? { boxShadow: `0 0 0 2px ${COLORS.cobalt}` } : undefined}>
+      {children}
     </div>
   );
 }

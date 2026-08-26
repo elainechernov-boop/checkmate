@@ -16,12 +16,9 @@ export const COLORS = {
   tennis: "#D8F609",
   cobalt: "#1657FF",
   crimson: "#E8264B",
-  // Legacy aliases, kept only until every call site is migrated in later
-  // phases: "amber" was the old roll-mark/"Show Mom" tone (now crimson);
-  // "calendar" was a dedicated blue for the family-calendar overlay — the
-  // new design reuses cobalt for that instead of a separate hue.
+  // Legacy alias, kept only until every call site is migrated in later
+  // phases: "amber" was the old roll-mark/"Show Mom" tone (now crimson).
   amber: "#E8264B",
-  calendar: "#1657FF",
 } as const;
 
 // Tapping a student's own name cycles through this fixed order (README

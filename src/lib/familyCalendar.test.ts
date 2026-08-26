@@ -1,6 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PrismaClient } from "@/generated/prisma/client";
 import { parseISODate } from "./dates";
-import { fetchFamilyCalendarEvents, type FamilyCalendarSettingsData } from "./familyCalendar";
+import {
+  assignCalendarEvent,
+  fetchFamilyCalendarEvents,
+  getCalendarEventAssignments,
+  unassignCalendarEvent,
+  type FamilyCalendarSettingsData,
+} from "./familyCalendar";
+import { makeStudent } from "./test/fixtures";
+import { createTestClient, resetDb } from "./test/testDb";
 
 const SETTINGS: FamilyCalendarSettingsData = {
   icsUrl: "https://calendar.google.com/calendar/ical/test/basic.ics",
@@ -141,5 +150,62 @@ END:VCALENDAR
     const events = await fetchFamilyCalendarEvents(SETTINGS, parseISODate("2026-08-24"), parseISODate("2026-08-31"));
 
     expect(events).toEqual([]);
+  });
+});
+
+describe("calendar event assignment", () => {
+  let prisma: PrismaClient;
+
+  beforeEach(async () => {
+    prisma = createTestClient();
+    await resetDb(prisma);
+  });
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("assigns an event to a student, and it shows up in getCalendarEventAssignments", async () => {
+    const student = await makeStudent(prisma);
+    await assignCalendarEvent(prisma, "event-1", student.id);
+
+    const assignments = await getCalendarEventAssignments(prisma);
+    expect(assignments).toEqual([{ eventKey: "event-1", studentId: student.id }]);
+  });
+
+  it("assigning the same event to the same student twice is a no-op, not an error", async () => {
+    const student = await makeStudent(prisma);
+    await assignCalendarEvent(prisma, "event-1", student.id);
+    await assignCalendarEvent(prisma, "event-1", student.id);
+
+    const assignments = await getCalendarEventAssignments(prisma);
+    expect(assignments).toHaveLength(1);
+  });
+
+  it("the same event can be assigned to more than one student", async () => {
+    const miles = await makeStudent(prisma, { name: "Miles" });
+    const violet = await makeStudent(prisma, { name: "Violet" });
+    await assignCalendarEvent(prisma, "event-1", miles.id);
+    await assignCalendarEvent(prisma, "event-1", violet.id);
+
+    const assignments = await getCalendarEventAssignments(prisma);
+    expect(assignments).toHaveLength(2);
+  });
+
+  it("unassigning removes just that student's assignment, not the other student's", async () => {
+    const miles = await makeStudent(prisma, { name: "Miles" });
+    const violet = await makeStudent(prisma, { name: "Violet" });
+    await assignCalendarEvent(prisma, "event-1", miles.id);
+    await assignCalendarEvent(prisma, "event-1", violet.id);
+
+    await unassignCalendarEvent(prisma, "event-1", miles.id);
+
+    const assignments = await getCalendarEventAssignments(prisma);
+    expect(assignments).toEqual([{ eventKey: "event-1", studentId: violet.id }]);
+  });
+
+  it("unassigning a never-assigned event is a no-op, not an error", async () => {
+    const student = await makeStudent(prisma);
+    await expect(unassignCalendarEvent(prisma, "never-assigned", student.id)).resolves.not.toThrow();
   });
 });

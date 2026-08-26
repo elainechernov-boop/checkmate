@@ -341,3 +341,23 @@ model DismissedCalendarEvent {
   eventKey  String   @unique
   createdAt DateTime @default(now())
 }
+
+// The redesign's durable "this calendar event belongs to this student"
+// relation (design_handoff_homeroom_redesign/README.md's shared-agenda
+// drag-or-tap-to-assign) — replaces the old one-way "convert to a real
+// to-do" action entirely. An assigned event stays a calendar event (never
+// becomes an AssignmentInstance): it disappears from the shared agenda and
+// renders under that student's board instead, marking itself done once its
+// own end time passes rather than being checked off. Same upsert-on-
+// conflict shape as DismissedCalendarEvent; one event can be assigned to
+// more than one student (a family outing both kids attend), so the unique
+// key is the pair, not eventKey alone.
+model CalendarEventAssignment {
+  id        String   @id @default(cuid())
+  eventKey  String
+  studentId String
+  createdAt DateTime @default(now())
+
+  @@unique([eventKey, studentId])
+  @@index([eventKey])
+}

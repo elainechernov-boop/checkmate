@@ -5,10 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, parseISODate, toISODate } from "@/lib/dates";
 import {
+  assignCalendarEvent,
   clearFamilyCalendarSettings,
   dismissCalendarEvent,
-  getFamilyCalendarSettings,
   setFamilyCalendarSettings,
+  unassignCalendarEvent,
 } from "@/lib/familyCalendar";
 import { materializeSeries } from "@/lib/materialize";
 import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
@@ -171,59 +172,24 @@ export async function removeFamilyCalendarSettings() {
   revalidatePath("/parent");
 }
 
-/** Pulls one imported calendar event onto a student's list (ParentWeekBoard's
- * CalendarEventRow) as a plain standalone instance — no series, no subject
- * (the parent adds one later through the normal edit sheet, same as any
- * quick-added assignment). A timed event becomes a §12 time-sensitive
- * instance so it gets the same highlighted treatment and pinned placement a
- * fixed-clock-time assignment does; an all-day event becomes an ordinary
- * open item. `startISO` is the event's own instant (FamilyCalendarEvent.start,
- * serialized) — converted to this app's "HH:MM" wall-clock convention in the
- * family's own configured timezone, matching localTimeLabel's own
- * conversion in familyCalendar.ts. */
-export async function addCalendarEventToTodoList(
-  studentId: string,
-  title: string,
-  dateISO: string,
-  startISO: string,
-  allDay: boolean
-) {
-  if (!studentId) return;
-  const trimmedTitle = title.trim() || "Untitled";
-  const dueDate = parseISODate(dateISO);
+/** The redesign's drag-or-tap-to-assign (README "Family calendar drag-and-
+ * drop") — an event stays a calendar event, just linked to a student and
+ * hidden from the shared agenda; see CalendarStrip/StudentBoard in
+ * ParentWeekBoard.tsx. Replaces the old one-way "convert to a real to-do"
+ * action entirely (a parent's own explicit call: the point is to show the
+ * kid something else is going on, not to create checkable schoolwork). */
+export async function assignCalendarEventAction(eventKey: string, studentId: string) {
+  if (!eventKey || !studentId) return;
+  await assignCalendarEvent(prisma, eventKey, studentId);
+  revalidatePath("/parent");
+}
 
-  let isTimeSensitive = false;
-  let scheduledTime: string | null = null;
-  if (!allDay) {
-    const settings = await getFamilyCalendarSettings(prisma);
-    const timeZone = settings?.timeZone ?? "America/Los_Angeles";
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(new Date(startISO));
-    const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
-    const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
-    // Some engines format midnight as "24" under hour12:false.
-    const hh = hour === "24" ? "00" : hour.padStart(2, "0");
-    scheduledTime = `${hh}:${minute}`;
-    isTimeSensitive = true;
-  }
-
-  await prisma.assignmentInstance.create({
-    data: {
-      title: trimmedTitle,
-      studentId,
-      createdBy: "parent",
-      dueDate,
-      originalDueDate: dueDate,
-      status: "open",
-      isTimeSensitive,
-      scheduledTime,
-    },
-  });
-
+/** The hover-✕ on an assigned event, under a student's own board — sends it
+ * back to the shared agenda rather than deleting anything (the feed itself
+ * is read-only). */
+export async function unassignCalendarEventAction(eventKey: string, studentId: string) {
+  if (!eventKey || !studentId) return;
+  await unassignCalendarEvent(prisma, eventKey, studentId);
   revalidatePath("/parent");
 }
 
