@@ -98,7 +98,7 @@ function IdeaRow({
 
   return (
     <li
-      className="flex items-center gap-2 border-b py-1.5 text-sm last:border-b-0"
+      className="group/idea flex items-center gap-2 border-b py-1.5 text-sm last:border-b-0"
       style={{ borderColor: COLORS.hairline }}
     >
       <span className="min-w-0 flex-1 truncate" style={{ color: COLORS.text }}>
@@ -117,7 +117,7 @@ function IdeaRow({
         type="button"
         onClick={handleDelete}
         aria-label={`Delete idea: ${idea.text}`}
-        className="shrink-0 text-xs"
+        className="shrink-0 text-xs opacity-0 transition-opacity group-hover/idea:opacity-100"
         style={{ color: COLORS.mutedFaint }}
       >
         ×

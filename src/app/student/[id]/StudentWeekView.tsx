@@ -16,10 +16,7 @@ import { approveReviewViaPasscode, cycleAccentColorAction, reorderOpenItems, tog
 import { moveProjectTaskAction, reorderProjectsAction } from "./projectActions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
-import { AssignmentDetailsModal } from "./AssignmentDetailsModal";
 import { ItemCelebration } from "./ItemCelebration";
-import { NewProjectModal } from "./NewProjectModal";
-import { PlanTaskModal } from "./PlanTaskModal";
 import { IdeasList } from "./IdeasList";
 import { ProjectsBand } from "./ProjectsBand";
 import { ReminderTakeover } from "./ReminderTakeover";
@@ -81,9 +78,6 @@ export function StudentWeekView({
   const [localProjects, setLocalProjects] = useState(projects);
   const [syncedProjects, setSyncedProjects] = useState(projects);
   const [comingUpOpen, setComingUpOpen] = useState(false);
-  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
-  const [planTaskId, setPlanTaskId] = useState<string | null>(null);
-  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [celebratedToday, setCelebratedToday] = useState(true); // avoid a flash before the effect below settles
   const [itemCelebration, setItemCelebration] = useState<{ key: number; origin: { x: number; y: number } } | null>(
@@ -217,8 +211,6 @@ export function StudentWeekView({
   // silent week (§9's "an empty week shows nothing at all" is about there
   // being nothing to plan, not about hiding valid drop targets).
   const hasBacklogTasks = localProjects.some((p) => p.backlogTasks.length > 0);
-  const planTask = localProjects.flatMap((p) => p.backlogTasks).find((t) => t.id === planTaskId) ?? null;
-  const planTaskProject = planTask ? localProjects.find((p) => p.id === planTask.projectId) ?? null : null;
   // The week view is Mon-Sat (§6) — on a Sunday there's no column that
   // equals "today" at all, so nothing is interactive. Say so plainly
   // (this is a fact about the real today, not about whichever week is
@@ -430,8 +422,6 @@ export function StudentWeekView({
     }
   }
 
-  const selectedInstance = localInstances.find((i) => i.id === selectedInstanceId) ?? null;
-
   return (
     <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-4 py-6 lg:px-10 lg:py-10">
       <header className="flex items-start justify-between">
@@ -527,7 +517,6 @@ export function StudentWeekView({
                     canAddTask={dayISO >= todayISO}
                     onCelebrate={handleCelebrate}
                     onToggle={handleToggle}
-                    onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
                     onReorderOpen={handleReorderOpen}
                     onApproveViaPasscode={handleApproveViaPasscode}
                   />
@@ -573,8 +562,7 @@ export function StudentWeekView({
                         canAddTask={dayISO >= todayISO}
                         onCelebrate={handleCelebrate}
                         onToggle={handleToggle}
-                        onOpenDetails={(instance) => setSelectedInstanceId(instance.id)}
-                        onReorderOpen={handleReorderOpen}
+                            onReorderOpen={handleReorderOpen}
                         onApproveViaPasscode={handleApproveViaPasscode}
                         enableDrag={false}
                       />
@@ -590,8 +578,7 @@ export function StudentWeekView({
           studentId={student.id}
           accentColor={localAccentColor}
           projects={localProjects}
-          onPlanTask={(task) => setPlanTaskId(task.id)}
-          onNewProject={() => setNewProjectOpen(true)}
+          today={today}
           prefersReducedMotion={prefersReducedMotion}
         />
       </DndContext>
@@ -604,29 +591,6 @@ export function StudentWeekView({
         open={comingUpOpen}
         onClose={() => setComingUpOpen(false)}
         items={comingUp}
-        prefersReducedMotion={prefersReducedMotion}
-      />
-
-      <AssignmentDetailsModal
-        studentId={student.id}
-        instance={selectedInstance}
-        onClose={() => setSelectedInstanceId(null)}
-        prefersReducedMotion={prefersReducedMotion}
-      />
-
-      <PlanTaskModal
-        task={planTask}
-        studentId={student.id}
-        defaultUntilDate={planTaskProject?.targetDate ?? null}
-        today={today}
-        onClose={() => setPlanTaskId(null)}
-        prefersReducedMotion={prefersReducedMotion}
-      />
-
-      <NewProjectModal
-        studentId={student.id}
-        open={newProjectOpen}
-        onClose={() => setNewProjectOpen(false)}
         prefersReducedMotion={prefersReducedMotion}
       />
 

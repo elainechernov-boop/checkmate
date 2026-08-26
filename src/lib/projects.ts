@@ -77,6 +77,22 @@ export async function createProject(
   });
 }
 
+/** The redesign's inline click-to-edit target-date field (replaces
+ * NewProjectModal's upfront optional date field — quick-create is now
+ * name-only, and this is how a student sets or changes it afterward). */
+export async function editProjectTargetDate(
+  prisma: ProjectsPrisma,
+  studentId: string,
+  projectId: string,
+  targetDate: Date | null
+): Promise<void> {
+  const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
+  if (project.studentId !== studentId) {
+    throw new ProjectPermissionError("Students may only edit their own projects.");
+  }
+  await prisma.project.update({ where: { id: projectId }, data: { targetDate } });
+}
+
 /** §7 "prioritized" — drag-reordering the project cards themselves within
  * the band, the same convention as reorderInstances.ts's day reorders.
  * `orderedIds` is trusted only for this student's own projects; anything

@@ -8,6 +8,7 @@ import {
   createProject,
   deleteProject,
   deleteProjectTask,
+  editProjectTargetDate,
   editProjectTaskTitle,
   moveProjectTask,
   planProjectTask,
@@ -18,6 +19,11 @@ import {
 
 export async function createProjectAction(studentId: string, name: string, targetDateISO: string | null) {
   await createProject(prisma, studentId, name, targetDateISO ? parseISODate(targetDateISO) : null);
+  revalidatePath(`/student/${studentId}`);
+}
+
+export async function editProjectTargetDateAction(studentId: string, projectId: string, targetDateISO: string | null) {
+  await editProjectTargetDate(prisma, studentId, projectId, targetDateISO ? parseISODate(targetDateISO) : null);
   revalidatePath(`/student/${studentId}`);
 }
 

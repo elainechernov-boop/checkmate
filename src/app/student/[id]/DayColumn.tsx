@@ -47,17 +47,17 @@ function SortableRow({
   prefersReducedMotion,
   isLast,
   accentColor,
+  studentId,
   now,
   onToggle,
-  onOpenDetails,
 }: {
   instance: StudentInstance;
   prefersReducedMotion: boolean;
   isLast: boolean;
   accentColor: string;
+  studentId: string;
   now: Date;
   onToggle: (origin: { x: number; y: number }) => void;
-  onOpenDetails: () => void;
   // Open-bucket rows are never pendingReview (§6's ordering), so this
   // variant has no need for the approve-via-passcode prop at all.
 }) {
@@ -93,9 +93,9 @@ function SortableRow({
         prefersReducedMotion={prefersReducedMotion}
         isLast={isLast}
         accentColor={accentColor}
+        studentId={studentId}
         now={now}
         onToggle={onToggle}
-        onOpenDetails={onOpenDetails}
       />
     </div>
   );
@@ -107,9 +107,9 @@ function DraggableProjectRow({
   prefersReducedMotion,
   isLast,
   accentColor,
+  studentId,
   now,
   onToggle,
-  onOpenDetails,
   onApproveViaPasscode,
 }: {
   instance: StudentInstance;
@@ -117,9 +117,9 @@ function DraggableProjectRow({
   prefersReducedMotion: boolean;
   isLast: boolean;
   accentColor: string;
+  studentId: string;
   now: Date;
   onToggle: (origin: { x: number; y: number }) => void;
-  onOpenDetails: () => void;
   onApproveViaPasscode: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
 }) {
   // §7: "move between days" is the student's own project task's right on
@@ -150,9 +150,9 @@ function DraggableProjectRow({
         prefersReducedMotion={prefersReducedMotion}
         isLast={isLast}
         accentColor={accentColor}
+        studentId={studentId}
         now={now}
         onToggle={onToggle}
-        onOpenDetails={onOpenDetails}
         onApproveViaPasscode={onApproveViaPasscode}
       />
     </div>
@@ -206,7 +206,6 @@ export function DayColumn({
   canAddTask,
   onCelebrate,
   onToggle,
-  onOpenDetails,
   onReorderOpen,
   onApproveViaPasscode,
   enableDrag = true,
@@ -234,7 +233,6 @@ export function DayColumn({
   canAddTask: boolean;
   onCelebrate: () => void;
   onToggle: (instance: StudentInstance, origin: { x: number; y: number }) => void;
-  onOpenDetails: (instance: StudentInstance) => void;
   onReorderOpen: (orderedIds: string[]) => void;
   onApproveViaPasscode: (instance: StudentInstance, passcode: string, origin: { x: number; y: number }) => Promise<void>;
   // The mobile single-day pager owns this touch surface for horizontal
@@ -323,9 +321,9 @@ export function DayColumn({
       prefersReducedMotion,
       isLast: instance.id === lastRowId,
       accentColor,
+      studentId,
       now,
       onToggle: (origin: { x: number; y: number }) => onToggle(instance, origin),
-      onOpenDetails: () => onOpenDetails(instance),
       // Available even on a non-today column — a pendingReview item holds
       // its original day rather than rolling (§5), but parent approval
       // isn't gated by the student-only "today only" interactivity rule.
@@ -442,9 +440,9 @@ export function DayColumn({
                           prefersReducedMotion={prefersReducedMotion}
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
+                          studentId={studentId}
                           now={now}
                           onToggle={(origin) => onToggle(instance, origin)}
-                          onOpenDetails={() => onOpenDetails(instance)}
                         />
                       ) : (
                         <SortableRow
@@ -453,9 +451,9 @@ export function DayColumn({
                           prefersReducedMotion={prefersReducedMotion}
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
+                          studentId={studentId}
                           now={now}
                           onToggle={(origin) => onToggle(instance, origin)}
-                          onOpenDetails={() => onOpenDetails(instance)}
                         />
                       )
                     )}
