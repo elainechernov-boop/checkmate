@@ -268,8 +268,10 @@ export function AssignmentRow({
 
           {/* A time-sensitive item that isn't live/starting-soon right now
               (badge is "later" or "past") still shows its clock time, just as
-              a quiet chip rather than a callout. */}
-          {badge && !isCallout && instance.scheduledTime && (
+              a quiet chip rather than a callout — but only while still open;
+              a done row goes back to being just the struck-through title,
+              matching Canvas.dc.html's completed rows exactly. */}
+          {badge && !isCallout && !isDone && instance.scheduledTime && (
             <span className="whitespace-nowrap" style={{ color: COLORS.muted, fontSize: "0.7rem" }}>
               Today at {formatScheduledTime(instance.scheduledTime)}
             </span>
@@ -279,23 +281,28 @@ export function AssignmentRow({
               student's own project task, editable) details panel directly
               beneath the row. Never the title, which is the completion
               control. Always has *something* to click, even for a bare
-              self-typed task with no subject/project. */}
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setExpanded((current) => !current);
-            }}
-            className="whitespace-nowrap"
-            style={{
-              color: instance.project ? (accentColor ?? COLORS.mutedFaint) : COLORS.mutedFaint,
-              fontSize: "0.7rem",
-              textDecoration: "underline dotted",
-              textUnderlineOffset: "2px",
-            }}
-          >
-            {metaText || "···"}
-          </button>
+              self-typed task with no subject/project. Hidden once a row is
+              done: a finished item has nothing left to plan or check, and
+              the mockup's own completed rows show nothing but the
+              struck-through title. */}
+          {!isDone && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpanded((current) => !current);
+              }}
+              className="whitespace-nowrap"
+              style={{
+                color: instance.project ? (accentColor ?? COLORS.mutedFaint) : COLORS.mutedFaint,
+                fontSize: "0.7rem",
+                textDecoration: "underline dotted",
+                textUnderlineOffset: "2px",
+              }}
+            >
+              {metaText || "···"}
+            </button>
+          )}
 
           {isPendingReview && (
             <span className="whitespace-nowrap" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>

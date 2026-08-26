@@ -889,13 +889,16 @@ function RowContents({ instance }: { instance: EditableInstance }) {
             </span>
           )}
         </span>
-        {metaText && (
+        {/* A done row goes back to being just the struck-through title,
+            matching Canvas.dc.html's completed rows exactly — nothing left
+            to plan or check on a finished item. */}
+        {!isDone && metaText && (
           <span className="block" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
             {metaText}
           </span>
         )}
         {/* §12: parent's own quiet confirmation that a time/reminder is set. */}
-        {instance.isTimeSensitive && instance.scheduledTime && (
+        {!isDone && instance.isTimeSensitive && instance.scheduledTime && (
           <span className="block" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>
             🕐 {formatScheduledTime(instance.scheduledTime)}
           </span>
