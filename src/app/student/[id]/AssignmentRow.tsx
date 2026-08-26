@@ -112,12 +112,13 @@ export function AssignmentRow({
   const calloutColor = badge === "live" ? COLORS.crimson : COLORS.cobalt;
 
   // A time-sensitive item that isn't live/starting-soon right now (badge is
-  // "later" or "past") still carries its clock time, folded into the same
-  // meta text rather than a separate line (matches Canvas.dc.html's "· 30
-  // min · Today at 3:30" rows) — but only while still open.
-  const laterTimeChip =
+  // "later" or "past") still carries its clock time — shown bold and bright
+  // right next to the title (design tokens: e.g. "Scout badge meeting 9:00
+  // AM" in crimson bold), not folded into the quiet meta line — but only
+  // while still open.
+  const laterTimeLabel =
     !isDone && (badge === "later" || badge === "past") && instance.scheduledTime
-      ? `Today at ${formatScheduledTime(instance.scheduledTime)}`
+      ? formatScheduledTime(instance.scheduledTime)
       : null;
 
   // Subject + estimated time, small and quiet right after the title on the
@@ -128,9 +129,7 @@ export function AssignmentRow({
   // both at once, since a project series never carries a subject (§3).
   const metaText = instance.project
     ? instance.project.name
-    : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null, laterTimeChip]
-        .filter(Boolean)
-        .join(" · ");
+    : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null].filter(Boolean).join(" · ");
 
   function handleTitleClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
@@ -287,6 +286,15 @@ export function AssignmentRow({
                 </span>
               )}
             </button>
+
+            {laterTimeLabel && (
+              <span
+                className="shrink-0"
+                style={{ color: COLORS.crimson, fontWeight: 700, fontSize: "0.65625rem" }}
+              >
+                {laterTimeLabel}
+              </span>
+            )}
 
             {/* The meta line — click to expand a read-only (or, for a
                 student's own project task, editable) details panel directly

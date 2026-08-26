@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
 import { computeStreak } from "@/lib/streak";
+import {
+  fetchFamilyCalendarEvents,
+  getCalendarEventAssignments,
+  getDismissedEventKeys,
+  getFamilyCalendarSettings,
+} from "@/lib/familyCalendar";
 import { StudentWeekView } from "./StudentWeekView";
 
 export default async function StudentPage({
@@ -102,6 +108,22 @@ export default async function StudentPage({
     progressByProject.set(projectId, current);
   }
 
+  // A calendar event dragged onto this student's day in Parent Mode (§
+  // "the purpose is just to show the kid they have this other thing going
+  // on") — same fetch shape as ParentWeekBoard's own page.tsx, filtered down
+  // to just this student's assignments since that's all this board needs.
+  const familyCalendarSettings = await getFamilyCalendarSettings(prisma);
+  const [rawFamilyCalendarEvents, dismissedEventKeys, calendarEventAssignments] = await Promise.all([
+    familyCalendarSettings ? fetchFamilyCalendarEvents(familyCalendarSettings, monday, weekEnd) : Promise.resolve([]),
+    getDismissedEventKeys(prisma),
+    getCalendarEventAssignments(prisma),
+  ]);
+  const eventById = new Map(rawFamilyCalendarEvents.filter((event) => !dismissedEventKeys.has(event.id)).map((event) => [event.id, event]));
+  const assignedCalendarEvents = calendarEventAssignments
+    .filter((a) => a.studentId === id)
+    .map((a) => eventById.get(a.eventKey))
+    .filter((event) => event !== undefined);
+
   return (
     <StudentWeekView
       student={student}
@@ -116,6 +138,7 @@ export default async function StudentPage({
       }))}
       projectIdeas={projectIdeas}
       daySeparators={daySeparators}
+      calendarEvents={assignedCalendarEvents}
       streak={streak}
       skipCelebratedGuard={isDebugToday()}
       requestedDayIndex={requestedDayIndex}

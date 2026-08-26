@@ -9,7 +9,8 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { addDays, defaultWeekStart, formatDayWeekdayShort, formatMonthDayLine, formatWeekRange, toISODate } from "@/lib/dates";
+import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
+import { addDays, defaultWeekStart, formatDayWeekdayShort, formatMonthDayLine, toISODate } from "@/lib/dates";
 import { COLORS, nextAccentColor } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
@@ -52,6 +53,7 @@ export function StudentWeekView({
   projects,
   projectIdeas,
   daySeparators,
+  calendarEvents,
   streak,
   skipCelebratedGuard,
   requestedDayIndex,
@@ -64,6 +66,10 @@ export function StudentWeekView({
   projects: StudentProject[];
   projectIdeas: ProjectIdea[];
   daySeparators: DaySeparator[];
+  // Family-calendar events a parent has dragged/tapped onto this student's
+  // board (Parent Mode's CalendarEventAssignment) — read-only here, marks
+  // itself done once its own end time passes rather than being checked off.
+  calendarEvents: FamilyCalendarEvent[];
   // Consecutive fully-done school days leading up to today (lib/streak.ts) —
   // a pure header stat, computed server-side once per load.
   streak: number;
@@ -219,7 +225,7 @@ export function StudentWeekView({
     return () => window.clearInterval(interval);
   }, []);
 
-  const weekHasAnyItems = localInstances.length > 0;
+  const weekHasAnyItems = localInstances.length > 0 || calendarEvents.length > 0;
   // A backlog task needs somewhere to be dropped, even on an otherwise
   // silent week (§9's "an empty week shows nothing at all" is about there
   // being nothing to plan, not about hiding valid drop targets).
@@ -463,7 +469,6 @@ export function StudentWeekView({
           >
             {student.name}&rsquo;s week
           </button>
-          <span style={{ color: COLORS.muted, fontSize: 12 }}>{formatWeekRange(monday, addDays(monday, 5))}</span>
         </div>
         <div className="flex items-center gap-4">
           <span className="uppercase" style={{ color: COLORS.cobalt, fontWeight: 700, letterSpacing: "0.04em", fontSize: 12 }}>
@@ -518,6 +523,7 @@ export function StudentWeekView({
                 const dayISO = toISODate(day);
                 const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
                 const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
+                const dayCalendarEvents = calendarEvents.filter((event) => event.dateISO === dayISO);
                 const isToday = dayISO === todayISO;
                 return (
                   <DayColumn
@@ -527,12 +533,13 @@ export function StudentWeekView({
                     interactive={isToday}
                     instances={dayInstances}
                     separators={daySeparatorsForDay}
+                    calendarEvents={dayCalendarEvents}
+                    now={now}
                     studentId={student.id}
                     studentName={student.name}
                     accentColor={localAccentColor}
                     prefersReducedMotion={prefersReducedMotion}
                     celebrated={celebratedToday}
-                    now={now}
                     onCelebrate={handleCelebrate}
                     onToggle={handleToggle}
                     onReorderOpen={handleReorderOpen}
@@ -557,6 +564,7 @@ export function StudentWeekView({
                 const dayISO = toISODate(day);
                 const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
                 const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
+                const dayCalendarEvents = calendarEvents.filter((event) => event.dateISO === dayISO);
                 const isToday = dayISO === todayISO;
                 return (
                   <SwipeDayPager
@@ -572,6 +580,7 @@ export function StudentWeekView({
                         interactive={isToday}
                         instances={dayInstances}
                         separators={daySeparatorsForDay}
+                        calendarEvents={dayCalendarEvents}
                         studentId={student.id}
                         studentName={student.name}
                         accentColor={localAccentColor}

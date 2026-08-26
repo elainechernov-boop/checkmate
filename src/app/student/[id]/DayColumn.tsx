@@ -16,12 +16,45 @@ import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { formatDayWeekdayShort, formatMonthDayLine, toISODate } from "@/lib/dates";
 import { splitBySeparators } from "@/lib/daySeparators";
-import { formatTotalMinutes, minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
+import { minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
+import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
 import { AssignmentRow } from "./AssignmentRow";
 import { DayCompleteTakeover } from "./DayCompleteTakeover";
 import type { DaySeparator, StudentInstance } from "./types";
+
+/** A parent-assigned family-calendar event (§ "the purpose is just to show
+ * the kid they have this other thing going on") — read-only, never checked
+ * off by the student; it marks itself done on its own once `now` passes the
+ * event's own end time. Same cobalt-chip treatment as Parent Mode's own
+ * AssignedCalendarEventRow, minus the hover-✕ (unassigning is a parent-only
+ * action). */
+function CalendarEventChip({ event, now }: { event: FamilyCalendarEvent; now: Date }) {
+  const isPast = now > event.end;
+  return (
+    <div
+      className="mb-1.5 rounded-sm py-1 text-xs"
+      style={{
+        background: isPast ? undefined : "rgba(22,87,255,0.07)",
+        boxShadow: isPast ? undefined : `inset 3px 0 0 ${COLORS.cobalt}`,
+        paddingLeft: "0.5rem",
+        paddingRight: "0.5rem",
+      }}
+    >
+      <span
+        className="block truncate"
+        style={isPast ? { color: COLORS.muted, textDecorationLine: "line-through" } : { color: COLORS.text }}
+        title={event.title}
+      >
+        {event.title}
+      </span>
+      <span className="block" style={{ color: isPast ? COLORS.mutedFaint : COLORS.cobalt, fontSize: "0.7rem", fontWeight: 700 }}>
+        {event.timeLabel ?? "All day"}
+      </span>
+    </div>
+  );
+}
 
 /** §6 — a parent-placed, read-only-to-the-student divider (free text, e.g.
  * "Before breakfast"). Bounds where a student's own drag-reorder can reach
@@ -164,6 +197,7 @@ export function DayColumn({
   interactive,
   instances,
   separators,
+  calendarEvents,
   studentId,
   studentName,
   accentColor,
@@ -184,6 +218,9 @@ export function DayColumn({
   // set on, not just today; only today's own SortableContext (below) treats
   // them as reorder boundaries.
   separators: DaySeparator[];
+  // This day's own parent-assigned family-calendar events (CalendarEventChip
+  // above) — read-only context, not part of the day's sortOrder sequence.
+  calendarEvents: FamilyCalendarEvent[];
   studentId: string;
   studentName: string;
   accentColor: string;
@@ -355,8 +392,16 @@ export function DayColumn({
           </span>
         )}
 
+        {calendarEvents.length > 0 && (
+          <div className="mt-2 flex flex-col">
+            {calendarEvents.map((event) => (
+              <CalendarEventChip key={event.id} event={event} now={now} />
+            ))}
+          </div>
+        )}
+
         <div className="mt-2 flex flex-col">
-          {totalRows === 0 && (
+          {totalRows === 0 && calendarEvents.length === 0 && (
             <p className="py-1 text-center text-sm" style={{ color: COLORS.mutedFaint }}>
               Nothing due.
             </p>
@@ -433,12 +478,18 @@ export function DayColumn({
           {pendingReview.map(plainRow)}
           {completed.map(plainRow)}
         </div>
+
+        {/* Pinned to the bottom of the column via the outer flex-1 column
+            (design tokens: "N min total", plain and left-aligned, never
+            centered below the card) — raw minutes, not hour-converted
+            (formatTotalMinutes' "2h" form is for longer, aggregate totals
+            like Reports, not a single day's). */}
+        {totalMinutes > 0 && (
+          <p className="mt-auto pt-2.5 text-left" style={{ color: COLORS.mutedFaint, fontSize: "0.65rem" }}>
+            {totalMinutes} min total
+          </p>
+        )}
       </div>
-      {totalMinutes > 0 && (
-        <p className="mt-1 text-center text-xs" style={{ color: COLORS.mutedFaint }}>
-          {formatTotalMinutes(totalMinutes)} total
-        </p>
-      )}
     </div>
   );
 }
