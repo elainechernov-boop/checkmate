@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { AssignmentInstance, AssignmentSeries, RecurrenceRule } from "@/generated/prisma/client";
 import { toISODate, WEEKDAYS } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
-import { Modal } from "@/components/Modal";
 import { deleteAssignment, updateAssignment } from "./planner-actions";
 
 export type EditableInstance = AssignmentInstance & {
@@ -44,37 +43,30 @@ const SCOPE_OPTIONS = [
   { value: "all", label: "All in series" },
 ] as const;
 
-export function EditAssignmentModal({
-  instance,
-  subjects,
-  onClose,
-  prefersReducedMotion,
-}: {
-  instance: EditableInstance | null;
-  subjects: { id: string; name: string }[];
-  onClose: () => void;
-  prefersReducedMotion: boolean;
-}) {
-  return (
-    <Modal
-      open={!!instance}
-      onClose={onClose}
-      title={instance ? instance.title : "Edit assignment"}
-      prefersReducedMotion={prefersReducedMotion}
-    >
-      {instance && <EditForm key={instance.id} instance={instance} subjects={subjects} onSaved={onClose} />}
-    </Modal>
-  );
-}
+const fieldLabel = "block text-[0.65rem] font-medium uppercase tracking-wide";
+const fieldInput = "mt-0.5 w-full border-b bg-transparent py-1 text-xs outline-none";
 
-function EditForm({
+/**
+ * The redesign's "identical inline-expand/edit pattern, on the parent's own
+ * board" (README §4) — every field EditAssignmentModal used to edit inside
+ * a full-screen dialog, now rendered directly beneath the row instead
+ * (ParentWeekBoard's RowFrame), no backdrop or portal. Every field still
+ * submits together in one `updateAssignment(formData)` call — the
+ * Repeat/Ends/scope-picker fields are too interdependent to usefully
+ * commit one at a time, so "inline" here means "in place," not "each
+ * field its own round trip" (matching how the read-only student panel
+ * already works: one expand, one place, not five separate saves).
+ */
+export function EditPanel({
   instance,
   subjects,
   onSaved,
+  onCancel,
 }: {
   instance: EditableInstance;
   subjects: { id: string; name: string }[];
   onSaved: () => void;
+  onCancel: () => void;
 }) {
   const isSeries = !!instance.seriesId;
   const [scope, setScope] = useState<(typeof SCOPE_OPTIONS)[number]["value"]>("only");
@@ -112,24 +104,27 @@ function EditForm({
   }
 
   return (
-    <form action={handleSubmit} className="flex flex-col gap-4 text-sm">
+    <form
+      action={handleSubmit}
+      onClick={(event) => event.stopPropagation()}
+      className="mt-2 flex flex-col gap-3 border-t pt-3 text-xs"
+      style={{ borderColor: COLORS.hairline }}
+    >
       <input type="hidden" name="instanceId" value={instance.id} />
       {isSeries && <input type="hidden" name="scope" value={scope} />}
 
       {isSeries && (
         <div>
-          <span className="block text-xs font-medium text-[#6B6B6B]">Applies to</span>
-          <div className="mt-1 flex gap-2">
+          <span className={fieldLabel} style={{ color: COLORS.muted }}>
+            Applies to
+          </span>
+          <div className="mt-1 flex gap-3">
             {SCOPE_OPTIONS.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => setScope(option.value)}
-                className={`flex-1 rounded border px-2 py-1.5 text-xs transition-colors ${
-                  scope === option.value
-                    ? "border-[#161616] bg-[#161616] text-white"
-                    : "border-[#E1E3E6] text-[#161616] hover:border-[#A9ACB2]"
-                }`}
+                style={{ color: scope === option.value ? COLORS.text : COLORS.mutedFaint, fontWeight: scope === option.value ? 700 : 400 }}
               >
                 {option.label}
               </button>
@@ -139,94 +134,100 @@ function EditForm({
       )}
 
       <div>
-        <label className="block text-xs font-medium text-[#6B6B6B]">Title</label>
-        <input
-          type="text"
-          name="title"
-          required
-          defaultValue={instance.title}
-          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
-        />
+        <label className={fieldLabel} style={{ color: COLORS.muted }}>
+          Title
+        </label>
+        <input type="text" name="title" required defaultValue={instance.title} className={fieldInput} style={{ borderColor: COLORS.hairline, color: COLORS.text }} />
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            Subject
+          </label>
+          <select name="subjectId" defaultValue={instance.subjectId ?? ""} className={fieldInput} style={{ borderColor: COLORS.hairline, color: COLORS.text }}>
+            <option value="">No subject</option>
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>
+                {subject.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="w-24">
+          <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            Est. min
+          </label>
+          <input
+            type="number"
+            name="estimatedMinutes"
+            min={0}
+            defaultValue={instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? ""}
+            className={fieldInput}
+            style={{ borderColor: COLORS.hairline, color: COLORS.text }}
+          />
+        </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-[#6B6B6B]">Subject</label>
-        <select
-          name="subjectId"
-          defaultValue={instance.subjectId ?? ""}
-          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
-        >
-          <option value="">No subject</option>
-          {subjects.map((subject) => (
-            <option key={subject.id} value={subject.id}>
-              {subject.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-[#6B6B6B]">Details (optional)</label>
+        <label className={fieldLabel} style={{ color: COLORS.muted }}>
+          Details
+        </label>
         <textarea
           name="details"
           rows={2}
           defaultValue={instance.details ?? ""}
-          className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-[#6B6B6B]">Est. minutes (optional)</label>
-        <input
-          type="number"
-          name="estimatedMinutes"
-          min={0}
-          defaultValue={instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? ""}
-          className="mt-1 w-32 rounded border border-[#E1E3E6] px-3 py-2"
+          className={fieldInput}
+          style={{ borderColor: COLORS.hairline, color: COLORS.text }}
         />
       </div>
 
       {showDueDate && (
         <div>
-          <label className="block text-xs font-medium text-[#6B6B6B]">Due date</label>
+          <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            Due date
+          </label>
           <input
             type="date"
             name="dueDate"
             required
             defaultValue={instance.dueDate ? toISODate(instance.dueDate) : ""}
-            className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
+            className={fieldInput}
+            style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
           />
         </div>
       )}
 
       <div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={timeSensitive}
-            onChange={(event) => setTimeSensitive(event.target.checked)}
-          />
-          This happens at a set time (e.g. an online class) — highlight it and remind me
+        <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
+          <input type="checkbox" checked={timeSensitive} onChange={(event) => setTimeSensitive(event.target.checked)} />
+          Happens at a set time — highlight it and remind me
         </label>
 
         {timeSensitive && (
           <div className="mt-2 flex items-end gap-3">
             <div>
-              <label className="block text-xs font-medium text-[#6B6B6B]">Time</label>
+              <label className={fieldLabel} style={{ color: COLORS.muted }}>
+                Time
+              </label>
               <input
                 type="time"
                 name="scheduledTime"
                 required
                 defaultValue={instance.scheduledTime ?? ""}
-                className="mt-1 rounded border border-[#E1E3E6] px-3 py-2"
+                className={fieldInput}
+                style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#6B6B6B]">Remind</label>
+              <label className={fieldLabel} style={{ color: COLORS.muted }}>
+                Remind
+              </label>
               <select
                 name="reminderMinutesBefore"
                 defaultValue={String(instance.reminderMinutesBefore ?? 10)}
-                className="mt-1 rounded border border-[#E1E3E6] px-3 py-2"
+                className={fieldInput}
+                style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
               >
                 {REMINDER_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -241,12 +242,15 @@ function EditForm({
 
       {showRepeatSection && (
         <div>
-          <label className="block text-xs font-medium text-[#6B6B6B]">Repeat</label>
+          <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            Repeat
+          </label>
           <select
             name="repeat"
             value={repeat}
             onChange={(event) => setRepeat(event.target.value)}
-            className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
+            className={fieldInput}
+            style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
           >
             {REPEAT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -259,16 +263,13 @@ function EditForm({
 
       {showRepeatSection && showDaysOfWeek && (
         <div>
-          <span className="block text-xs font-medium text-[#6B6B6B]">On these days</span>
+          <span className={fieldLabel} style={{ color: COLORS.muted }}>
+            On these days
+          </span>
           <div className="mt-1 flex gap-3">
             {WEEKDAYS.map((day) => (
-              <label key={day.code} className="flex items-center gap-1.5 text-sm capitalize">
-                <input
-                  type="checkbox"
-                  name="daysOfWeek"
-                  value={day.code}
-                  defaultChecked={initialDaysOfWeek.has(day.code)}
-                />
+              <label key={day.code} className="flex items-center gap-1 capitalize" style={{ color: COLORS.text }}>
+                <input type="checkbox" name="daysOfWeek" value={day.code} defaultChecked={initialDaysOfWeek.has(day.code)} />
                 {day.code}
               </label>
             ))}
@@ -278,12 +279,15 @@ function EditForm({
 
       {showRepeatSection && repeat !== "none" && (
         <div>
-          <label className="block text-xs font-medium text-[#6B6B6B]">Ends</label>
+          <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            Ends
+          </label>
           <select
             name="endCondition"
             value={endCondition}
             onChange={(event) => setEndCondition(event.target.value)}
-            className="mt-1 w-full rounded border border-[#E1E3E6] px-3 py-2"
+            className={fieldInput}
+            style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
           >
             {END_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -298,7 +302,8 @@ function EditForm({
               name="endDate"
               required
               defaultValue={instance.series?.endDate ? toISODate(instance.series.endDate) : ""}
-              className="mt-2 w-full rounded border border-[#E1E3E6] px-3 py-2"
+              className={fieldInput}
+              style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
             />
           )}
           {endCondition === "afterNCount" && (
@@ -309,33 +314,27 @@ function EditForm({
               required
               placeholder="Number of times"
               defaultValue={instance.series?.endCount ?? ""}
-              className="mt-2 w-full rounded border border-[#E1E3E6] px-3 py-2"
+              className={fieldInput}
+              style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
             />
           )}
         </div>
       )}
 
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
         <input type="checkbox" name="requiresReview" defaultChecked={instance.requiresReview} />
         &ldquo;Show me the work&rdquo; — require sign-off before this counts as done
       </label>
 
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-sm font-medium"
-          style={{ color: COLORS.amber }}
-        >
-          Delete
-        </button>
-        <button
-          type="submit"
-          disabled={deleting}
-          className="flex-1 rounded bg-[#161616] px-4 py-2.5 text-white hover:bg-[#333]"
-        >
+      <div className="flex items-center gap-4">
+        <button type="submit" disabled={deleting} className="font-medium" style={{ color: COLORS.text }}>
           Save
+        </button>
+        <button type="button" onClick={onCancel} style={{ color: COLORS.mutedFaint }}>
+          Cancel
+        </button>
+        <button type="button" onClick={handleDelete} disabled={deleting} className="ml-auto font-medium" style={{ color: COLORS.crimson }}>
+          Delete
         </button>
       </div>
     </form>

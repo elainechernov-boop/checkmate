@@ -37,7 +37,7 @@ import {
   setDayType,
 } from "./planner-actions";
 import { assignCalendarEventAction, dismissCalendarEventAction, unassignCalendarEventAction } from "./calendar/actions";
-import { EditAssignmentModal, type EditableInstance } from "./EditAssignmentModal";
+import { EditPanel, type EditableInstance } from "./AssignmentEditPanel";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
 
@@ -138,7 +138,6 @@ export function ParentWeekBoard({
   requestedDayIndex: number | null;
 }) {
   const router = useRouter();
-  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const days = Array.from({ length: 6 }, (_, i) => addDays(monday, i));
   const todayISO = toISODate(today);
   const prevWeek = toISODate(addDays(monday, -7));
@@ -194,8 +193,6 @@ export function ParentWeekBoard({
     setSyncedDaySeparators(daySeparators);
     setLocalDaySeparators(daySeparators);
   }
-
-  const selectedInstance = localInstances.find((i) => i.id === selectedInstanceId) ?? null;
 
   // The mobile pager's day, shared across every student's board below (a
   // parent planning "today" wants to see every kid's today at once, not
@@ -344,8 +341,8 @@ export function ParentWeekBoard({
                 daySeparators={localDaySeparators.filter((s) => s.studentId === student.id)}
                 assignedEvents={eventsByStudent.get(student.id) ?? []}
                 now={now}
+                subjects={subjects}
                 schoolDayTypes={schoolDayTypesByStudent[student.id] ?? {}}
-                onEdit={setSelectedInstanceId}
                 onDelete={handleDeleteInstance}
                 onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
                 onReorderDay={(dateISO, orderedIds) => handleReorderDay(student.id, dateISO, orderedIds)}
@@ -358,13 +355,6 @@ export function ParentWeekBoard({
           ))}
         </DndContext>
       )}
-
-      <EditAssignmentModal
-        instance={selectedInstance}
-        subjects={subjects}
-        onClose={() => setSelectedInstanceId(null)}
-        prefersReducedMotion={false}
-      />
     </>
   );
 }
@@ -377,8 +367,8 @@ function StudentBoard({
   daySeparators,
   assignedEvents,
   now,
+  subjects,
   schoolDayTypes,
-  onEdit,
   onDelete,
   onDayTypeChange,
   onReorderDay,
@@ -397,8 +387,8 @@ function StudentBoard({
   // sees its own.
   assignedEvents: FamilyCalendarEvent[];
   now: Date;
+  subjects: { id: string; name: string }[];
   schoolDayTypes: Record<string, SchoolDayType>;
-  onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
   onReorderDay: (dateISO: string, orderedIds: string[]) => void | Promise<void>;
@@ -408,7 +398,7 @@ function StudentBoard({
   onSwipeRight: () => void;
 }) {
   // A small activation distance lets a plain click still open the edit
-  // modal — only a real drag (past this threshold) starts a reorder/reschedule.
+  // panel — only a real drag (past this threshold) starts a reorder/reschedule.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const prefersReducedMotion = !!useReducedMotion();
 
@@ -539,7 +529,7 @@ function StudentBoard({
                 rows={byDay.get(dateISO) ?? []}
                 events={eventsByDay.get(dateISO) ?? []}
                 now={now}
-                onEdit={onEdit}
+                subjects={subjects}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
                 creatingSeparatorIndex={creatingSeparator?.dateISO === dateISO ? creatingSeparator.index : null}
@@ -573,7 +563,7 @@ function StudentBoard({
                 rows={byDay.get(dateISO) ?? []}
                 events={eventsByDay.get(dateISO) ?? []}
                 now={now}
-                onEdit={onEdit}
+                subjects={subjects}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
                 enableDrag={false}
@@ -600,7 +590,7 @@ function DayCell({
   rows,
   events,
   now,
-  onEdit,
+  subjects,
   onDelete,
   onDayTypeChange,
   enableDrag = true,
@@ -621,7 +611,7 @@ function DayCell({
   // of the day's own sortOrder sequence at all.
   events: FamilyCalendarEvent[];
   now: Date;
-  onEdit: (id: string) => void;
+  subjects: { id: string; name: string }[];
   onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
   // The mobile day pager (single day, swipe-driven) passes false: reorder
@@ -639,10 +629,8 @@ function DayCell({
   onCancelSeparator: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: dateISO });
-  const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
   const [editingType, setEditingType] = useState(false);
-  const submittedRef = useRef(false);
   const tag = TYPE_TAG[dayType];
 
   // §3's estimatedMinutes, summed for the day — assignment work and project
@@ -659,10 +647,7 @@ function DayCell({
   }
 
   function submitQuickAdd() {
-    if (submittedRef.current) return;
-    submittedRef.current = true;
     const trimmed = text.trim();
-    setAdding(false);
     setText("");
     if (trimmed) void quickCreateAssignment(studentId, dateISO, trimmed);
   }
@@ -672,8 +657,6 @@ function DayCell({
       event.preventDefault();
       submitQuickAdd();
     } else if (event.key === "Escape") {
-      submittedRef.current = true; // discard without creating
-      setAdding(false);
       setText("");
     }
   }
@@ -725,7 +708,7 @@ function DayCell({
             <span
               className="block font-bold uppercase"
               style={{
-                color: isToday ? accentColor : tag ? COLORS.amber : COLORS.text,
+                color: isToday ? accentColor : tag ? COLORS.crimson : COLORS.text,
                 fontSize: isToday ? "1.05rem" : "0.85rem",
                 fontStretch: "condensed",
               }}
@@ -733,7 +716,7 @@ function DayCell({
               {formatDayWeekdayName(day)}
             </span>
             {tag && (
-              <span className="block" style={{ color: COLORS.amber, fontSize: "0.65rem" }}>
+              <span className="block" style={{ color: COLORS.crimson, fontSize: "0.65rem" }}>
                 {tag}
               </span>
             )}
@@ -772,7 +755,7 @@ function DayCell({
                     <DraggableRow
                       instance={row.instance}
                       isLast={index === rows.length - 1 && creatingSeparatorIndex == null}
-                      onClick={() => onEdit(row.instance.id)}
+                      subjects={subjects}
                       onDelete={() => onDelete(row.instance.id)}
                     />
                   )}
@@ -793,7 +776,7 @@ function DayCell({
                   key={row.instance.id}
                   instance={row.instance}
                   isLast={index === rows.length - 1}
-                  onClick={() => onEdit(row.instance.id)}
+                  subjects={subjects}
                   onDelete={() => onDelete(row.instance.id)}
                 />
               )
@@ -804,43 +787,33 @@ function DayCell({
           </div>
         )}
 
-        {adding ? (
-          <input
-            autoFocus
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onBlur={submitQuickAdd}
-            onKeyDown={handleKeyDown}
-            placeholder="Assignment title"
-            className="mt-2 w-full rounded border border-[#E1E3E6] px-2 py-1 text-sm outline-none"
-          />
-        ) : (
-          <div className="mt-2 flex items-center gap-2">
+        {/* Permanent "Type here, press Enter" input — every day gets one,
+            not just today (a parent plans ahead across the whole week),
+            and it's never gated behind a "+ Add" button. */}
+        <input
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type here, press Enter…"
+          className="mt-2 w-full border-b bg-transparent py-1 text-sm outline-none"
+          style={{ borderColor: COLORS.hairline, color: COLORS.text, borderBottomStyle: "dashed" }}
+        />
+        <div className="mt-1.5">
+          {/* §6 divider — click to append one at the bottom, or (desktop
+              only) drag this same handle to drop it exactly where it
+              belongs among the day's rows above. */}
+          {enableDrag ? (
+            <SeparatorHandle dateISO={dateISO} onClick={onRequestSeparator} />
+          ) : (
             <button
-              onClick={() => {
-                submittedRef.current = false;
-                setAdding(true);
-              }}
+              type="button"
+              onClick={onRequestSeparator}
               className="text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
             >
-              + Add
+              + Separator
             </button>
-            {/* §6 divider — click to append one at the bottom, or (desktop
-                only) drag this same handle to drop it exactly where it
-                belongs among the day's rows above. */}
-            {enableDrag ? (
-              <SeparatorHandle dateISO={dateISO} onClick={onRequestSeparator} />
-            ) : (
-              <button
-                type="button"
-                onClick={onRequestSeparator}
-                className="text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
-              >
-                + Separator
-              </button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
       {assignmentMinutes > 0 && (
         <p className="mt-1 text-center text-xs" style={{ color: COLORS.mutedFaint }}>
@@ -890,7 +863,7 @@ function RowContents({ instance }: { instance: EditableInstance }) {
             {instance.title}
           </span>
           {rollMark && (
-            <span className="mt-0.5 shrink-0" style={{ color: COLORS.amber, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
+            <span className="mt-0.5 shrink-0" style={{ color: COLORS.crimson, fontSize: "0.7rem" }} title={`Rolled ${instance.rolledCount} day(s)`}>
               {rollMark}
             </span>
           )}
@@ -902,12 +875,12 @@ function RowContents({ instance }: { instance: EditableInstance }) {
         )}
         {/* §12: parent's own quiet confirmation that a time/reminder is set. */}
         {instance.isTimeSensitive && instance.scheduledTime && (
-          <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+          <span className="block" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>
             🕐 {formatScheduledTime(instance.scheduledTime)}
           </span>
         )}
         {isPendingReview && (
-          <span className="block" style={{ color: COLORS.amber, fontSize: "0.7rem" }}>
+          <span className="block" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>
             ✋ Show Mom
           </span>
         )}
@@ -923,11 +896,21 @@ function RowContents({ instance }: { instance: EditableInstance }) {
 function RowFrame({
   instance,
   isLast,
+  subjects,
+  expanded,
+  onCloseExpanded,
   onDelete,
   children,
 }: {
   instance: EditableInstance;
   isLast: boolean;
+  subjects: { id: string; name: string }[];
+  // The redesign's inline edit panel (README §4's "identical inline-
+  // expand/edit pattern, on the parent's own board") — local state owned by
+  // DraggableRow/StaticRow, rendered here since this is the shared chrome
+  // both variants sit inside.
+  expanded: boolean;
+  onCloseExpanded: () => void;
   onDelete: () => void;
   children: ReactNode;
 }) {
@@ -945,7 +928,7 @@ function RowFrame({
         ...(isTimeSensitive
           ? {
               background: "rgba(181, 69, 27, 0.07)",
-              boxShadow: `inset 3px 0 0 ${COLORS.amber}`,
+              boxShadow: `inset 3px 0 0 ${COLORS.crimson}`,
               marginLeft: "-0.75rem",
               marginRight: "-0.75rem",
               paddingLeft: "0.85rem",
@@ -983,6 +966,8 @@ function RowFrame({
       >
         ✕
       </button>
+
+      {expanded && <EditPanel instance={instance} subjects={subjects} onSaved={onCloseExpanded} onCancel={onCloseExpanded} />}
     </div>
   );
 }
@@ -1329,25 +1314,26 @@ function AssignDropZone({ studentId, children }: { studentId: string; children: 
 function DraggableRow({
   instance,
   isLast,
-  onClick,
+  subjects,
   onDelete,
 }: {
   instance: EditableInstance;
   isLast: boolean;
-  onClick: () => void;
+  subjects: { id: string; name: string }[];
   onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: instance.id,
   });
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <RowFrame instance={instance} isLast={isLast} onDelete={onDelete}>
+    <RowFrame instance={instance} isLast={isLast} subjects={subjects} expanded={expanded} onCloseExpanded={() => setExpanded(false)} onDelete={onDelete}>
       <div
         ref={setNodeRef}
         {...attributes}
         {...listeners}
-        onClick={onClick}
+        onClick={() => setExpanded((current) => !current)}
         style={{
           transform: CSS.Transform.toString(transform),
           transition: transition ?? undefined,
@@ -1370,21 +1356,26 @@ function DraggableRow({
  * SwipeDayPager's horizontal drag for the same touch (see StudentWeekView's
  * matching `enableDrag` for the identical reasoning on the student side).
  * Reordering and cross-day dragging stay desktop-only; a tap still opens
- * the edit sheet either way. */
+ * the edit panel either way. */
 function StaticRow({
   instance,
   isLast,
-  onClick,
+  subjects,
   onDelete,
 }: {
   instance: EditableInstance;
   isLast: boolean;
-  onClick: () => void;
+  subjects: { id: string; name: string }[];
   onDelete: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <RowFrame instance={instance} isLast={isLast} onDelete={onDelete}>
-      <div onClick={onClick} className="flex cursor-pointer items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]">
+    <RowFrame instance={instance} isLast={isLast} subjects={subjects} expanded={expanded} onCloseExpanded={() => setExpanded(false)} onDelete={onDelete}>
+      <div
+        onClick={() => setExpanded((current) => !current)}
+        className="flex cursor-pointer items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]"
+      >
         <RowContents instance={instance} />
       </div>
     </RowFrame>
@@ -1422,7 +1413,7 @@ function ReviewControls({ instanceId }: { instanceId: string }) {
           onClick={handleReturn}
           disabled={pending}
           className="shrink-0 text-xs font-medium"
-          style={{ color: COLORS.amber }}
+          style={{ color: COLORS.crimson }}
         >
           Send back
         </button>

@@ -132,7 +132,7 @@ function ProjectCard({ project, subjects }: { project: ProjectRow; subjects: { i
         </div>
         <form action={deleteProjectAction}>
           <input type="hidden" name="projectId" value={project.id} />
-          <button type="submit" className="shrink-0 text-xs font-medium" style={{ color: COLORS.amber }}>
+          <button type="submit" className="shrink-0 text-xs font-medium" style={{ color: COLORS.crimson }}>
             Delete
           </button>
         </form>

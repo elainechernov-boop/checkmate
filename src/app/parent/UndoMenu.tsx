@@ -56,7 +56,7 @@ export function UndoMenu({ entries }: { entries: UndoLogRow[] }) {
           style={{ borderColor: COLORS.hairline, background: COLORS.background }}
         >
           {error && (
-            <p className="px-3 py-1.5 text-xs" style={{ color: COLORS.amber }}>
+            <p className="px-3 py-1.5 text-xs" style={{ color: COLORS.crimson }}>
               {error}
             </p>
           )}

@@ -16,9 +16,6 @@ export const COLORS = {
   tennis: "#D8F609",
   cobalt: "#1657FF",
   crimson: "#E8264B",
-  // Legacy alias, kept only until every call site is migrated in later
-  // phases: "amber" was the old roll-mark/"Show Mom" tone (now crimson).
-  amber: "#E8264B",
 } as const;
 
 // Tapping a student's own name cycles through this fixed order (README

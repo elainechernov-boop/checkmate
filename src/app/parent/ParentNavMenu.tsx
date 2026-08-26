@@ -5,20 +5,18 @@ import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 
 const LINKS = [
-  { href: "/parent/students", label: "Students" },
-  { href: "/parent/subjects", label: "Subjects" },
-  { href: "/parent/projects", label: "Projects" },
-  { href: "/parent/calendar", label: "Calendar" },
-  { href: "/parent/reports", label: "Reports" },
+  { href: "/parent/projects", label: "+ New project" },
+  { href: "/parent/assignments/new", label: "+ New assignment" },
+  { href: "/parent/calendar", label: "Calendar settings" },
+  { href: "/parent/unlock", label: "Change passcode gate" },
 ];
 
-/** The admin-y corners of Parent Mode (calendar setup, reports…) used to sit
- * inline in the header as plain text links — fine at first, but
- * it kept growing and started wrapping onto a second line. Tucked behind
- * one "Menu" button instead, the same "⋯" pattern the student view already
- * uses for its rarely-used switch-student link; jumping to a specific
- * student's own week now happens by clicking their name wherever it
- * appears (the dashboard card, the week board header), not from here. */
+/** The redesign's plain nav row (README §2 "This Week · Students · Subjects
+ * · Reports · a muted '⋯' for the rest") — Students/Subjects/Reports moved
+ * out to their own top-level links in page.tsx's header; this "⋯" now
+ * holds only what's left: the two "new" flows and the admin-y corners
+ * (calendar-import settings, the passcode gate) that don't need their own
+ * permanent spot in the row. */
 export function ParentNavMenu() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -39,15 +37,16 @@ export function ParentNavMenu() {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        aria-label="Menu"
+        aria-label="More"
         aria-expanded={open}
-        className="flex items-center gap-1 px-1 text-[#6B6B6B] hover:underline"
+        className="px-1"
+        style={{ color: COLORS.mutedFaint }}
       >
-        Menu {open ? "▴" : "▾"}
+        ⋯
       </button>
       {open && (
         <div
-          className="absolute left-0 top-full z-10 mt-2 w-44 whitespace-nowrap rounded border py-1 shadow-sm"
+          className="absolute right-0 top-full z-10 mt-2 w-48 whitespace-nowrap border py-1"
           style={{ borderColor: COLORS.hairline, background: COLORS.background }}
         >
           {LINKS.map((link) => (

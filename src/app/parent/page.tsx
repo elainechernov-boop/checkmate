@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
@@ -106,24 +107,22 @@ export default async function ParentPage({
   const familyCalendarEvents = rawFamilyCalendarEvents.filter((event) => !dismissedEventKeys.has(event.id));
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-medium lg:text-2xl">Parent Mode</h1>
-        <nav className="flex flex-wrap items-center gap-3 text-sm lg:gap-4">
-          <ParentNavMenu />
+    <main className="min-h-screen px-4 py-6 lg:px-10 lg:py-12" style={{ background: COLORS.background, color: COLORS.text }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2.5" style={{ borderColor: COLORS.hairline }}>
+        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={140} height={22} className="h-[22px] w-auto" priority />
+        <nav className="flex flex-wrap items-center gap-4 text-sm lg:gap-5">
+          <span style={{ color: COLORS.text, fontWeight: 600 }}>This Week</span>
+          <Link href="/parent/students" style={{ color: COLORS.muted }} className="hover:underline">
+            Students
+          </Link>
+          <Link href="/parent/subjects" style={{ color: COLORS.muted }} className="hover:underline">
+            Subjects
+          </Link>
+          <Link href="/parent/reports" style={{ color: COLORS.muted }} className="hover:underline">
+            Reports
+          </Link>
           <UndoMenu entries={recentUndoLog} />
-          <Link
-            href="/parent/projects"
-            className="rounded border border-[#161616] px-3 py-1.5 text-[#161616] hover:bg-[#161616] hover:text-white"
-          >
-            + New project
-          </Link>
-          <Link
-            href="/parent/assignments/new"
-            className="rounded bg-[#161616] px-3 py-1.5 text-white hover:bg-[#333]"
-          >
-            + New assignment
-          </Link>
+          <ParentNavMenu />
         </nav>
       </div>
 

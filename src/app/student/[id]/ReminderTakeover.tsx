@@ -56,7 +56,7 @@ export function ReminderTakeover({
         <div className="mt-2" style={{ fontSize: "1.5rem", fontWeight: 700, color: COLORS.text }}>
           {title}
         </div>
-        <div className="mt-1" style={{ fontSize: "1.05rem", color: COLORS.amber, fontWeight: 600 }}>
+        <div className="mt-1" style={{ fontSize: "1.05rem", color: COLORS.crimson, fontWeight: 600 }}>
           starts at {formatScheduledTime(scheduledTime)}
         </div>
         <button
