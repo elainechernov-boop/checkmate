@@ -43,7 +43,7 @@ export function IdeasList({
   return (
     <section className="mt-8">
       <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
-        Ideas
+        Someday
       </h2>
 
       {ideas.length === 0 && (
@@ -117,7 +117,7 @@ function IdeaRow({
         type="button"
         onClick={handleDelete}
         aria-label={`Delete idea: ${idea.text}`}
-        className="shrink-0 text-xs opacity-0 transition-opacity group-hover/idea:opacity-100"
+        className="shrink-0 text-xs opacity-100 transition-opacity sm:opacity-0 sm:group-hover/idea:opacity-100"
         style={{ color: COLORS.mutedFaint }}
       >
         ×

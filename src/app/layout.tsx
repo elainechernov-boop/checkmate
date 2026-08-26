@@ -22,7 +22,9 @@ export const metadata: Metadata = {
   title: "homeroom",
   description: "The family's homeschool assignment tracker.",
   icons: {
-    icon: "/homeroom-favicon.svg",
+    icon: [{ url: "/homeroom-favicon.svg", type: "image/svg+xml" }],
+    shortcut: ["/homeroom-favicon.svg"],
+    apple: ["/homeroom-favicon.svg"],
   },
 };
 

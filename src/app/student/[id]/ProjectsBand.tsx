@@ -215,10 +215,9 @@ function ProjectCard({
   return (
     <div
       ref={setNodeRef}
-      className="group w-56 shrink-0 rounded border p-3"
+      className="group w-56 shrink-0 border-l pl-4"
       style={{
         borderColor: COLORS.hairline,
-        background: "rgba(255,255,255,0.4)",
         transform: CSS.Transform.toString(transform),
         transition: transition ?? undefined,
         opacity: isDragging ? 0.5 : 1,
@@ -258,6 +257,15 @@ function ProjectCard({
             by {formatComingUpDate(project.targetDate)}
           </p>
         )
+      )}
+
+      {project.progress.total > 0 && (
+        <span aria-hidden className="mt-1.5 block h-[3px]" style={{ background: COLORS.hairline }}>
+          <span
+            className="block h-full"
+            style={{ width: `${Math.min(100, Math.round((project.progress.done / project.progress.total) * 100))}%`, background: accentColor }}
+          />
+        </span>
       )}
 
       <div className="mt-2 flex flex-col">
@@ -460,7 +468,7 @@ function BacklogTaskRow({
             if (window.confirm(`Delete "${task.title}"?`)) void deleteProjectTaskAction(studentId, task.id);
           }}
           aria-label={`Delete ${task.title}`}
-          className="shrink-0 opacity-0 transition-opacity group-hover/task:opacity-100"
+          className="shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/task:opacity-100"
           style={{ color: COLORS.mutedFaint }}
         >
           ×
@@ -643,7 +651,7 @@ function FinishedStack({ projects, studentId }: { projects: StudentProject[]; st
                   if (window.confirm(`Delete "${project.name}"?`)) void deleteProjectAction(studentId, project.id);
                 }}
                 aria-label={`Delete ${project.name}`}
-                className="text-xs opacity-0 transition-opacity group-hover/finished:opacity-100"
+                className="text-xs opacity-100 transition-opacity sm:opacity-0 sm:group-hover/finished:opacity-100"
                 style={{ color: COLORS.mutedFaint }}
               >
                 ×

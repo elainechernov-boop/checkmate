@@ -14,7 +14,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { formatDayDateLine, formatDayWeekdayName, toISODate } from "@/lib/dates";
+import { formatDayWeekdayShort, formatMonthDayLine, toISODate } from "@/lib/dates";
 import { splitBySeparators } from "@/lib/daySeparators";
 import { formatTotalMinutes, minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
 import { COLORS } from "@/lib/theme";
@@ -348,26 +348,18 @@ export function DayColumn({
     <div className="flex flex-col">
       <div
         ref={setDroppableRef}
-        className="rounded border p-3 transition-colors"
+        className="p-3 pt-0 transition-colors"
         style={{
-          borderColor: isOver ? accentColor : isToday ? COLORS.text : COLORS.hairline,
-          borderWidth: isToday ? 1.5 : 1,
-          background: isOver ? "#F1F2F4" : "rgba(255,255,255,0.6)",
+          borderLeft: `1px solid ${COLORS.hairline}`,
+          background: isOver ? `${accentColor}0d` : undefined,
         }}
       >
-        <div className="relative flex items-start justify-between">
-          {/* TeuxDeux's two-line day header (§9): a tiny uppercase date line,
-              the weekday name large and bold directly beneath it — the two
-              sit close together, with almost all the visual weight on the
-              weekday name. Today's name picks up the student's own accent
-              color instead of the near-black default. */}
+        <div className="relative flex items-start justify-between pt-3">
+          {/* The redesign's day header order (Canvas.dc.html): a short bold
+              weekday first, almost all the visual weight there, then a tiny
+              date + done-count line beneath it. Today's name picks up the
+              student's own accent color instead of the near-black default. */}
           <div className="flex flex-col leading-tight">
-            <span
-              className="font-medium uppercase"
-              style={{ color: COLORS.muted, fontSize: "0.6rem", letterSpacing: "0.06em" }}
-            >
-              {formatDayDateLine(day)}
-            </span>
             <span
               className="font-bold uppercase"
               style={{
@@ -376,7 +368,13 @@ export function DayColumn({
                 fontStretch: "condensed",
               }}
             >
-              {formatDayWeekdayName(day)}
+              {formatDayWeekdayShort(day)}
+            </span>
+            <span
+              className="font-medium uppercase"
+              style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.04em" }}
+            >
+              {formatMonthDayLine(day)} · {completed.length}/{totalRows} done
             </span>
           </div>
           {showTakeover && (

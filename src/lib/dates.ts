@@ -110,6 +110,28 @@ export function formatDayWeekdayName(date: Date): string {
   return WEEKDAY_LONG[date.getUTCDay()];
 }
 
+/** The redesign's day-column header order (design_handoff_homeroom_
+ * redesign/Canvas.dc.html): a short bold weekday first, e.g. "MON". */
+export function formatDayWeekdayShort(date: Date): string {
+  return WEEKDAY_SHORT[date.getUTCDay()].toUpperCase();
+}
+
+/** The redesign's small date line beneath the weekday, e.g. "SEP 8" —
+ * month + day only, since the weekday itself is already the line above it. */
+export function formatMonthDayLine(date: Date): string {
+  return `${MONTH_SHORT[date.getUTCMonth()]} ${date.getUTCDate()}`.toUpperCase();
+}
+
 export function formatComingUpDate(date: Date): string {
   return `${WEEKDAY_SHORT[date.getUTCDay()]}, ${MONTH_SHORT[date.getUTCMonth()]} ${date.getUTCDate()}`;
+}
+
+/** The header's own date range, e.g. "Sep 8 – 13" (or "Aug 31 – Sep 5" when
+ * the week crosses a month boundary) — `end` is expected to be the same
+ * week's Saturday (`addDays(monday, 5)`). */
+export function formatWeekRange(start: Date, end: Date): string {
+  const startLabel = `${MONTH_SHORT[start.getUTCMonth()]} ${start.getUTCDate()}`;
+  const endLabel =
+    start.getUTCMonth() === end.getUTCMonth() ? `${end.getUTCDate()}` : `${MONTH_SHORT[end.getUTCMonth()]} ${end.getUTCDate()}`;
+  return `${startLabel} – ${endLabel}`;
 }

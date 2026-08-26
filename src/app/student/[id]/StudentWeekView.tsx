@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
@@ -8,7 +9,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { addDays, defaultWeekStart, toISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, formatWeekRange, toISODate } from "@/lib/dates";
 import { COLORS, nextAccentColor } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
@@ -51,6 +52,7 @@ export function StudentWeekView({
   projects,
   projectIdeas,
   daySeparators,
+  streak,
   skipCelebratedGuard,
   requestedDayIndex,
 }: {
@@ -62,6 +64,9 @@ export function StudentWeekView({
   projects: StudentProject[];
   projectIdeas: ProjectIdea[];
   daySeparators: DaySeparator[];
+  // Consecutive fully-done school days leading up to today (lib/streak.ts) —
+  // a pure header stat, computed server-side once per load.
+  streak: number;
   skipCelebratedGuard: boolean;
   // Set only when a mobile swipe/arrow carried the student across a week
   // edge (see page.tsx) — otherwise null, and the default below applies.
@@ -94,6 +99,14 @@ export function StudentWeekView({
   const celebratedKey = `checkmate:celebrated:${student.id}:${todayISO}`;
   const isCurrentWeek = toISODate(monday) === toISODate(defaultWeekStart(today));
   const days = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(monday, i)), [monday]);
+
+  // The header's own "N/M today" stat — every bucket that's ever due today,
+  // not just this week's (a rolled item still counts, matching the day
+  // column's own totalRows).
+  const todayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === todayISO);
+  const todayDoneCount = todayInstances.filter(
+    (i) => i.status === InstanceStatus.done || i.status === InstanceStatus.excused
+  ).length;
 
   // The mobile pager's current day, plus the same render-time resync
   // pattern as instances/projects above — a `monday` change (a week-nav
@@ -424,17 +437,9 @@ export function StudentWeekView({
 
   return (
     <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-4 py-6 lg:px-10 lg:py-10">
-      <header className="flex items-start justify-between">
-        <button
-          type="button"
-          onClick={handleCycleAccentColor}
-          title="Tap to change my color"
-          className="text-xl font-medium lg:text-2xl border-b border-dashed"
-          style={{ color: localAccentColor, borderColor: localAccentColor }}
-        >
-          {student.name}&rsquo;s week
-        </button>
-        <div className="flex items-center gap-4 text-sm lg:gap-6">
+      <div className="flex items-center justify-between">
+        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={110} height={20} className="h-5 w-auto" priority />
+        <div className="flex items-center gap-4 text-sm">
           <button onClick={() => setComingUpOpen(true)} className="hover:underline" style={{ color: COLORS.muted }}>
             Coming Up
           </button>
@@ -448,29 +453,61 @@ export function StudentWeekView({
           </button>
           <StudentMenu />
         </div>
-      </header>
-
-      <div className="mt-8 flex items-center justify-between text-sm">
-        <Link
-          href={`/student/${student.id}?week=${toISODate(addDays(monday, -7))}`}
-          className="px-1 hover:underline"
-          style={{ color: COLORS.muted }}
-        >
-          ← Prev week
-        </Link>
-        {!isCurrentWeek && (
-          <Link href={`/student/${student.id}`} className="px-1 hover:underline" style={{ color: COLORS.muted }}>
-            📅 Today
-          </Link>
-        )}
-        <Link
-          href={`/student/${student.id}?week=${toISODate(addDays(monday, 7))}`}
-          className="px-1 hover:underline"
-          style={{ color: COLORS.muted }}
-        >
-          Next week →
-        </Link>
       </div>
+
+      <header
+        className="mt-4 flex flex-wrap items-baseline justify-between gap-3 pb-3"
+        style={{ borderBottom: `2px solid ${COLORS.text}` }}
+      >
+        <div className="flex items-baseline gap-3">
+          <button
+            type="button"
+            onClick={handleCycleAccentColor}
+            title="Tap to change my color"
+            className="border-b border-dashed uppercase"
+            style={{
+              color: localAccentColor,
+              borderColor: localAccentColor,
+              fontFamily: "var(--font-syncopate)",
+              fontSize: "1.15rem",
+              letterSpacing: "0.03em",
+            }}
+          >
+            {student.name}&rsquo;s week
+          </button>
+          <span className="text-xs" style={{ color: COLORS.muted }}>
+            {formatWeekRange(monday, addDays(monday, 5))}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-xs">
+          <span className="font-bold uppercase" style={{ color: localAccentColor, letterSpacing: "0.03em" }}>
+            {streak}-day streak · {todayDoneCount}/{todayInstances.length} today
+          </span>
+          <Link
+            href={`/student/${student.id}?week=${toISODate(addDays(monday, -7))}`}
+            className="uppercase hover:underline"
+            style={{ color: COLORS.muted, letterSpacing: "0.03em" }}
+          >
+            ← Prev week
+          </Link>
+          {!isCurrentWeek && (
+            <Link href={`/student/${student.id}`} className="hover:underline" style={{ color: COLORS.muted }}>
+              📅 Today
+            </Link>
+          )}
+          <Link
+            href={`/student/${student.id}?week=${toISODate(addDays(monday, 7))}`}
+            className="uppercase hover:underline"
+            style={{ color: COLORS.muted, letterSpacing: "0.03em" }}
+          >
+            Next week →
+          </Link>
+        </div>
+      </header>
+      <p className="mt-1.5 text-xs" style={{ color: COLORS.mutedFaint }}>
+        Tap {student.name}&rsquo;s own name to cycle their color — each tap advances to the next one, becomes
+        their &ldquo;today&rdquo; and accent color everywhere on their board.
+      </p>
 
       {todayIsSunday && (
         <p className="mt-3 text-sm" style={{ color: COLORS.mutedFaint }}>

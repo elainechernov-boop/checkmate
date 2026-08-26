@@ -3,6 +3,7 @@ import { addDays, defaultWeekStart, getToday, isDebugToday, parseISODate } from 
 import { prisma } from "@/lib/prisma";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
+import { computeStreak } from "@/lib/streak";
 import { StudentWeekView } from "./StudentWeekView";
 
 export default async function StudentPage({
@@ -47,7 +48,7 @@ export default async function StudentPage({
     project: { select: { id: true, name: true } },
   } as const;
 
-  const [weekInstances, comingUp, projects, projectIdeas, daySeparators] = await Promise.all([
+  const [weekInstances, comingUp, projects, projectIdeas, daySeparators, streak] = await Promise.all([
     prisma.assignmentInstance.findMany({
       where: { studentId: id, dueDate: { gte: monday, lt: weekEnd } },
       include: instanceInclude,
@@ -80,7 +81,26 @@ export default async function StudentPage({
     // §6 "Morning/Afternoon/Evening" — parent-placed, read-only here; the
     // student can reorder within one but never add, edit, or cross one.
     prisma.daySeparator.findMany({ where: { studentId: id, date: { gte: monday, lt: weekEnd } } }),
+    computeStreak(prisma, id, today),
   ]);
+
+  // The Projects band's own progress bar (Canvas.dc.html) — every task the
+  // project has ever had, scheduled or not, not just its backlog (the
+  // `instances` include above only ever fetches the unscheduled ones). A
+  // second, lightweight query rather than a second named relation include,
+  // since a project's instances relation can only be included once.
+  const projectTaskStatuses = await prisma.assignmentInstance.findMany({
+    where: { projectId: { in: projects.map((p) => p.id) } },
+    select: { projectId: true, status: true },
+  });
+  const progressByProject = new Map<string, { done: number; total: number }>();
+  for (const { projectId, status } of projectTaskStatuses) {
+    if (!projectId) continue;
+    const current = progressByProject.get(projectId) ?? { done: 0, total: 0 };
+    current.total += 1;
+    if (status === "done" || status === "excused") current.done += 1;
+    progressByProject.set(projectId, current);
+  }
 
   return (
     <StudentWeekView
@@ -89,9 +109,14 @@ export default async function StudentPage({
       today={today}
       instances={weekInstances}
       comingUp={comingUp}
-      projects={projects.map(({ instances, ...project }) => ({ ...project, backlogTasks: instances }))}
+      projects={projects.map(({ instances, ...project }) => ({
+        ...project,
+        backlogTasks: instances,
+        progress: progressByProject.get(project.id) ?? { done: 0, total: 0 },
+      }))}
       projectIdeas={projectIdeas}
       daySeparators={daySeparators}
+      streak={streak}
       skipCelebratedGuard={isDebugToday()}
       requestedDayIndex={requestedDayIndex}
     />

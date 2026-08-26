@@ -18,7 +18,15 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import type { DaySeparator, Student } from "@/generated/prisma/client";
 import { InstanceStatus, SchoolDayType } from "@/generated/prisma/enums";
-import { addDays, defaultWeekStart, formatDayDateLine, formatDayWeekdayName, parseISODate, toISODate } from "@/lib/dates";
+import {
+  addDays,
+  defaultWeekStart,
+  formatDayWeekdayShort,
+  formatMonthDayLine,
+  formatWeekRange,
+  parseISODate,
+  toISODate,
+} from "@/lib/dates";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { getSubjectColor } from "@/lib/subjectColors";
@@ -497,12 +505,25 @@ function StudentBoard({
   }
 
   return (
-    <section className="mt-10">
-      <h2 className="text-sm font-medium uppercase tracking-wide">
-        <Link href={`/student/${student.id}`} className="hover:underline" style={{ color: student.accentColor }}>
+    <section className="mt-6 rounded-xl p-5" style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+      <div className="flex items-baseline gap-3 border-b pb-3" style={{ borderColor: COLORS.hairline }}>
+        <Link
+          href={`/student/${student.id}`}
+          className="hover:underline"
+          style={{
+            color: student.accentColor,
+            fontFamily: "var(--font-syncopate)",
+            fontSize: "1.05rem",
+            letterSpacing: "0.03em",
+            textTransform: "uppercase",
+          }}
+        >
           {student.name}
         </Link>
-      </h2>
+        <span className="text-xs" style={{ color: COLORS.muted }}>
+          {formatWeekRange(days[0], days[5])}
+        </span>
+      </div>
       {/* Explicit `id` makes dnd-kit's internal aria-describedby id
           deterministic — without it, dnd-kit derives it from a module-level
           counter that isn't SSR-safe (it keeps incrementing across
@@ -514,7 +535,7 @@ function StudentBoard({
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <div className="mt-3 hidden grid-cols-6 gap-4 lg:grid">
+        <div className="mt-3 hidden grid-cols-6 lg:grid">
           {days.map((day) => {
             const dateISO = toISODate(day);
             return (
@@ -665,15 +686,15 @@ function DayCell({
     <div className="flex flex-col">
       <div
         ref={setNodeRef}
-        className="min-h-[100px] rounded border p-3 transition-colors"
+        className="min-h-[100px] px-2.5 transition-colors"
         style={{
-          borderColor: isOver ? COLORS.text : COLORS.hairline,
-          background: isOver ? "#F1F2F4" : "white",
+          borderLeft: `1px solid ${COLORS.hairline}`,
+          background: isOver ? `${accentColor}0d` : undefined,
         }}
       >
         {/* §5 "field trips and off days" — click the date itself to change
-            the day's type, matching the student view's two-line date/weekday
-            treatment (§9). */}
+            the day's type, matching the student view's own weekday-first
+            two-line header order. */}
         {editingType ? (
           <select
             autoFocus
@@ -700,12 +721,6 @@ function DayCell({
             title="Click to mark this day off, a field trip, sick, or a holiday"
           >
             <span
-              className="block font-medium uppercase"
-              style={{ color: COLORS.muted, fontSize: "0.55rem", letterSpacing: "0.05em" }}
-            >
-              {formatDayDateLine(day)}
-            </span>
-            <span
               className="block font-bold uppercase"
               style={{
                 color: isToday ? accentColor : tag ? COLORS.crimson : COLORS.text,
@@ -713,7 +728,13 @@ function DayCell({
                 fontStretch: "condensed",
               }}
             >
-              {formatDayWeekdayName(day)}
+              {formatDayWeekdayShort(day)}
+            </span>
+            <span
+              className="block font-medium uppercase"
+              style={{ color: COLORS.muted, fontSize: "0.6rem", letterSpacing: "0.04em" }}
+            >
+              {formatMonthDayLine(day)}
             </span>
             {tag && (
               <span className="block" style={{ color: COLORS.crimson, fontSize: "0.65rem" }}>
@@ -962,7 +983,7 @@ function RowFrame({
         }}
         aria-label={`Delete ${instance.title}`}
         title="Delete"
-        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1015,7 +1036,7 @@ function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDele
         }}
         aria-label={`Delete ${separator.label} separator`}
         title="Delete"
-        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
+        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1175,7 +1196,7 @@ function AssignedCalendarEventRow({ event, studentId, now }: { event: FamilyCale
         }}
         aria-label={`Move "${event.title}" back to the shared agenda`}
         title="Move back to the shared agenda"
-        className="shrink-0 rounded px-1 text-xs opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
+        className="shrink-0 rounded px-1 text-xs opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
         style={{ color: COLORS.muted }}
       >
         ✕
@@ -1210,13 +1231,13 @@ function CalendarStrip({ days, events, students }: { days: Date[]; events: Famil
           Nothing unassigned this week.
         </p>
       ) : (
-        <div className="mt-3 grid grid-cols-6 gap-4">
+        <div className="mt-3 grid grid-flow-col auto-cols-[150px] gap-4 overflow-x-auto pb-1 lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-6 lg:overflow-visible lg:pb-0">
           {days.map((day) => {
             const dateISO = toISODate(day);
             return (
               <div key={dateISO}>
                 <span className="block text-xs font-bold" style={{ color: COLORS.text }}>
-                  {formatDayWeekdayName(day).slice(0, 3).toUpperCase()}
+                  {formatDayWeekdayShort(day)}
                 </span>
                 <div className="mt-1.5 flex flex-col gap-1.5">
                   {(eventsByDay.get(dateISO) ?? []).map((event) => (
@@ -1269,7 +1290,7 @@ function CalendarStripEventRow({ event, students }: { event: FamilyCalendarEvent
           }}
           aria-label={`Hide "${event.title}" from this overlay`}
           title="Hide this event"
-          className="shrink-0 text-xs opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
+          className="shrink-0 text-xs opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
           style={{ color: COLORS.mutedFaint }}
         >
           ✕
