@@ -10,6 +10,7 @@ import {
   dismissCalendarEvent,
   setFamilyCalendarSettings,
   unassignCalendarEvent,
+  undismissCalendarEvent,
 } from "@/lib/familyCalendar";
 import { materializeSeries } from "@/lib/materialize";
 import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/rescheduleHelper";
@@ -199,5 +200,15 @@ export async function unassignCalendarEventAction(eventKey: string, studentId: s
 export async function dismissCalendarEventAction(eventKey: string) {
   if (!eventKey) return;
   await dismissCalendarEvent(prisma, eventKey);
+  revalidatePath("/parent");
+}
+
+/** The Family Calendar settings card's "Show again" link — undoes a
+ * hover-✕ dismiss from the shared agenda. */
+export async function undismissCalendarEventAction(formData: FormData) {
+  const eventKey = String(formData.get("eventKey") ?? "");
+  if (!eventKey) return;
+  await undismissCalendarEvent(prisma, eventKey);
+  revalidatePath("/parent/calendar");
   revalidatePath("/parent");
 }

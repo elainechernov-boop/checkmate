@@ -16,11 +16,9 @@ import type { ProjectIdea } from "./types";
  */
 export function IdeasList({
   studentId,
-  accentColor,
   ideas,
 }: {
   studentId: string;
-  accentColor: string;
   ideas: ProjectIdea[];
 }) {
   const [text, setText] = useState("");
@@ -42,7 +40,7 @@ export function IdeasList({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
+      <h2 className="uppercase" style={{ color: COLORS.muted, fontSize: "0.6875rem", fontWeight: 700, letterSpacing: "0.1em" }}>
         Someday
       </h2>
 
@@ -55,7 +53,7 @@ export function IdeasList({
       {ideas.length > 0 && (
         <ul className="mt-2 flex max-w-sm flex-col">
           {ideas.map((idea) => (
-            <IdeaRow key={idea.id} idea={idea} studentId={studentId} accentColor={accentColor} />
+            <IdeaRow key={idea.id} idea={idea} studentId={studentId} />
           ))}
         </ul>
       )}
@@ -75,11 +73,9 @@ export function IdeasList({
 function IdeaRow({
   idea,
   studentId,
-  accentColor,
 }: {
   idea: ProjectIdea;
   studentId: string;
-  accentColor: string;
 }) {
   const [promoting, setPromoting] = useState(false);
 
@@ -109,7 +105,7 @@ function IdeaRow({
         onClick={handlePromote}
         disabled={promoting}
         className="shrink-0 text-xs hover:underline"
-        style={{ color: accentColor }}
+        style={{ color: COLORS.cobalt }}
       >
         {promoting ? "Starting…" : "→ Start project"}
       </button>
@@ -117,7 +113,7 @@ function IdeaRow({
         type="button"
         onClick={handleDelete}
         aria-label={`Delete idea: ${idea.text}`}
-        className="shrink-0 text-xs opacity-100 transition-opacity sm:opacity-0 sm:group-hover/idea:opacity-100"
+        className="shrink-0 text-xs opacity-100 transition-opacity lg:opacity-0 lg:group-hover/idea:opacity-100"
         style={{ color: COLORS.mutedFaint }}
       >
         ×

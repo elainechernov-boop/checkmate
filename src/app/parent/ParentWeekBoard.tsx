@@ -350,6 +350,7 @@ export function ParentWeekBoard({
           <DayPagerControls
             activeIndex={mobileDayIndex}
             labels={DAY_SHORT_LABELS}
+            currentLabel={`${formatDayWeekdayShort(days[mobileDayIndex])} · ${formatMonthDayLine(days[mobileDayIndex])}`}
             accentColor={COLORS.text}
             onSelect={goToDayIndex}
             onPrev={goToPrevDay}
@@ -775,12 +776,30 @@ function DayCell({
             <span
               className="block font-bold uppercase"
               style={{
-                color: isToday ? accentColor : tag ? COLORS.crimson : COLORS.text,
+                // "Today" is a fixed cobalt system marker on the parent's own
+                // board (not the student's own accent — that's reserved for
+                // the student's own view, README's five-item accent list).
+                // An off/sick/holiday day mutes to faint gray; a field trip
+                // still reads as a normal school day, its tag carries the
+                // attention color instead.
+                color: isToday
+                  ? COLORS.cobalt
+                  : dayType === SchoolDayType.offDay || dayType === SchoolDayType.sick || dayType === SchoolDayType.holiday
+                    ? COLORS.mutedFaint
+                    : COLORS.text,
                 fontSize: isToday ? "1.05rem" : "0.85rem",
-                fontStretch: "condensed",
+                letterSpacing: "0.04em",
               }}
             >
               {formatDayWeekdayShort(day)}
+              {tag && (
+                <span
+                  className="ml-1"
+                  style={{ fontWeight: 400, fontSize: "0.6rem", color: dayType === SchoolDayType.fieldTrip ? COLORS.crimson : undefined }}
+                >
+                  · {tag}
+                </span>
+              )}
             </span>
             <span
               className="block font-medium uppercase"
@@ -788,11 +807,6 @@ function DayCell({
             >
               {formatMonthDayLine(day)}
             </span>
-            {tag && (
-              <span className="block" style={{ color: COLORS.crimson, fontSize: "0.65rem" }}>
-                {tag}
-              </span>
-            )}
           </button>
         )}
 
@@ -905,7 +919,7 @@ function DayCell({
 /** The visual content shared by both row variants below — everything
  * except the outer element that carries (or doesn't carry) dnd-kit's
  * sortable wiring. */
-function RowContents({ instance }: { instance: EditableInstance }) {
+function RowContents({ instance, onToggleExpand }: { instance: EditableInstance; onToggleExpand: () => void }) {
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   // Mirrors the student view's own read of "done" (§6) — struck through and
   // muted, so the parent board shows at a glance what's actually finished
@@ -941,13 +955,25 @@ function RowContents({ instance }: { instance: EditableInstance }) {
             </span>
           )}
         </span>
-        {/* A done row goes back to being just the struck-through title,
-            matching Canvas.dc.html's completed rows exactly — nothing left
-            to plan or check on a finished item. */}
-        {!isDone && metaText && (
-          <span className="block" style={{ color: COLORS.mutedFaint, fontSize: "0.7rem" }}>
-            {metaText}
-          </span>
+        {/* The meta line — click to expand the inline edit panel. Never the
+            title, matching the student view's "meta line, not title" rule
+            (here, title has no separate action of its own, but the click
+            target stays consistent across both boards). A done row goes
+            back to being just the struck-through title, matching
+            Canvas.dc.html's completed rows exactly — nothing left to plan
+            or check on a finished item. */}
+        {!isDone && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleExpand();
+            }}
+            className="block text-left"
+            style={{ color: COLORS.mutedFaint, fontSize: "0.7rem", textDecoration: "underline dotted", textUnderlineOffset: "2px" }}
+          >
+            {metaText || "···"}
+          </button>
         )}
         {/* §12: parent's own quiet confirmation that a time/reminder is set. */}
         {!isDone && instance.isTimeSensitive && instance.scheduledTime && (
@@ -1038,7 +1064,7 @@ function RowFrame({
         }}
         aria-label={`Delete ${instance.title}`}
         title="Delete"
-        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1091,7 +1117,7 @@ function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDele
         }}
         aria-label={`Delete ${separator.label} separator`}
         title="Delete"
-        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
+        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1259,7 +1285,7 @@ function AssignedCalendarEventRow({
         }}
         aria-label={`Remove "${event.title}" from this board`}
         title="Remove from this board"
-        className="shrink-0 rounded px-1 text-xs opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
+        className="shrink-0 rounded px-1 text-xs opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
         style={{ color: COLORS.muted }}
       >
         ✕
@@ -1292,7 +1318,7 @@ function CalendarStrip({
   for (const event of events) eventsByDay.get(event.dateISO)?.push(event);
 
   return (
-    <section className="mt-8 rounded border p-4" style={{ borderColor: COLORS.hairline, background: "white" }}>
+    <section className="mt-8 rounded-xl px-6 py-5" style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
       <div className="flex items-baseline justify-between border-b pb-2" style={{ borderColor: COLORS.hairline }}>
         <h2 className="text-sm font-bold" style={{ color: COLORS.text }}>
           This Week — Family Calendar
@@ -1386,7 +1412,7 @@ function CalendarStripEventRow({
           }}
           aria-label={`Hide "${event.title}" from this overlay`}
           title="Hide this event"
-          className="shrink-0 text-xs opacity-100 transition-opacity sm:opacity-0 hover:text-[#1A1A1A] sm:group-hover:opacity-100"
+          className="shrink-0 text-xs opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
           style={{ color: COLORS.mutedFaint }}
         >
           ✕
@@ -1458,19 +1484,18 @@ function DraggableRow({
         ref={setNodeRef}
         {...attributes}
         {...listeners}
-        onClick={() => setExpanded((current) => !current)}
         style={{
           transform: CSS.Transform.toString(transform),
           transition: transition ?? undefined,
           opacity: isDragging ? 0.5 : 1,
           zIndex: isDragging ? 10 : undefined,
           position: "relative",
-          cursor: "pointer",
+          cursor: "grab",
           touchAction: "none",
         }}
         className="flex items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]"
       >
-        <RowContents instance={instance} />
+        <RowContents instance={instance} onToggleExpand={() => setExpanded((current) => !current)} />
       </div>
     </RowFrame>
   );
@@ -1497,11 +1522,8 @@ function StaticRow({
 
   return (
     <RowFrame instance={instance} isLast={isLast} subjects={subjects} expanded={expanded} onCloseExpanded={() => setExpanded(false)} onDelete={onDelete}>
-      <div
-        onClick={() => setExpanded((current) => !current)}
-        className="flex cursor-pointer items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]"
-      >
-        <RowContents instance={instance} />
+      <div className="flex items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]">
+        <RowContents instance={instance} onToggleExpand={() => setExpanded((current) => !current)} />
       </div>
     </RowFrame>
   );
@@ -1557,7 +1579,7 @@ function ReviewControls({ instanceId }: { instanceId: string }) {
 
   return (
     <div className="flex items-center gap-3 pl-3">
-      <button type="button" onClick={handleApprove} disabled={pending} className="text-xs font-medium text-[#1A1A1A]">
+      <button type="button" onClick={handleApprove} disabled={pending} className="text-xs font-medium" style={{ color: COLORS.cobalt }}>
         ✓ Approve
       </button>
       <button

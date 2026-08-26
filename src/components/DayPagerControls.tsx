@@ -12,6 +12,10 @@ import { COLORS } from "@/lib/theme";
 export function DayPagerControls({
   activeIndex,
   labels,
+  // The centered heading between the arrows (e.g. "Wed · Sep 10") —
+  // Canvas.dc.html's mobile pager, unlike the dot row below, always names
+  // the day currently on screen, in the student's own accent color.
+  currentLabel,
   accentColor,
   onSelect,
   onPrev,
@@ -19,23 +23,41 @@ export function DayPagerControls({
 }: {
   activeIndex: number;
   labels: string[];
+  currentLabel: string;
   accentColor: string;
   onSelect: (index: number) => void;
   onPrev: () => void;
   onNext: () => void;
 }) {
   return (
-    <div className="mt-3 flex items-center justify-between gap-2">
-      <button
-        type="button"
-        onClick={onPrev}
-        aria-label="Previous day"
-        className="px-2 py-1 text-xl leading-none"
-        style={{ color: COLORS.muted }}
-      >
-        ‹
-      </button>
-      <div className="flex items-center gap-2.5">
+    <div className="mt-3 flex flex-col items-center gap-1.5">
+      <div className="flex w-full items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onPrev}
+          aria-label="Previous day"
+          className="px-2 py-1 text-xl leading-none"
+          style={{ color: COLORS.muted }}
+        >
+          ‹
+        </button>
+        <span
+          className="uppercase"
+          style={{ color: accentColor, fontWeight: 700, fontSize: "1rem" }}
+        >
+          {currentLabel}
+        </span>
+        <button
+          type="button"
+          onClick={onNext}
+          aria-label="Next day"
+          className="px-2 py-1 text-xl leading-none"
+          style={{ color: COLORS.muted }}
+        >
+          ›
+        </button>
+      </div>
+      <div className="flex items-center gap-[5px]">
         {labels.map((label, index) => (
           <button
             key={`${label}-${index}`}
@@ -43,20 +65,11 @@ export function DayPagerControls({
             onClick={() => onSelect(index)}
             aria-label={`Go to ${label}`}
             aria-current={index === activeIndex}
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: index === activeIndex ? accentColor : COLORS.hairline }}
+            className="rounded-full transition-colors"
+            style={{ width: 5, height: 5, background: index === activeIndex ? accentColor : COLORS.hairline }}
           />
         ))}
       </div>
-      <button
-        type="button"
-        onClick={onNext}
-        aria-label="Next day"
-        className="px-2 py-1 text-xl leading-none"
-        style={{ color: COLORS.muted }}
-      >
-        ›
-      </button>
     </div>
   );
 }

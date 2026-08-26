@@ -111,14 +111,26 @@ export function AssignmentRow({
   const isCallout = badge === "live" || badge === "soon";
   const calloutColor = badge === "live" ? COLORS.crimson : COLORS.cobalt;
 
-  // Subject + estimated time, small and quiet underneath the title — more
+  // A time-sensitive item that isn't live/starting-soon right now (badge is
+  // "later" or "past") still carries its clock time, folded into the same
+  // meta text rather than a separate line (matches Canvas.dc.html's "· 30
+  // min · Today at 3:30" rows) — but only while still open.
+  const laterTimeChip =
+    !isDone && (badge === "later" || badge === "past") && instance.scheduledTime
+      ? `Today at ${formatScheduledTime(instance.scheduledTime)}`
+      : null;
+
+  // Subject + estimated time, small and quiet right after the title on the
+  // same line (design tokens: "title + meta line" reads as one row) — more
   // useful to a kid than a color they'd have to memorize (the 3px bar above
   // now carries that signal instead). A project task shows its project's
   // name here instead, in the student's own accent color (§7) — never
   // both at once, since a project series never carries a subject (§3).
   const metaText = instance.project
     ? instance.project.name
-    : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null].filter(Boolean).join(" · ");
+    : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null, laterTimeChip]
+        .filter(Boolean)
+        .join(" · ");
 
   function handleTitleClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
@@ -147,10 +159,15 @@ export function AssignmentRow({
   const showFaded = animating ? targetFaded : currentFaded;
   const showWidth = animating ? targetWidth : currentWidth;
 
+  // Live gets a slightly stronger tint than soon (10% vs 8% alpha in the
+  // mockup) — the two states share a border treatment but not a fill.
+  const calloutBackgroundAlpha = badge === "live" ? "1a" : "14";
+
   return (
     <div
-      className="relative flex flex-col gap-1 rounded-sm py-1.5 text-sm"
+      className="relative flex flex-col gap-1 rounded-sm py-1.5"
       style={{
+        fontSize: "0.8125rem",
         borderBottom: isLast && !expanded ? undefined : `1px solid ${COLORS.hairline}`,
         // Design tokens: "1.5px top+bottom rule (not a rounded card) for
         // time-sensitive callouts" — crimson while live, cobalt while
@@ -158,7 +175,7 @@ export function AssignmentRow({
         // column's own edges instead of just insetting within the row.
         ...(isCallout
           ? {
-              background: `${calloutColor}12`,
+              background: `${calloutColor}${calloutBackgroundAlpha}`,
               borderTop: `1.5px solid ${calloutColor}`,
               borderBottom: `1.5px solid ${calloutColor}`,
               marginLeft: "-0.5rem",
@@ -197,118 +214,148 @@ export function AssignmentRow({
             </span>
           )}
 
-          {/* No checkbox, no dot, no drag handle — the word itself is the
-              completion control (TeuxDeux's model, §6 north star), and the
-              whole row is now the drag target (dnd-kit listeners live on
-              DayColumn's SortableRow wrapper). */}
-          <button
-            type="button"
-            onClick={handleTitleClick}
-            disabled={!interactive}
-            aria-label={isDone ? "Mark as not done" : isPendingReview ? "Withdraw from Show Mom" : "Mark as done"}
-            className="flex w-full min-w-0 items-start gap-2 text-left"
-            style={{ cursor: interactive ? "pointer" : "default" }}
-          >
-            <motion.span
-              className="relative min-w-0 flex-1 line-clamp-2 break-words"
-              animate={
-                pulsing
-                  ? prefersReducedMotion
-                    ? { opacity: [1, 0.6, 1] }
-                    : { scale: [1, 1.03, 1] }
-                  : { scale: 1, opacity: showFaded ? 0.6 : 1 }
-              }
-              transition={{ duration: prefersReducedMotion ? 0.15 : 0.22, ease: "easeOut" }}
-              style={{ transformOrigin: "left center" }}
+          {/* Title + meta read as one line (design tokens: "title · Subject
+              · Nmin" inline, not stacked) — two separate buttons (title
+              completes, meta expands) laid out in a wrapping flex row so
+              they sit on the same visual line whenever there's room, same
+              as Canvas.dc.html's rows. */}
+          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            {/* No checkbox, no dot, no drag handle — the word itself is the
+                completion control (TeuxDeux's model, §6 north star), and the
+                whole row is now the drag target (dnd-kit listeners live on
+                DayColumn's SortableRow wrapper). */}
+            <button
+              type="button"
+              onClick={handleTitleClick}
+              disabled={!interactive}
+              aria-label={isDone ? "Mark as not done" : isPendingReview ? "Withdraw from Show Mom" : "Mark as done"}
+              className="inline-flex min-w-0 items-start gap-1.5 text-left"
+              style={{ cursor: interactive ? "pointer" : "default" }}
             >
-              {/* Two lines max — long titles wrap instead of overflowing into
-                  the next day column. The strike below used to be a single
-                  width-animated line pinned to mid-height, which only read
-                  correctly on one line; it's now a transparent duplicate of
-                  the title with a native line-through decoration (so it wraps
-                  and underlines identically, line for line) revealed
-                  left-to-right via an animated clip-path instead. */}
               <motion.span
-                initial={false}
-                animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
-                transition={{ duration: prefersReducedMotion ? 0.15 : duration }}
+                className="relative min-w-0 break-words"
+                animate={
+                  pulsing
+                    ? prefersReducedMotion
+                      ? { opacity: [1, 0.6, 1] }
+                      : { scale: [1, 1.03, 1] }
+                    : { scale: 1, opacity: showFaded ? 0.6 : 1 }
+                }
+                transition={{ duration: prefersReducedMotion ? 0.15 : 0.22, ease: "easeOut" }}
+                style={{ transformOrigin: "left center" }}
               >
-                {instance.title}
-              </motion.span>
-
-              {(currentWidth > 0 || targetWidth > 0) && (
+                {/* The strike used to be a single width-animated line pinned
+                    to mid-height, which only read correctly on one line;
+                    it's now a transparent duplicate of the title with a
+                    native line-through decoration (so it wraps and
+                    underlines identically, line for line) revealed
+                    left-to-right via an animated clip-path instead. */}
                 <motion.span
-                  aria-hidden
                   initial={false}
-                  animate={{ clipPath: `inset(0 ${100 - showWidth}% 0 0)` }}
-                  transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
-                  className="absolute inset-0"
-                  style={{
-                    color: "transparent",
-                    textDecorationLine: "line-through",
-                    textDecorationColor: COLORS.text,
-                    textDecorationThickness: "1.5px",
-                  }}
+                  animate={{ color: showMuted ? COLORS.muted : COLORS.text }}
+                  transition={{ duration: prefersReducedMotion ? 0.15 : duration }}
                 >
                   {instance.title}
                 </motion.span>
-              )}
-            </motion.span>
 
-            {rollMark && (
-              <span
-                className="mt-0.5 shrink-0"
-                style={{ color: COLORS.crimson, fontSize: "0.7rem" }}
-                title={`Rolled ${instance.rolledCount} day(s)`}
+                {(currentWidth > 0 || targetWidth > 0) && (
+                  <motion.span
+                    aria-hidden
+                    initial={false}
+                    animate={{ clipPath: `inset(0 ${100 - showWidth}% 0 0)` }}
+                    transition={{ duration: prefersReducedMotion ? 0 : duration, ease: "easeOut" }}
+                    className="absolute inset-0"
+                    style={{
+                      color: "transparent",
+                      textDecorationLine: "line-through",
+                      textDecorationColor: COLORS.text,
+                      textDecorationThickness: "1.5px",
+                    }}
+                  >
+                    {instance.title}
+                  </motion.span>
+                )}
+              </motion.span>
+
+              {rollMark && (
+                <span
+                  className="mt-0.5 shrink-0"
+                  style={{ color: COLORS.crimson, fontSize: "0.7rem", fontWeight: 700 }}
+                  title={`Rolled ${instance.rolledCount} day(s)`}
+                >
+                  {rollMark}
+                </span>
+              )}
+            </button>
+
+            {/* The meta line — click to expand a read-only (or, for a
+                student's own project task, editable) details panel directly
+                beneath the row. Never the title, which is the completion
+                control. Always has *something* to click, even for a bare
+                self-typed task with no subject/project. Hidden once a row is
+                done, or while pending review (the "✋ Mom" flag takes its
+                place) — the mockup's own completed rows show nothing but the
+                struck-through title. */}
+            {!isDone && !isPendingReview && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setExpanded((current) => !current);
+                }}
+                className="shrink-0 whitespace-nowrap"
+                style={{
+                  color: instance.project ? (accentColor ?? COLORS.mutedFaint) : COLORS.mutedFaint,
+                  fontSize: "0.66rem",
+                  textDecoration: "underline dotted",
+                  textUnderlineOffset: "2px",
+                }}
               >
-                {rollMark}
+                {metaText || "···"}
+              </button>
+            )}
+
+            {isPendingReview && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setExpanded((current) => !current);
+                }}
+                className="shrink-0 whitespace-nowrap"
+                style={{ color: COLORS.crimson, fontSize: "0.66rem", fontWeight: 700 }}
+              >
+                ✋ Mom
+              </button>
+            )}
+
+            {isPendingReview && onApproveViaPasscode && (
+              <span className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    setPasscodeOrigin({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                    setPasscodeOpen((current) => !current);
+                  }}
+                  aria-label="Approve with parent passcode"
+                  style={{ color: COLORS.crimson, fontSize: "0.66rem", fontWeight: 700 }}
+                >
+                  🔑
+                </button>
+                {passcodeOpen && (
+                  <ApprovalPasscodePopover
+                    onClose={() => setPasscodeOpen(false)}
+                    prefersReducedMotion={prefersReducedMotion}
+                    onSubmit={(passcode) =>
+                      onApproveViaPasscode(passcode, passcodeOrigin ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 })
+                    }
+                  />
+                )}
               </span>
             )}
-          </button>
-
-          {/* A time-sensitive item that isn't live/starting-soon right now
-              (badge is "later" or "past") still shows its clock time, just as
-              a quiet chip rather than a callout — but only while still open;
-              a done row goes back to being just the struck-through title,
-              matching Canvas.dc.html's completed rows exactly. */}
-          {badge && !isCallout && !isDone && instance.scheduledTime && (
-            <span className="whitespace-nowrap" style={{ color: COLORS.muted, fontSize: "0.7rem" }}>
-              Today at {formatScheduledTime(instance.scheduledTime)}
-            </span>
-          )}
-
-          {/* The meta line — click to expand a read-only (or, for a
-              student's own project task, editable) details panel directly
-              beneath the row. Never the title, which is the completion
-              control. Always has *something* to click, even for a bare
-              self-typed task with no subject/project. Hidden once a row is
-              done: a finished item has nothing left to plan or check, and
-              the mockup's own completed rows show nothing but the
-              struck-through title. */}
-          {!isDone && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setExpanded((current) => !current);
-              }}
-              className="whitespace-nowrap"
-              style={{
-                color: instance.project ? (accentColor ?? COLORS.mutedFaint) : COLORS.mutedFaint,
-                fontSize: "0.7rem",
-                textDecoration: "underline dotted",
-                textUnderlineOffset: "2px",
-              }}
-            >
-              {metaText || "···"}
-            </button>
-          )}
-
-          {isPendingReview && (
-            <span className="whitespace-nowrap" style={{ color: COLORS.crimson, fontSize: "0.7rem" }}>
-              🤚 Mom
-            </span>
-          )}
+          </div>
 
           {/* §5 step 4: a returned item's note lives beneath the title until
               the student completes it again. */}
@@ -318,34 +365,6 @@ export function AssignmentRow({
             </span>
           )}
         </div>
-
-        {isPendingReview && onApproveViaPasscode && (
-          <span className="relative mt-0.5 shrink-0">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                const rect = event.currentTarget.getBoundingClientRect();
-                setPasscodeOrigin({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-                setPasscodeOpen((current) => !current);
-              }}
-              aria-label="Approve with parent passcode"
-              className="text-xs"
-              style={{ color: COLORS.muted }}
-            >
-              🔑
-            </button>
-            {passcodeOpen && (
-              <ApprovalPasscodePopover
-                onClose={() => setPasscodeOpen(false)}
-                prefersReducedMotion={prefersReducedMotion}
-                onSubmit={(passcode) =>
-                  onApproveViaPasscode(passcode, passcodeOrigin ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 })
-                }
-              />
-            )}
-          </span>
-        )}
       </div>
 
       {expanded && (

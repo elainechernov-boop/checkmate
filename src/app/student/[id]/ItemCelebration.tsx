@@ -3,17 +3,13 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { CRITTERS, SPARKLE } from "@/lib/critters";
+import { CRITTERS, SPARKLE, SPARKLE_COLORS } from "@/lib/critters";
 
 const GLYPH_HALF = 26; // half the ~52px (3.25rem) glyph box, to center it on `origin`
 const FLIGHT_DURATION = 1.7;
 const FLIGHT_TIMES = [0, 0.15, 0.75, 1];
 const SPARKLE_COUNT = 8;
 const SPARKLE_STAGGER = 0.045; // seconds between each trailing sparkle's start
-
-// The trailing sparkle stream's colors — homeroom's brand accents, in place
-// of a single generic gold. Each sparkle gets one at random.
-const SPARKLE_COLORS = ["#D8F609", "#F0179E", "#1657FF", "#2FD9A8", "#FF9500"];
 
 function randomFlight() {
   return {

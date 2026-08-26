@@ -309,7 +309,7 @@ export function DayColumn({
     <div className="flex flex-col">
       <div
         ref={setDroppableRef}
-        className="p-3 pt-0 transition-colors"
+        className="flex flex-1 flex-col p-3 pt-0 transition-colors"
         style={{
           borderLeft: `1px solid ${COLORS.hairline}`,
           background: isOver ? `${accentColor}0d` : undefined,
@@ -325,8 +325,8 @@ export function DayColumn({
               className="font-bold uppercase"
               style={{
                 color: isToday ? accentColor : COLORS.text,
-                fontSize: isToday ? "1.5rem" : "1.15rem",
-                fontStretch: "condensed",
+                fontSize: "0.8125rem",
+                letterSpacing: "0.04em",
               }}
             >
               {formatDayWeekdayShort(day)}

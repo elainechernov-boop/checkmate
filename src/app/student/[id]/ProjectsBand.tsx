@@ -109,8 +109,8 @@ export function ProjectsBand({
   }
 
   return (
-    <section className="mt-10">
-      <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
+    <section className="mt-10 pt-4" style={{ borderTop: `2px solid ${COLORS.text}` }}>
+      <h2 className="uppercase" style={{ color: COLORS.muted, fontSize: "0.6875rem", fontWeight: 700, letterSpacing: "0.1em" }}>
         Projects
       </h2>
 
@@ -272,7 +272,7 @@ function ProjectCard({
           </p>
         )}
         {project.backlogTasks.map((task) => (
-          <BacklogTaskRow key={task.id} task={task} studentId={studentId} accentColor={accentColor} today={today} untilDate={project.targetDate} />
+          <BacklogTaskRow key={task.id} task={task} studentId={studentId} today={today} untilDate={project.targetDate} />
         ))}
       </div>
 
@@ -386,13 +386,11 @@ const PLAN_CHOICES: { value: PlanRecurrenceChoice; label: string }[] = [
 function BacklogTaskRow({
   task,
   studentId,
-  accentColor,
   today,
   untilDate,
 }: {
   task: StudentInstance;
   studentId: string;
-  accentColor: string;
   today: Date;
   untilDate: Date | null;
 }) {
@@ -455,7 +453,7 @@ function BacklogTaskRow({
           type="button"
           onClick={() => setPlanning((current) => !current)}
           className="shrink-0 hover:underline"
-          style={{ color: accentColor }}
+          style={{ color: COLORS.cobalt }}
         >
           Plan it
         </button>
@@ -465,7 +463,7 @@ function BacklogTaskRow({
             if (window.confirm(`Delete "${task.title}"?`)) void deleteProjectTaskAction(studentId, task.id);
           }}
           aria-label={`Delete ${task.title}`}
-          className="shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/task:opacity-100"
+          className="shrink-0 opacity-100 transition-opacity lg:opacity-0 lg:group-hover/task:opacity-100"
           style={{ color: COLORS.mutedFaint }}
         >
           ×
@@ -648,7 +646,7 @@ function FinishedStack({ projects, studentId }: { projects: StudentProject[]; st
                   if (window.confirm(`Delete "${project.name}"?`)) void deleteProjectAction(studentId, project.id);
                 }}
                 aria-label={`Delete ${project.name}`}
-                className="text-xs opacity-100 transition-opacity sm:opacity-0 sm:group-hover/finished:opacity-100"
+                className="text-xs opacity-100 transition-opacity lg:opacity-0 lg:group-hover/finished:opacity-100"
                 style={{ color: COLORS.mutedFaint }}
               >
                 ×

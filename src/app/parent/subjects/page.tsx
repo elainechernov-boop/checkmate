@@ -90,7 +90,7 @@ export default async function SubjectsPage() {
             Faith-integrated
           </label>
           <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
-            + Add subject
+            Add subject
           </button>
         </form>
       </div>

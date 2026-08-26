@@ -110,7 +110,7 @@ export default async function ParentPage({
     <main className="min-h-screen px-4 py-6 lg:px-10 lg:py-12" style={{ background: COLORS.background, color: COLORS.text }}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2.5" style={{ borderColor: COLORS.hairline }}>
         <Image src="/homeroom-wordmark.svg" alt="homeroom" width={140} height={22} className="h-[22px] w-auto" priority />
-        <nav className="flex flex-wrap items-center gap-4 text-sm lg:gap-5">
+        <nav className="flex flex-wrap items-center gap-5" style={{ fontSize: "0.78125rem" }}>
           <span style={{ color: COLORS.text, fontWeight: 600 }}>This Week</span>
           <Link href="/parent/students" style={{ color: COLORS.muted }} className="hover:underline">
             Students

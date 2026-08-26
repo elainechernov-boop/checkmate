@@ -63,6 +63,23 @@ export async function getDismissedEventKeys(prisma: DismissedPrisma): Promise<Se
   return new Set(rows.map((row) => row.eventKey));
 }
 
+/** All hidden events, newest-dismissed first — the Family Calendar settings
+ * card's "Hidden events" list (design_handoff_homeroom_redesign's mockup),
+ * so a parent can undo an accidental hover-✕ dismiss from the shared agenda. */
+export async function getDismissedEvents(prisma: DismissedPrisma): Promise<{ eventKey: string }[]> {
+  return prisma.dismissedCalendarEvent.findMany({
+    select: { eventKey: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/** The settings card's "Show again" link — the feed itself is read-only, so
+ * "un-hiding" an event just forgets it was ever dismissed; it reappears in
+ * the shared agenda next time its date falls inside the fetched range. */
+export async function undismissCalendarEvent(prisma: DismissedPrisma, eventKey: string): Promise<void> {
+  await prisma.dismissedCalendarEvent.deleteMany({ where: { eventKey } });
+}
+
 type CalendarAssignmentPrisma = Pick<PrismaClient, "calendarEventAssignment">;
 
 /** The redesign's drag-or-tap-to-assign (replaces the old one-way "convert

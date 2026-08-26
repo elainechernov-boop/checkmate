@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { COLORS } from "@/lib/theme";
-import { CRITTERS, SPARKLE } from "@/lib/critters";
+import { CRITTERS, SPARKLE, SPARKLE_COLORS } from "@/lib/critters";
 
 // A real "1000 critters" would be an easy way to make an old Mac chug for a
 // project celebration that should feel effortless — 70 already reads as a
@@ -34,6 +34,7 @@ function generateSwarm() {
       size,
       sparkleDx,
       sparkleDy,
+      sparkleColor: SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)],
       // Spread across the launch window, not just randomized — keeps a
       // steady stream of new arrivals instead of clumping by chance.
       delay: (i / SWARM_SIZE) * LAUNCH_WINDOW + Math.random() * 0.15,
@@ -126,7 +127,8 @@ export function ProjectFinishedTakeover({
                 fontSize: "1.1rem",
                 lineHeight: 1,
                 zIndex: 9998,
-                filter: "drop-shadow(0 0 6px rgba(255,205,60,0.75))",
+                color: c.sparkleColor,
+                filter: `drop-shadow(0 0 6px ${c.sparkleColor}bf)`,
               }}
             >
               {SPARKLE}

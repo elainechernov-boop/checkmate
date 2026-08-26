@@ -81,7 +81,7 @@ export default async function StudentsPage() {
             style={{ borderColor: COLORS.hairline, color: COLORS.text }}
           />
           <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
-            + Add student
+            Add student
           </button>
         </form>
       </div>

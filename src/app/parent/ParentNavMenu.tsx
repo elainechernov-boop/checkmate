@@ -5,8 +5,8 @@ import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 
 const LINKS = [
-  { href: "/parent/projects", label: "+ New project" },
-  { href: "/parent/assignments/new", label: "+ New assignment" },
+  { href: "/parent/projects", label: "New project" },
+  { href: "/parent/assignments/new", label: "New assignment" },
   { href: "/parent/calendar", label: "Calendar settings" },
 ];
 

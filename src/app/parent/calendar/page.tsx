@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
-import { toISODate } from "@/lib/dates";
-import { getFamilyCalendarSettings } from "@/lib/familyCalendar";
+import { addDays, toISODate } from "@/lib/dates";
+import { fetchFamilyCalendarEvents, getDismissedEvents, getFamilyCalendarSettings } from "@/lib/familyCalendar";
 import { COLORS } from "@/lib/theme";
 import {
   applyDayTypeRange,
@@ -10,6 +10,7 @@ import {
   deleteLearningPeriod,
   removeFamilyCalendarSettings,
   saveFamilyCalendarSettings,
+  undismissCalendarEventAction,
   updateLearningPeriod,
 } from "./actions";
 
@@ -30,10 +31,22 @@ const TIME_ZONE_OPTIONS = [
 ];
 
 export default async function CalendarPage() {
-  const [learningPeriods, familyCalendar] = await Promise.all([
+  const [learningPeriods, familyCalendar, dismissedEvents] = await Promise.all([
     prisma.learningPeriod.findMany({ orderBy: { startDate: "asc" } }),
     getFamilyCalendarSettings(prisma),
+    getDismissedEvents(prisma),
   ]);
+
+  // Recover each hidden event's title by re-fetching a wide window around
+  // today — a dismissed occurrence's id is date-specific (familyCalendar.ts),
+  // so this only finds ones whose date still falls in range. A dismissed key
+  // that's aged out of the window still gets a "Show again" link, just with
+  // a generic label instead of its real title.
+  const titleByEventKey = new Map<string, string>();
+  if (familyCalendar && dismissedEvents.length > 0) {
+    const wideEvents = await fetchFamilyCalendarEvents(familyCalendar, addDays(new Date(), -60), addDays(new Date(), 180));
+    for (const event of wideEvents) titleByEventKey.set(event.id, event.title);
+  }
 
   const cardStyle = { background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" };
 
@@ -130,6 +143,32 @@ export default async function CalendarPage() {
             </button>
           )}
         </form>
+
+        {dismissedEvents.length > 0 && (
+          <div className="mt-4">
+            <span className="text-xs" style={{ color: COLORS.muted }}>
+              Hidden events
+            </span>
+            <div className="mt-1">
+              {dismissedEvents.map((event) => (
+                <form
+                  key={event.eventKey}
+                  action={undismissCalendarEventAction}
+                  className="flex items-center justify-between gap-3 border-b py-1.5 text-sm"
+                  style={{ borderColor: COLORS.hairline }}
+                >
+                  <input type="hidden" name="eventKey" value={event.eventKey} />
+                  <span className="min-w-0 flex-1 truncate" style={{ color: COLORS.text }}>
+                    {titleByEventKey.get(event.eventKey) ?? "Hidden event"}
+                  </span>
+                  <button type="submit" className="shrink-0 text-xs" style={{ color: COLORS.cobalt }}>
+                    Show again
+                  </button>
+                </form>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 rounded-xl p-5" style={cardStyle}>
@@ -230,7 +269,7 @@ export default async function CalendarPage() {
             <input type="date" name="hstMeetingDate" className="border-b bg-transparent py-1 outline-none" style={{ borderColor: COLORS.hairline }} />
           </div>
           <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
-            + Add learning period
+            Add learning period
           </button>
         </form>
       </section>

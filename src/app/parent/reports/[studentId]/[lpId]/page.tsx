@@ -30,6 +30,10 @@ export default async function HSTReportPage({
   if (!student || !lp) notFound();
 
   const report = await buildHSTReport(prisma, studentId, lpId);
+  // Scales each subject's bar relative to the largest one this LP — there's
+  // no fixed "hours capacity" to measure against, only a relative sense of
+  // where the time actually went.
+  const maxCategoryMinutes = Math.max(0, ...report.hoursByCategory.map((c) => c.minutes));
 
   return (
     <main className="min-h-screen bg-[#FFFFFF] px-10 py-12 text-[#1A1A1A] print:bg-white print:px-0 print:py-0">
@@ -54,11 +58,22 @@ export default async function HSTReportPage({
           <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
             Hours by subject
           </h2>
-          <dl className="mt-2 flex flex-col gap-1 text-sm">
+          <dl className="mt-2 flex flex-col gap-2 text-sm">
             {report.hoursByCategory.map(({ category, minutes }) => (
-              <div key={category} className="flex justify-between border-b py-1" style={{ borderColor: COLORS.hairline }}>
-                <dt style={{ color: COLORS.muted }}>{CATEGORY_LABEL[category]}</dt>
-                <dd>{minutes > 0 ? formatTotalMinutes(minutes) : "—"}</dd>
+              <div key={category} className="border-b pb-1.5" style={{ borderColor: COLORS.hairline }}>
+                <div className="flex justify-between">
+                  <dt style={{ color: COLORS.muted }}>{CATEGORY_LABEL[category]}</dt>
+                  <dd>{minutes > 0 ? formatTotalMinutes(minutes) : "—"}</dd>
+                </div>
+                <span aria-hidden className="mt-1 block h-[3px]" style={{ background: COLORS.hairline }}>
+                  <span
+                    className="block h-full"
+                    style={{
+                      width: `${maxCategoryMinutes > 0 ? Math.round((minutes / maxCategoryMinutes) * 100) : 0}%`,
+                      background: COLORS.cobalt,
+                    }}
+                  />
+                </span>
               </div>
             ))}
           </dl>

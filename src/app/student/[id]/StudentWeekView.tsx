@@ -9,7 +9,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { addDays, defaultWeekStart, formatWeekRange, toISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, formatDayWeekdayShort, formatMonthDayLine, formatWeekRange, toISODate } from "@/lib/dates";
 import { COLORS, nextAccentColor } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
@@ -466,7 +466,7 @@ export function StudentWeekView({
           <span style={{ color: COLORS.muted, fontSize: 12 }}>{formatWeekRange(monday, addDays(monday, 5))}</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="uppercase" style={{ color: localAccentColor, fontWeight: 700, letterSpacing: "0.04em", fontSize: 12 }}>
+          <span className="uppercase" style={{ color: COLORS.cobalt, fontWeight: 700, letterSpacing: "0.04em", fontSize: 12 }}>
             {streak}-day streak · {todayDoneCount}/{todayInstances.length} today
           </span>
           <Link
@@ -513,7 +513,7 @@ export function StudentWeekView({
             {/* Desktop: the full six-column week (§6). Below `lg`, six
                 columns of full assignment rows have no room to breathe, so
                 a phone gets the swipeable single-day pager instead. */}
-            <div className="mt-8 hidden grid-cols-6 gap-6 lg:grid">
+            <div className="mt-8 hidden grid-cols-6 lg:grid">
               {days.map((day) => {
                 const dayISO = toISODate(day);
                 const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
@@ -546,6 +546,7 @@ export function StudentWeekView({
               <DayPagerControls
                 activeIndex={mobileDayIndex}
                 labels={DAY_SHORT_LABELS}
+                currentLabel={`${formatDayWeekdayShort(days[mobileDayIndex])} · ${formatMonthDayLine(days[mobileDayIndex])}`}
                 accentColor={localAccentColor}
                 onSelect={goToDayIndex}
                 onPrev={goToPrevDay}
@@ -602,7 +603,7 @@ export function StudentWeekView({
 
       {/* Outside the week/projects DndContext above — ideas never drag
           anywhere, they're a plain list (§7's "someday" scratch list). */}
-      <IdeasList studentId={student.id} accentColor={localAccentColor} ideas={projectIdeas} />
+      <IdeasList studentId={student.id} ideas={projectIdeas} />
 
       <ComingUpPanel
         open={comingUpOpen}
