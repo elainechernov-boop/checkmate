@@ -35,32 +35,40 @@ export default async function CalendarPage() {
     getFamilyCalendarSettings(prisma),
   ]);
 
+  const cardStyle = { background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" };
+
   return (
-    <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
-      <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
+    <main className="min-h-screen px-4 py-6 lg:px-10 lg:py-12" style={{ background: COLORS.background, color: COLORS.text }}>
+      <Link href="/parent" className="text-sm hover:underline" style={{ color: COLORS.muted }}>
         ← Back to week
       </Link>
       <h1 className="mt-4 text-2xl font-medium">Calendar</h1>
-      <p className="mt-1 text-sm text-[#6B6B6B]">
+      <p className="mt-1 text-sm" style={{ color: COLORS.muted }}>
         Mark a day or a whole range off for everyone at once — a trip, a school-wide holiday — and set up learning
         periods for the HST report. For a single kid&rsquo;s sick day or field trip, use the day header on their own
         week board instead.
       </p>
 
-      <section className="mt-8 rounded border border-[#E1E3E6] bg-white p-4">
-        <h2 className="text-sm font-medium">Mark a day or range for everyone</h2>
-        <form action={applyDayTypeRange} className="mt-2 flex flex-wrap items-end gap-3 text-sm">
+      <section className="mt-8 rounded-xl p-5" style={cardStyle}>
+        <h2 className="text-sm font-bold">Mark a day or range for everyone</h2>
+        <form action={applyDayTypeRange} className="mt-2 flex flex-wrap items-end gap-4 text-sm">
           <div>
-            <label className="block text-xs text-[#6B6B6B]">From</label>
-            <input type="date" name="startDate" required className="rounded border border-[#E1E3E6] px-2 py-1.5" />
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              From
+            </label>
+            <input type="date" name="startDate" required className="border-b bg-transparent py-1.5 outline-none" style={{ borderColor: COLORS.hairline }} />
           </div>
           <div>
-            <label className="block text-xs text-[#6B6B6B]">To</label>
-            <input type="date" name="endDate" required className="rounded border border-[#E1E3E6] px-2 py-1.5" />
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              To
+            </label>
+            <input type="date" name="endDate" required className="border-b bg-transparent py-1.5 outline-none" style={{ borderColor: COLORS.hairline }} />
           </div>
           <div>
-            <label className="block text-xs text-[#6B6B6B]">Type</label>
-            <select name="type" defaultValue={SchoolDayType.offDay} className="rounded border border-[#E1E3E6] px-2 py-1.5">
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Type
+            </label>
+            <select name="type" defaultValue={SchoolDayType.offDay} className="border-b bg-transparent py-1.5 outline-none" style={{ borderColor: COLORS.hairline }}>
               {TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -68,20 +76,20 @@ export default async function CalendarPage() {
               ))}
             </select>
           </div>
-          <button type="submit" className="rounded bg-[#161616] px-3 py-2 text-white hover:bg-[#333]">
+          <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
             Apply
           </button>
         </form>
       </section>
 
-      <section className="mt-10 rounded border border-[#E1E3E6] bg-white p-4">
-        <h2 className="text-sm font-medium">Family calendar</h2>
+      <section className="mt-6 rounded-xl p-5" style={cardStyle}>
+        <h2 className="text-sm font-bold">Family calendar</h2>
         <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
           See what else is going on those days, right on the week board — paste your Google Calendar&rsquo;s secret
           iCal address (Google Calendar → Settings → that calendar → Integrate calendar → &ldquo;Secret address in
           iCal format&rdquo;). Read-only: nothing here is ever written back to it.
         </p>
-        <form action={saveFamilyCalendarSettings} className="mt-3 flex flex-wrap items-end gap-3 text-sm">
+        <form action={saveFamilyCalendarSettings} className="mt-3 flex flex-wrap items-end gap-4 text-sm">
           <div className="min-w-0 flex-1">
             <label className="block text-xs" style={{ color: COLORS.muted }}>
               Secret iCal address
@@ -92,7 +100,8 @@ export default async function CalendarPage() {
               required
               defaultValue={familyCalendar?.icsUrl ?? ""}
               placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
-              className="w-full min-w-64 rounded border border-[#E1E3E6] px-2 py-1.5"
+              className="w-full min-w-64 border-b bg-transparent py-1.5 outline-none"
+              style={{ borderColor: COLORS.hairline }}
             />
           </div>
           <div>
@@ -102,7 +111,8 @@ export default async function CalendarPage() {
             <select
               name="timeZone"
               defaultValue={familyCalendar?.timeZone ?? "America/Los_Angeles"}
-              className="rounded border border-[#E1E3E6] px-2 py-1.5"
+              className="border-b bg-transparent py-1.5 outline-none"
+              style={{ borderColor: COLORS.hairline }}
             >
               {TIME_ZONE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -111,101 +121,115 @@ export default async function CalendarPage() {
               ))}
             </select>
           </div>
-          <button type="submit" className="rounded bg-[#161616] px-3 py-2 text-white hover:bg-[#333]">
+          <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
             {familyCalendar ? "Save" : "Connect"}
           </button>
           {familyCalendar && (
-            <button
-              type="submit"
-              formAction={removeFamilyCalendarSettings}
-              className="rounded border border-[#E1E3E6] px-3 py-2 text-[#B5451B] hover:border-[#B5451B]"
-            >
+            <button type="submit" formAction={removeFamilyCalendarSettings} style={{ color: COLORS.crimson }}>
               Remove
             </button>
           )}
         </form>
       </section>
 
-      <section className="mt-10">
-        <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
-          Learning periods
-        </h2>
-        <div className="mt-3 space-y-3">
+      <section className="mt-6 rounded-xl p-5" style={cardStyle}>
+        <h2 className="text-sm font-bold">Learning periods</h2>
+        <div className="mt-2">
           {learningPeriods.map((lp) => (
             <form
               key={lp.id}
               action={updateLearningPeriod}
-              className="flex flex-wrap items-end gap-3 rounded border border-[#E1E3E6] bg-white p-4 text-sm"
+              className="flex flex-wrap items-end gap-4 border-b py-3 text-sm"
+              style={{ borderColor: COLORS.hairline }}
             >
               <input type="hidden" name="id" value={lp.id} />
               <div>
-                <label className="block text-xs text-[#6B6B6B]">Name</label>
-                <input type="text" name="name" defaultValue={lp.name} required className="w-28 rounded border border-[#E1E3E6] px-2 py-1.5" />
+                <label className="block text-xs" style={{ color: COLORS.muted }}>
+                  Name
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  defaultValue={lp.name}
+                  required
+                  className="w-24 border-b bg-transparent py-1 outline-none"
+                  style={{ borderColor: COLORS.hairline }}
+                />
               </div>
               <div>
-                <label className="block text-xs text-[#6B6B6B]">Start</label>
+                <label className="block text-xs" style={{ color: COLORS.muted }}>
+                  Start
+                </label>
                 <input
                   type="date"
                   name="startDate"
                   defaultValue={toISODate(lp.startDate)}
                   required
-                  className="rounded border border-[#E1E3E6] px-2 py-1.5"
+                  className="border-b bg-transparent py-1 outline-none"
+                  style={{ borderColor: COLORS.hairline }}
                 />
               </div>
               <div>
-                <label className="block text-xs text-[#6B6B6B]">End</label>
+                <label className="block text-xs" style={{ color: COLORS.muted }}>
+                  End
+                </label>
                 <input
                   type="date"
                   name="endDate"
                   defaultValue={toISODate(lp.endDate)}
                   required
-                  className="rounded border border-[#E1E3E6] px-2 py-1.5"
+                  className="border-b bg-transparent py-1 outline-none"
+                  style={{ borderColor: COLORS.hairline }}
                 />
               </div>
               <div>
-                <label className="block text-xs text-[#6B6B6B]">HST meeting (optional)</label>
+                <label className="block text-xs" style={{ color: COLORS.muted }}>
+                  HST meeting (optional)
+                </label>
                 <input
                   type="date"
                   name="hstMeetingDate"
                   defaultValue={lp.hstMeetingDate ? toISODate(lp.hstMeetingDate) : ""}
-                  className="rounded border border-[#E1E3E6] px-2 py-1.5"
+                  className="border-b bg-transparent py-1 outline-none"
+                  style={{ borderColor: COLORS.hairline }}
                 />
               </div>
-              <button type="submit" className="rounded bg-[#161616] px-3 py-2 text-white hover:bg-[#333]">
+              <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
                 Save
               </button>
-              <button
-                type="submit"
-                formAction={deleteLearningPeriod}
-                className="rounded border border-[#E1E3E6] px-3 py-2 text-[#B5451B] hover:border-[#B5451B]"
-              >
+              <button type="submit" formAction={deleteLearningPeriod} className="ml-auto" style={{ color: COLORS.crimson }}>
                 Delete
               </button>
             </form>
           ))}
         </div>
 
-        <form
-          action={createLearningPeriod}
-          className="mt-4 flex flex-wrap items-end gap-3 rounded border border-dashed border-[#E1E3E6] bg-white p-4 text-sm"
-        >
+        <form action={createLearningPeriod} className="mt-3 flex flex-wrap items-end gap-4 border-t border-dashed pt-3 text-sm" style={{ borderColor: COLORS.hairline }}>
           <div>
-            <label className="block text-xs text-[#6B6B6B]">Name</label>
-            <input type="text" name="name" placeholder="LP1" required className="w-28 rounded border border-[#E1E3E6] px-2 py-1.5" />
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Name
+            </label>
+            <input type="text" name="name" placeholder="LP1" required className="w-24 border-b bg-transparent py-1 outline-none" style={{ borderColor: COLORS.hairline }} />
           </div>
           <div>
-            <label className="block text-xs text-[#6B6B6B]">Start</label>
-            <input type="date" name="startDate" required className="rounded border border-[#E1E3E6] px-2 py-1.5" />
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Start
+            </label>
+            <input type="date" name="startDate" required className="border-b bg-transparent py-1 outline-none" style={{ borderColor: COLORS.hairline }} />
           </div>
           <div>
-            <label className="block text-xs text-[#6B6B6B]">End</label>
-            <input type="date" name="endDate" required className="rounded border border-[#E1E3E6] px-2 py-1.5" />
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              End
+            </label>
+            <input type="date" name="endDate" required className="border-b bg-transparent py-1 outline-none" style={{ borderColor: COLORS.hairline }} />
           </div>
           <div>
-            <label className="block text-xs text-[#6B6B6B]">HST meeting (optional)</label>
-            <input type="date" name="hstMeetingDate" className="rounded border border-[#E1E3E6] px-2 py-1.5" />
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              HST meeting (optional)
+            </label>
+            <input type="date" name="hstMeetingDate" className="border-b bg-transparent py-1 outline-none" style={{ borderColor: COLORS.hairline }} />
           </div>
-          <button type="submit" className="rounded bg-[#161616] px-3 py-2 text-white hover:bg-[#333]">
+          <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
             + Add learning period
           </button>
         </form>

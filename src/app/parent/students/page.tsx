@@ -1,30 +1,32 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { COLORS } from "@/lib/theme";
 import { createStudent, deleteStudent, updateStudent } from "./actions";
 
 export default async function StudentsPage() {
   const students = await prisma.student.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
-      <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
+    <main className="min-h-screen px-4 py-6 lg:px-10 lg:py-12" style={{ background: COLORS.background, color: COLORS.text }}>
+      <Link href="/parent" className="text-sm hover:underline" style={{ color: COLORS.muted }}>
         ← Back to week
       </Link>
       <h1 className="mt-4 text-2xl font-medium">Students</h1>
 
-      <div className="mt-8 space-y-4">
+      <div className="mt-8 max-w-lg">
         {students.map((student) => (
           <form
             key={student.id}
             action={updateStudent}
-            className="flex items-center gap-3 rounded border border-[#E1E3E6] bg-white p-4"
+            className="flex items-center gap-3 border-b py-3 text-sm"
+            style={{ borderColor: COLORS.hairline }}
           >
             <input type="hidden" name="id" value={student.id} />
             <input
               type="color"
               name="accentColor"
               defaultValue={student.accentColor}
-              className="h-9 w-9 shrink-0 rounded border border-[#E1E3E6]"
+              className="h-6 w-6 shrink-0 border-0 bg-transparent p-0"
               aria-label={`${student.name}'s accent color`}
             />
             <input
@@ -32,7 +34,8 @@ export default async function StudentsPage() {
               name="name"
               defaultValue={student.name}
               required
-              className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
+              className="w-32 border-b bg-transparent py-1 outline-none"
+              style={{ borderColor: COLORS.hairline, color: COLORS.text }}
               aria-label="Name"
             />
             <input
@@ -40,58 +43,48 @@ export default async function StudentsPage() {
               name="gradeLevel"
               defaultValue={student.gradeLevel}
               required
-              className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
+              className="w-32 border-b bg-transparent py-1 outline-none"
+              style={{ borderColor: COLORS.hairline, color: COLORS.text }}
               aria-label="Grade level"
             />
-            <button
-              type="submit"
-              className="rounded bg-[#161616] px-3 py-2 text-sm text-white hover:bg-[#333]"
-            >
+            <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
               Save
             </button>
-            <button
-              type="submit"
-              formAction={deleteStudent}
-              className="rounded border border-[#E1E3E6] px-3 py-2 text-sm text-[#B5451B] hover:border-[#B5451B]"
-            >
+            <button type="submit" formAction={deleteStudent} className="ml-auto" style={{ color: COLORS.crimson }}>
               Delete
             </button>
           </form>
         ))}
-      </div>
 
-      <form
-        action={createStudent}
-        className="mt-8 flex items-center gap-3 rounded border border-dashed border-[#E1E3E6] bg-white p-4"
-      >
-        <input
-          type="color"
-          name="accentColor"
-          defaultValue="#6B6B6B"
-          className="h-9 w-9 shrink-0 rounded border border-[#E1E3E6]"
-          aria-label="Accent color"
-        />
-        <input
-          type="text"
-          name="name"
-          placeholder="Name"
-          required
-          className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
-        />
-        <input
-          type="text"
-          name="gradeLevel"
-          placeholder="Grade level"
-          required
-          className="w-40 rounded border border-[#E1E3E6] px-3 py-2"
-        />
-        <button
-          type="submit"
-          className="rounded bg-[#161616] px-3 py-2 text-sm text-white hover:bg-[#333]"
-        >
-          + Add student
-        </button>
-      </form>
+        <form action={createStudent} className="flex items-center gap-3 border-b border-dashed py-3 text-sm" style={{ borderColor: COLORS.hairline }}>
+          <input
+            type="color"
+            name="accentColor"
+            defaultValue="#1657FF"
+            className="h-6 w-6 shrink-0 border-0 bg-transparent p-0"
+            aria-label="Accent color"
+          />
+          <input
+            type="text"
+            name="name"
+            placeholder="Name"
+            required
+            className="w-32 border-b bg-transparent py-1 outline-none"
+            style={{ borderColor: COLORS.hairline, color: COLORS.text }}
+          />
+          <input
+            type="text"
+            name="gradeLevel"
+            placeholder="Grade level"
+            required
+            className="w-32 border-b bg-transparent py-1 outline-none"
+            style={{ borderColor: COLORS.hairline, color: COLORS.text }}
+          />
+          <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
+            + Add student
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

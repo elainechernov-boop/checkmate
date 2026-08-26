@@ -8,15 +8,13 @@ const LINKS = [
   { href: "/parent/projects", label: "+ New project" },
   { href: "/parent/assignments/new", label: "+ New assignment" },
   { href: "/parent/calendar", label: "Calendar settings" },
-  { href: "/parent/unlock", label: "Change passcode gate" },
 ];
 
 /** The redesign's plain nav row (README §2 "This Week · Students · Subjects
  * · Reports · a muted '⋯' for the rest") — Students/Subjects/Reports moved
  * out to their own top-level links in page.tsx's header; this "⋯" now
- * holds only what's left: the two "new" flows and the admin-y corners
- * (calendar-import settings, the passcode gate) that don't need their own
- * permanent spot in the row. */
+ * holds only what's left: the two "new" flows and calendar-import settings,
+ * which don't need their own permanent spot in the row. */
 export function ParentNavMenu() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

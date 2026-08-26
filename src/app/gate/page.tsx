@@ -30,12 +30,12 @@ export default async function GatePage({
           autoFocus
           required
           placeholder="Family password"
-          className="w-full rounded border border-[#E1E3E6] bg-white px-4 py-2.5 text-[#161616] outline-none focus:border-[#161616]"
+          className="w-full rounded border border-[#E1E3E6] bg-white px-4 py-2.5 text-[#1A1A1A] outline-none focus:border-[#1A1A1A]"
         />
-        {error && <p className="mt-3 text-sm text-[#B5451B]">Incorrect password.</p>}
+        {error && <p className="mt-3 text-sm text-[#E8264B]">Incorrect password.</p>}
         <button
           type="submit"
-          className="mt-4 w-full rounded bg-[#161616] px-4 py-2.5 text-white transition hover:bg-[#333]"
+          className="mt-4 w-full rounded bg-[#1A1A1A] px-4 py-2.5 text-white transition hover:bg-[#333]"
         >
           Enter
         </button>

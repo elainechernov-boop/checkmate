@@ -15,7 +15,7 @@ export default async function Home() {
           <Link
             key={student.id}
             href={`/student/${student.id}`}
-            className="rounded-lg border border-[#E1E3E6] bg-white px-8 py-6 text-lg font-medium transition hover:border-[#161616]"
+            className="rounded-lg border border-[#E1E3E6] bg-white px-8 py-6 text-lg font-medium transition hover:border-[#1A1A1A]"
             style={{ borderTopColor: student.accentColor, borderTopWidth: 3 }}
           >
             {student.name}

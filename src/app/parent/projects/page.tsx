@@ -27,7 +27,7 @@ export default async function ParentProjectsPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
+    <main className="min-h-screen bg-[#FAF7F2] px-4 py-6 text-[#1A1A1A] lg:px-10 lg:py-12">
       <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
         ← Back to week
       </Link>
@@ -83,7 +83,7 @@ export default async function ParentProjectsPage() {
               style={{ borderColor: COLORS.hairline }}
             />
           </div>
-          <button type="submit" className="rounded bg-[#161616] px-3 py-1.5 text-white hover:bg-[#333]">
+          <button type="submit" className="rounded bg-[#1A1A1A] px-3 py-1.5 text-white hover:bg-[#333]">
             + New project
           </button>
         </form>
@@ -156,7 +156,7 @@ function ProjectCard({ project, subjects }: { project: ProjectRow; subjects: { i
             </option>
           ))}
         </select>
-        <button type="submit" className="rounded bg-[#161616] px-2 py-1 text-xs text-white hover:bg-[#333]">
+        <button type="submit" className="rounded bg-[#1A1A1A] px-2 py-1 text-xs text-white hover:bg-[#333]">
           Save
         </button>
       </form>

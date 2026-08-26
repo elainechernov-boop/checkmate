@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { COLORS } from "@/lib/theme";
 
 async function goToReport(formData: FormData) {
   "use server";
@@ -19,18 +20,18 @@ export default async function ReportsPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] px-4 py-6 text-[#161616] lg:px-10 lg:py-12">
-      <Link href="/parent" className="text-sm text-[#6B6B6B] hover:underline">
+    <main className="min-h-screen px-4 py-6 lg:px-10 lg:py-12" style={{ background: COLORS.background, color: COLORS.text }}>
+      <Link href="/parent" className="text-sm hover:underline" style={{ color: COLORS.muted }}>
         ← Back to week
       </Link>
       <h1 className="mt-4 text-2xl font-medium">HST Meeting Prep report</h1>
-      <p className="mt-1 text-sm text-[#6B6B6B]">
+      <p className="mt-1 text-sm" style={{ color: COLORS.muted }}>
         Per student, per learning period: hours completed in Math, ELA, History, and Science, plus a full
         completed-work log by subject.
       </p>
 
       {students.length === 0 || learningPeriods.length === 0 ? (
-        <p className="mt-8 text-sm text-[#6B6B6B]">
+        <p className="mt-8 text-sm" style={{ color: COLORS.muted }}>
           Add a student and a{" "}
           <Link href="/parent/calendar" className="underline">
             learning period
@@ -38,10 +39,12 @@ export default async function ReportsPage() {
           first.
         </p>
       ) : (
-        <form action={goToReport} className="mt-6 flex flex-wrap items-end gap-3 text-sm">
+        <form action={goToReport} className="mt-6 flex flex-wrap items-end gap-4 text-sm">
           <div>
-            <label className="block text-xs text-[#6B6B6B]">Student</label>
-            <select name="studentId" className="rounded border border-[#E1E3E6] px-2 py-1.5">
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Student
+            </label>
+            <select name="studentId" className="border-b bg-transparent py-1.5 outline-none" style={{ borderColor: COLORS.hairline, color: COLORS.text }}>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -50,8 +53,10 @@ export default async function ReportsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-[#6B6B6B]">Learning period</label>
-            <select name="lp" className="rounded border border-[#E1E3E6] px-2 py-1.5">
+            <label className="block text-xs" style={{ color: COLORS.muted }}>
+              Learning period
+            </label>
+            <select name="lp" className="border-b bg-transparent py-1.5 outline-none" style={{ borderColor: COLORS.hairline, color: COLORS.text }}>
               {learningPeriods.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -59,8 +64,8 @@ export default async function ReportsPage() {
               ))}
             </select>
           </div>
-          <button type="submit" className="rounded bg-[#161616] px-3 py-2 text-white hover:bg-[#333]">
-            Build report
+          <button type="submit" className="font-medium" style={{ color: COLORS.text }}>
+            Build report →
           </button>
         </form>
       )}

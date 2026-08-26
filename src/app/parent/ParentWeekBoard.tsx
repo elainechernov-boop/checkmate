@@ -962,7 +962,7 @@ function RowFrame({
         }}
         aria-label={`Delete ${instance.title}`}
         title="Delete"
-        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1015,7 +1015,7 @@ function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDele
         }}
         aria-label={`Delete ${separator.label} separator`}
         title="Delete"
-        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1175,7 +1175,7 @@ function AssignedCalendarEventRow({ event, studentId, now }: { event: FamilyCale
         }}
         aria-label={`Move "${event.title}" back to the shared agenda`}
         title="Move back to the shared agenda"
-        className="shrink-0 rounded px-1 text-xs opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+        className="shrink-0 rounded px-1 text-xs opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
         style={{ color: COLORS.muted }}
       >
         ✕
@@ -1269,7 +1269,7 @@ function CalendarStripEventRow({ event, students }: { event: FamilyCalendarEvent
           }}
           aria-label={`Hide "${event.title}" from this overlay`}
           title="Hide this event"
-          className="shrink-0 text-xs opacity-0 transition-opacity hover:text-[#161616] group-hover:opacity-100"
+          className="shrink-0 text-xs opacity-0 transition-opacity hover:text-[#1A1A1A] group-hover:opacity-100"
           style={{ color: COLORS.mutedFaint }}
         >
           ✕
@@ -1432,7 +1432,7 @@ function ReviewControls({ instanceId }: { instanceId: string }) {
 
   return (
     <div className="flex items-center gap-3 pl-3">
-      <button type="button" onClick={handleApprove} disabled={pending} className="text-xs font-medium text-[#161616]">
+      <button type="button" onClick={handleApprove} disabled={pending} className="text-xs font-medium text-[#1A1A1A]">
         ✓ Approve
       </button>
       <button
