@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -39,20 +40,24 @@ export default async function HSTReportPage({
     <main className="min-h-screen bg-[#FFFFFF] px-10 py-12 text-[#1A1A1A] print:bg-white print:px-0 print:py-0">
       <div className="flex items-center justify-between print:hidden">
         <Link href="/parent/reports" className="text-sm text-[#6B6B6B] hover:underline">
-          ← Back to reports
+          ← Reports
         </Link>
         <PrintButton />
       </div>
 
       <article className="mx-auto mt-8 max-w-2xl print:mt-0 print:max-w-none">
-        <h1 className="text-2xl font-medium">{report.student.name} — HST Meeting Prep</h1>
-        <p className="mt-1 text-sm" style={{ color: COLORS.muted }}>
+        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={100} height={18} className="h-[18px] w-auto" />
+        <h1 className="mt-3" style={{ fontSize: 22, fontWeight: 600 }}>
+          {report.student.name} — HST Meeting Prep
+        </h1>
+        <p className="mt-1" style={{ color: COLORS.muted, fontSize: 12 }}>
           {report.learningPeriod.name} · {formatComingUpDate(report.learningPeriod.startDate)} –{" "}
           {formatComingUpDate(report.learningPeriod.endDate)}
           {report.learningPeriod.hstMeetingDate && (
             <> · HST meeting {formatComingUpDate(report.learningPeriod.hstMeetingDate)}</>
           )}
         </p>
+        <div className="mt-4" style={{ borderTop: `1px solid ${COLORS.hairline}` }} />
 
         <section className="mt-8">
           <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
@@ -91,8 +96,8 @@ export default async function HSTReportPage({
             <div className="mt-2 space-y-4">
               {report.completedBySubject.map((group) => (
                 <div key={group.subjectName} style={{ breakInside: "avoid" }}>
-                  <h3 className="text-sm font-medium">{group.subjectName}</h3>
-                  <ul className="mt-1 text-sm" style={{ color: COLORS.muted }}>
+                  <h3 style={{ fontSize: 12, fontWeight: 700 }}>{group.subjectName}</h3>
+                  <ul className="mt-1" style={{ color: COLORS.muted, fontSize: 12 }}>
                     {group.items.map((item, index) => (
                       <li key={index} className="flex justify-between border-b py-1" style={{ borderColor: COLORS.hairline }}>
                         <span>{item.title}</span>

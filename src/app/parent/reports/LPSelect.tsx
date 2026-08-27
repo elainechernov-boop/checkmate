@@ -25,7 +25,7 @@ export function LPSelect({
         router.push(`/parent/reports?${params.toString()}`);
       }}
       className="hr-flat-input"
-      style={{ width: "auto", color: COLORS.muted }}
+      style={{ width: "auto", color: COLORS.muted, fontSize: 12 }}
       aria-label={`Learning period`}
     >
       {learningPeriods.map((lp) => (

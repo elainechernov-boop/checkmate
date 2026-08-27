@@ -59,9 +59,16 @@ export default async function ReportsPage({
                   <LPSelect studentId={student.id} learningPeriods={learningPeriods} selectedId={selectedLpId} />
                 </div>
 
-                <div className="mt-3 flex flex-col gap-2 text-sm">
-                  {report.hoursByCategory.map(({ category, minutes }) => (
-                    <div key={category}>
+                <div className="mt-3 flex flex-col" style={{ fontSize: 12 }}>
+                  {report.hoursByCategory.map(({ category, minutes }, index) => (
+                    <div
+                      key={category}
+                      style={{
+                        padding: "3px 0",
+                        borderBottom:
+                          index === report.hoursByCategory.length - 1 ? undefined : `1px solid ${COLORS.hairline}`,
+                      }}
+                    >
                       <div className="flex justify-between">
                         <span style={{ color: COLORS.muted }}>{CATEGORY_LABEL[category] ?? category}</span>
                         <span style={{ color: COLORS.text }}>{minutes > 0 ? formatTotalMinutes(minutes) : "—"}</span>
@@ -81,8 +88,8 @@ export default async function ReportsPage({
 
                 <Link
                   href={`/parent/reports/${student.id}/${selectedLpId}`}
-                  className="mt-3 inline-block text-sm hover:underline"
-                  style={{ color: COLORS.text }}
+                  className="mt-3 inline-block hover:underline"
+                  style={{ color: COLORS.text, fontSize: 11.5 }}
                 >
                   Open HST meeting report →
                 </Link>
