@@ -55,15 +55,15 @@ export function PageHeading({
   description?: string;
 }) {
   return (
-    <div className="mt-8 mb-6">
+    <div className="mt-7 mb-6">
       <Link href={backHref} className="text-sm hover:underline" style={{ color: COLORS.muted }}>
         {backLabel}
       </Link>
-      <h1 className="mt-2" style={{ fontSize: 24, fontWeight: 600, color: COLORS.text }}>
+      <h1 className="mt-2" style={{ fontSize: 20, fontWeight: 600, color: COLORS.text }}>
         {title}
       </h1>
       {description && (
-        <p className="mt-1 max-w-2xl text-sm" style={{ color: COLORS.muted }}>
+        <p className="mt-1 max-w-2xl" style={{ color: COLORS.muted, fontSize: 12 }}>
           {description}
         </p>
       )}

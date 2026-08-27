@@ -63,7 +63,9 @@ function StudentRow({ student }: { student: Student }) {
 
   return (
     <div className="group flex items-center gap-4 border-b py-3 text-sm" style={{ borderColor: COLORS.hairline }}>
-      <span aria-hidden className="h-3 w-3 shrink-0 rounded-full" style={{ background: accentColor }} />
+      {/* Screen 15: "Do not use a large colored circle... use a 3px vertical
+          tick; the colored Syncopate name already previews the color." */}
+      <span aria-hidden className="self-stretch shrink-0" style={{ width: 3, background: accentColor }} />
 
       {editingName ? (
         <input
@@ -112,17 +114,17 @@ function StudentRow({ student }: { student: Student }) {
           className="hr-flat-input w-24"
         />
       ) : (
-        <button type="button" onClick={() => setEditingGrade(true)} className="w-24 truncate text-left" style={{ color: COLORS.muted }}>
+        <button type="button" onClick={() => setEditingGrade(true)} className="w-24 truncate text-left" style={{ color: COLORS.muted, fontSize: 12 }}>
           {student.gradeLevel}
         </button>
       )}
 
-      <TextAction onClick={handleCycleColor} className="text-xs" style={{ color: COLORS.muted }}>
+      <TextAction onClick={handleCycleColor} style={{ color: COLORS.muted, fontSize: 11 }}>
         Change color
       </TextAction>
 
       {confirmingDelete ? (
-        <span className="ml-auto flex items-center gap-2 text-xs">
+        <span className="ml-auto flex items-center gap-2" style={{ fontSize: 11 }}>
           <span style={{ color: COLORS.muted }}>Delete student?</span>
           <TextAction onClick={() => deleteStudentAction(student.id)} style={{ color: COLORS.crimson, fontWeight: 600 }}>
             Delete
@@ -135,8 +137,8 @@ function StudentRow({ student }: { student: Student }) {
         <TextAction
           onClick={() => setConfirmingDelete(true)}
           aria-label={`Delete ${student.name}`}
-          className="hr-hover-action ml-auto text-xs"
-          style={{ color: COLORS.mutedFaint }}
+          className="hr-hover-action ml-auto"
+          style={{ color: COLORS.mutedFaint, fontSize: 11 }}
         >
           Delete
         </TextAction>

@@ -40,7 +40,7 @@ function SubjectRow({ subject }: { subject: Subject }) {
   }
 
   return (
-    <div className="border-b py-3 text-sm" style={{ borderColor: COLORS.hairline }}>
+    <div className="border-b py-3" style={{ borderColor: COLORS.hairline, fontSize: 13 }}>
       <div className="flex flex-wrap items-center gap-3">
         {editing ? (
           <input
@@ -94,7 +94,7 @@ function SubjectRow({ subject }: { subject: Subject }) {
             </label>
           </>
         ) : (
-          <span style={{ color: COLORS.muted }}>
+          <span style={{ color: COLORS.muted, fontSize: 12 }}>
             {subject.workSampleCategory}
             {subject.isFaithIntegrated ? " · faith-integrated" : ""}
           </span>
