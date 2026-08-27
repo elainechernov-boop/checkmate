@@ -5,7 +5,6 @@ import type { AssignmentInstance, Project, ProjectIdea, Student } from "@/genera
 import { ProjectStatus } from "@/generated/prisma/enums";
 import { WEEKDAYS, formatComingUpDate, toISODate, type WeekdayCode } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
-import { SettingsCard } from "@/components/SettingsCard";
 import { InlineEntry, TextAction } from "@/components/FlatField";
 import type { PlanRecurrenceChoice } from "@/lib/projects";
 import {
@@ -102,10 +101,20 @@ function StudentProjectsSection({
   }
 
   return (
-    <SettingsCard>
+    // Screen 20: an editable expansion of the student Projects band, not a
+    // kanban card — no fill/radius/shadow at the section level, just a
+    // hairline under the student heading like the read-only band uses.
+    <div className="pb-2">
       <h2
-        className="uppercase"
-        style={{ color: student.accentColor, fontFamily: "var(--font-syncopate)", fontWeight: 700, fontSize: 16, letterSpacing: "0.03em" }}
+        className="border-b pb-3 uppercase"
+        style={{
+          color: student.accentColor,
+          fontFamily: "var(--font-syncopate)",
+          fontWeight: 700,
+          fontSize: 17,
+          letterSpacing: "0.03em",
+          borderColor: COLORS.hairline,
+        }}
       >
         {student.name}
       </h2>
@@ -157,7 +166,7 @@ function StudentProjectsSection({
       )}
 
       <IdeasSection studentId={student.id} ideas={ideas} />
-    </SettingsCard>
+    </div>
   );
 }
 
