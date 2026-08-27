@@ -36,6 +36,17 @@
   --font-headline: var(--font-syncopate);
 }
 
+/* HOMEROOM_UX_MIGRATION.md §3: "Switch from the six-column layout at
+ * approximately 1100px, not blindly at Tailwind's default `lg` breakpoint."
+ * Every `lg:` utility in the app (the student/parent week grids, the
+ * calendar strip, etc.) already exists specifically to make that one
+ * six-column/single-day switch, so redefining `lg` itself here is the one
+ * change that moves all of them together, at 1100px instead of the
+ * default 1024px. */
+@theme {
+  --breakpoint-lg: 68.75rem;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

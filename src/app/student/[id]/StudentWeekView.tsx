@@ -529,6 +529,8 @@ function StudentMenu({
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(event: MouseEvent) {
@@ -536,13 +538,25 @@ function StudentMenu({
         setOpen(false);
       }
     }
+    // §4/§6: menus close on Escape and return focus to the invoking control.
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [open]);
 
   return (
     <div ref={menuRef} className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((current) => !current)}
         aria-label="Menu"
         aria-expanded={open}
@@ -553,7 +567,7 @@ function StudentMenu({
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded border py-1 shadow-sm"
+          className="absolute right-0 top-full z-10 mt-2 whitespace-nowrap border py-1"
           style={{ borderColor: COLORS.hairline, background: COLORS.background }}
         >
           <button

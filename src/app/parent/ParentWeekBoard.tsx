@@ -842,8 +842,8 @@ function DayCell({
               onDayTypeChange(dateISO, event.target.value as SchoolDayType);
             }}
             onBlur={() => setEditingType(false)}
-            className="w-full rounded border px-1.5 py-1 text-xs"
-            style={{ borderColor: COLORS.hairline, color: COLORS.text }}
+            className="hr-flat-input text-xs"
+            style={{ width: "auto", color: COLORS.text }}
           >
             {TYPE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -1269,11 +1269,11 @@ function SeparatorCreateRow({ onSubmit, onCancel }: { onSubmit: (label: string) 
           }}
           onBlur={() => (text.trim() ? submit(text) : cancel())}
           placeholder="Label (e.g. Before breakfast)"
-          className="min-w-0 flex-1 rounded border border-[#E1E3E6] px-1.5 py-0.5 text-center text-xs outline-none"
+          className="hr-flat-input min-w-0 flex-1 text-center"
         />
         <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
       </div>
-      <div className="flex items-center justify-center gap-1.5">
+      <div className="flex items-center justify-center gap-3">
         {SEPARATOR_PRESETS.map((preset) => (
           <button
             key={preset}
@@ -1282,8 +1282,8 @@ function SeparatorCreateRow({ onSubmit, onCancel }: { onSubmit: (label: string) 
             // never fires (and cancels) before this button's own onClick does.
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => submit(preset)}
-            className="rounded-full border px-2 py-0.5 text-[10px]"
-            style={{ borderColor: COLORS.hairline, color: COLORS.muted }}
+            className="hr-text-action text-[10px] hover:underline"
+            style={{ color: COLORS.muted }}
           >
             {preset}
           </button>
@@ -1677,7 +1677,7 @@ function ReviewControls({ instanceId }: { instanceId: string }) {
           value={note}
           onChange={(event) => setNote(event.target.value)}
           placeholder="Optional note (e.g. 'redo the last two')"
-          className="min-w-0 flex-1 rounded border border-[#E1E3E6] px-2 py-1 text-xs outline-none"
+          className="hr-flat-input min-w-0 flex-1"
           disabled={pending}
         />
         <button

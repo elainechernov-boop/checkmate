@@ -484,21 +484,15 @@ function PlanTaskInline({
 
       {!isScheduled && showRepeat && (
         <>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-3">
             {PLAN_CHOICES.map((option) => (
-              <button
+              <TextAction
                 key={option.value}
-                type="button"
                 onClick={() => setChoice(option.value)}
-                className="border px-1.5 py-0.5"
-                style={
-                  choice === option.value
-                    ? { borderColor: COLORS.text, background: COLORS.text, color: COLORS.white }
-                    : { borderColor: COLORS.hairline, color: COLORS.text }
-                }
+                style={{ color: choice === option.value ? COLORS.text : COLORS.mutedFaint, fontWeight: choice === option.value ? 700 : 400 }}
               >
                 {option.label}
-              </button>
+              </TextAction>
             ))}
           </div>
 
