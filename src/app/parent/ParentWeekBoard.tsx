@@ -45,6 +45,7 @@ import {
 } from "./planner-actions";
 import { assignCalendarEventAction, dismissCalendarEventAction, unassignCalendarEventAction } from "./calendar/actions";
 import { EditPanel, type EditableInstance } from "./AssignmentEditPanel";
+import { Modal } from "@/components/Modal";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
 
@@ -1163,7 +1164,9 @@ function RowFrame({
         ✕
       </button>
 
-      {expanded && <EditPanel instance={instance} subjects={subjects} onSaved={onCloseExpanded} onCancel={onCloseExpanded} />}
+      <Modal open={expanded} onClose={onCloseExpanded} title={instance.title}>
+        <EditPanel instance={instance} subjects={subjects} onSaved={onCloseExpanded} onCancel={onCloseExpanded} />
+      </Modal>
     </div>
   );
 }

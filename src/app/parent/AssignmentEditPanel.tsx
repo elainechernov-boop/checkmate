@@ -113,12 +113,7 @@ export function EditPanel({
   }
 
   return (
-    <form
-      action={handleSubmit}
-      onClick={(event) => event.stopPropagation()}
-      className="mt-2 flex flex-col gap-1.5 border-t pt-3 text-xs"
-      style={{ borderColor: COLORS.hairline }}
-    >
+    <form action={handleSubmit} onClick={(event) => event.stopPropagation()} className="flex flex-col gap-1.5 text-xs">
       <input type="hidden" name="instanceId" value={instance.id} />
       {isSeries && <input type="hidden" name="scope" value={scope} />}
 

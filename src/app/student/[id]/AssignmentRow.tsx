@@ -8,6 +8,7 @@ import { formatComingUpDate } from "@/lib/dates";
 import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime, timeBadge, type TimeBadgeState } from "@/lib/reminders";
 import { COLORS } from "@/lib/theme";
+import { Modal } from "@/components/Modal";
 import { ApprovalPasscodePopover } from "./ApprovalPasscodePopover";
 import type { StudentInstance } from "./types";
 
@@ -397,8 +398,9 @@ export function AssignmentRow({
         </div>
       </div>
 
-      {expanded && hasExpandableDetails && (
-        <div className="ml-[11px] flex flex-col gap-1.5 border-t pt-1.5 text-xs" style={{ borderColor: COLORS.hairline }}>
+      <Modal open={expanded && hasExpandableDetails} onClose={() => setExpanded(false)} title="Details">
+        <div className="flex flex-col gap-1.5" style={{ fontSize: 12 }}>
+          <p style={{ color: COLORS.text, fontWeight: 600 }}>{instance.title}</p>
           {instance.details && <p style={{ color: COLORS.muted }}>{instance.details}</p>}
           {instance.dueDate && (
             <p style={{ color: COLORS.muted }}>
@@ -409,7 +411,7 @@ export function AssignmentRow({
             Status: <span style={{ color: COLORS.text }}>{statusLabel(instance)}</span>
           </p>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
