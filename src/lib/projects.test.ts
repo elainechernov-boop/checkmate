@@ -6,6 +6,7 @@ import {
   addBacklogTask,
   createProject,
   deleteProjectTask,
+  editProjectName,
   editProjectTaskTitle,
   moveProjectTask,
   planProjectTask,
@@ -182,6 +183,34 @@ describe("permission checks (§2/§7): students cannot touch parent-assigned ite
     await expect(editProjectTaskTitle(prisma, intruder.id, task.id, "Not yours")).rejects.toThrow(
       ProjectPermissionError
     );
+  });
+
+  it("rejects renaming another student's project", async () => {
+    const owner = await makeStudent(prisma, { name: "Miles" });
+    const intruder = await makeStudent(prisma, { name: "Nora" });
+    const project = await createProject(prisma, owner.id, "Owner's project", null);
+
+    await expect(editProjectName(prisma, intruder.id, project.id, "Renamed")).rejects.toThrow(
+      ProjectPermissionError
+    );
+  });
+});
+
+describe("editProjectName (§7/§12 Parent Projects renaming)", () => {
+  it("updates the project's name for its own student", async () => {
+    const student = await makeStudent(prisma);
+    const project = await createProject(prisma, student.id, "Original name", null);
+
+    await editProjectName(prisma, student.id, project.id, "  New name  ");
+
+    const updated = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+    expect(updated.name).toBe("New name");
+  });
+
+  it("rejects a blank name", async () => {
+    const student = await makeStudent(prisma);
+    const project = await createProject(prisma, student.id, "Original name", null);
+    await expect(editProjectName(prisma, student.id, project.id, "   ")).rejects.toThrow();
   });
 });
 

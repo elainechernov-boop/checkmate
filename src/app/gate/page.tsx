@@ -1,5 +1,6 @@
-import Image from "next/image";
 import { submitFamilyPassword } from "./actions";
+import { AppShell, BrandHeader } from "@/components/AppShell";
+import { COLORS } from "@/lib/theme";
 
 export default async function GatePage({
   searchParams,
@@ -9,16 +10,9 @@ export default async function GatePage({
   const { error, from } = await searchParams;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FFFFFF] px-6">
-      <form action={submitFamilyPassword} className="w-full max-w-xs">
-        <Image
-          src="/homeroom-wordmark.svg"
-          alt="homeroom"
-          width={160}
-          height={34}
-          className="mx-auto mb-8 h-8 w-auto"
-          priority
-        />
+    <AppShell center>
+      <BrandHeader align="center" wordmarkWidth={160} wordmarkHeight={34} />
+      <form action={submitFamilyPassword} className="mt-8 w-full max-w-xs">
         <input type="hidden" name="from" value={from ?? "/"} />
         <label htmlFor="password" className="sr-only">
           Family password
@@ -30,16 +24,17 @@ export default async function GatePage({
           autoFocus
           required
           placeholder="Family password"
-          className="w-full rounded border border-[#E1E3E6] bg-white px-4 py-2.5 text-[#1A1A1A] outline-none focus:border-[#1A1A1A]"
+          className="hr-flat-input py-2 text-center"
         />
-        {error && <p className="mt-3 text-sm text-[#E8264B]">Incorrect password.</p>}
-        <button
-          type="submit"
-          className="mt-4 w-full rounded bg-[#1A1A1A] px-4 py-2.5 text-white transition hover:bg-[#333]"
-        >
-          Enter
+        {error && (
+          <p className="mt-3 text-center text-sm" style={{ color: COLORS.crimson }}>
+            Incorrect password.
+          </p>
+        )}
+        <button type="submit" className="hr-text-action mt-4 block w-full text-center" style={{ color: COLORS.text }}>
+          Enter →
         </button>
       </form>
-    </main>
+    </AppShell>
   );
 }

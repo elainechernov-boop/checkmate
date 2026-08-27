@@ -2,14 +2,13 @@
 
 import { useState, type MouseEvent } from "react";
 import { motion } from "framer-motion";
-import { CreatedBy, InstanceStatus } from "@/generated/prisma/enums";
+import { InstanceStatus } from "@/generated/prisma/enums";
 import { playCompletionTick } from "@/lib/completionSound";
-import { formatComingUpDate, toISODate } from "@/lib/dates";
+import { formatComingUpDate } from "@/lib/dates";
 import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime, timeBadge, type TimeBadgeState } from "@/lib/reminders";
 import { getSubjectColor } from "@/lib/subjectColors";
 import { COLORS } from "@/lib/theme";
-import { deleteProjectTaskAction, moveProjectTaskAction, unscheduleProjectTaskAction } from "./projectActions";
 import { ApprovalPasscodePopover } from "./ApprovalPasscodePopover";
 import type { StudentInstance } from "./types";
 
@@ -56,7 +55,6 @@ export function AssignmentRow({
   prefersReducedMotion,
   isLast,
   accentColor,
-  studentId,
   now,
   onToggle,
   onApproveViaPasscode,
@@ -67,11 +65,9 @@ export function AssignmentRow({
   isLast: boolean;
   // The owning student's accent color — used for a project task's name line
   // in place of the subject/time line (§7: "theirs at a glance, without a
-  // second visual system").
+  // second visual system"), and for the "starts soon" callout (§5.4: soon
+  // uses the student's own accent, not a fixed color; live stays crimson).
   accentColor?: string;
-  // Needed only for a student's own project task's inline controls (move /
-  // unschedule / delete) inside the expand panel below.
-  studentId: string;
   // Wall-clock time for the live/soon/later/past callout below — passed
   // down from StudentWeekView's own 20s-refreshed `now` state rather than
   // read directly, so every row in the column recomputes together.
@@ -103,19 +99,20 @@ export function AssignmentRow({
   const rollMark = formatRollMark(instance.rolledCount);
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   const isDone = instance.status === InstanceStatus.done || instance.status === InstanceStatus.excused;
-  const isOwnProjectTask = instance.createdBy === CreatedBy.student;
 
   const estMinutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
   const badge: TimeBadgeState | null =
     instance.isTimeSensitive && instance.scheduledTime ? timeBadge(instance.scheduledTime, estMinutes, now) : null;
   const isCallout = badge === "live" || badge === "soon";
-  const calloutColor = badge === "live" ? COLORS.crimson : COLORS.cobalt;
+  // §5.4: live is always crimson (the one fixed, semantic attention color);
+  // "starts soon" takes the student's own accent instead of a fixed cobalt.
+  const calloutColor = badge === "live" ? COLORS.crimson : (accentColor ?? COLORS.cobalt);
 
   // A time-sensitive item that isn't live/starting-soon right now (badge is
-  // "later" or "past") still carries its clock time — shown bold and bright
-  // right next to the title (design tokens: e.g. "Scout badge meeting 9:00
-  // AM" in crimson bold), not folded into the quiet meta line — but only
-  // while still open.
+  // "later" or "past") still carries its clock time, shown quietly right
+  // next to the title — §5.4: "a later scheduled time is quiet metadata,
+  // not a crimson alert," and a past time that's still open stays ordinary
+  // too, never a stale alert color. Only shown while still open.
   const laterTimeLabel =
     !isDone && (badge === "later" || badge === "past") && instance.scheduledTime
       ? formatScheduledTime(instance.scheduledTime)
@@ -130,6 +127,12 @@ export function AssignmentRow({
   const metaText = instance.project
     ? instance.project.name
     : [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null].filter(Boolean).join(" · ");
+
+  // §5.4: "Do not render a meaningless `Status: Not done yet` block as the
+  // only content for a bare row; if there is no useful detail, metadata
+  // should not appear clickable." Details/due date are the only two facts
+  // the expand panel adds beyond what the meta line already shows inline.
+  const hasExpandableDetails = Boolean(instance.details) || Boolean(instance.dueDate);
 
   function handleTitleClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
@@ -290,21 +293,21 @@ export function AssignmentRow({
             {laterTimeLabel && (
               <span
                 className="shrink-0"
-                style={{ color: COLORS.crimson, fontWeight: 700, fontSize: "0.65625rem" }}
+                style={{ color: COLORS.muted, fontWeight: 700, fontSize: "0.65625rem" }}
               >
                 {laterTimeLabel}
               </span>
             )}
 
-            {/* The meta line — click to expand a read-only (or, for a
-                student's own project task, editable) details panel directly
-                beneath the row. Never the title, which is the completion
-                control. Always has *something* to click, even for a bare
-                self-typed task with no subject/project. Hidden once a row is
-                done, or while pending review (the "✋ Mom" flag takes its
-                place) — the mockup's own completed rows show nothing but the
-                struck-through title. */}
-            {!isDone && !isPendingReview && (
+            {/* The meta line — click to expand a read-only details panel
+                directly beneath the row. Never the title, which is the
+                completion control. Only clickable when expanding would
+                actually reveal something new (details/due date) beyond what
+                the meta line already shows inline — otherwise it's plain,
+                non-interactive text (§5.4: a bare row with nothing to show
+                must not look clickable). Hidden once a row is done, or while
+                pending review (the "✋ Mom" flag takes its place). */}
+            {!isDone && !isPendingReview && hasExpandableDetails && (
               <button
                 type="button"
                 onClick={(event) => {
@@ -319,8 +322,17 @@ export function AssignmentRow({
                   textUnderlineOffset: "2px",
                 }}
               >
-                {metaText || "···"}
+                {metaText || "Details"}
               </button>
+            )}
+
+            {!isDone && !isPendingReview && !hasExpandableDetails && metaText && (
+              <span
+                className="shrink-0 whitespace-nowrap"
+                style={{ color: instance.project ? (accentColor ?? COLORS.mutedFaint) : COLORS.mutedFaint, fontSize: "0.66rem" }}
+              >
+                {metaText}
+              </span>
             )}
 
             {isPendingReview && (
@@ -375,7 +387,7 @@ export function AssignmentRow({
         </div>
       </div>
 
-      {expanded && (
+      {expanded && hasExpandableDetails && (
         <div className="ml-[11px] flex flex-col gap-1.5 border-t pt-1.5 text-xs" style={{ borderColor: COLORS.hairline }}>
           {instance.details && <p style={{ color: COLORS.muted }}>{instance.details}</p>}
           {instance.dueDate && (
@@ -386,10 +398,6 @@ export function AssignmentRow({
           <p style={{ color: COLORS.muted }}>
             Status: <span style={{ color: COLORS.text }}>{statusLabel(instance)}</span>
           </p>
-
-          {isOwnProjectTask && instance.status === InstanceStatus.open && (
-            <OwnTaskControls studentId={studentId} instance={instance} onDone={() => setExpanded(false)} />
-          )}
         </div>
       )}
     </div>
@@ -407,73 +415,3 @@ function minutesUntil(scheduledTime: string, now: Date): number {
   return Math.max(0, Math.round((scheduled.getTime() - now.getTime()) / 60_000));
 }
 
-/** The inline replacement for AssignmentDetailsModal's OwnTaskControls —
- * same three verbs (move / back to backlog / delete), same actions, just
- * rendered directly in the expand panel instead of a modal. */
-function OwnTaskControls({
-  studentId,
-  instance,
-  onDone,
-}: {
-  studentId: string;
-  instance: StudentInstance;
-  onDone: () => void;
-}) {
-  const [moveDate, setMoveDate] = useState(instance.dueDate ? toISODate(instance.dueDate) : "");
-  const [pending, setPending] = useState(false);
-
-  async function handleMove() {
-    if (!moveDate) return;
-    setPending(true);
-    try {
-      await moveProjectTaskAction(studentId, instance.id, moveDate);
-      onDone();
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleUnschedule() {
-    setPending(true);
-    try {
-      await unscheduleProjectTaskAction(studentId, instance.id);
-      onDone();
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!window.confirm(`Delete "${instance.title}"? This can't be undone.`)) return;
-    setPending(true);
-    try {
-      await deleteProjectTaskAction(studentId, instance.id);
-      onDone();
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <div className="mt-0.5 flex flex-wrap items-center gap-2">
-      <input
-        type="date"
-        value={moveDate}
-        onChange={(event) => setMoveDate(event.target.value)}
-        className="border-b bg-transparent py-0.5 text-xs outline-none"
-        style={{ borderColor: COLORS.hairline, color: COLORS.text }}
-      />
-      <button type="button" onClick={handleMove} disabled={pending} className="font-medium" style={{ color: COLORS.text }}>
-        Move
-      </button>
-      {instance.dueDate && (
-        <button type="button" onClick={handleUnschedule} disabled={pending} style={{ color: COLORS.muted }}>
-          Move to backlog
-        </button>
-      )}
-      <button type="button" onClick={handleDelete} disabled={pending} className="font-medium" style={{ color: COLORS.crimson }}>
-        Delete
-      </button>
-    </div>
-  );
-}

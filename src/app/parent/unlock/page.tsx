@@ -1,5 +1,6 @@
-import Image from "next/image";
 import { submitParentPasscode } from "./actions";
+import { AppShell, BrandHeader } from "@/components/AppShell";
+import { COLORS } from "@/lib/theme";
 
 export default async function ParentUnlockPage({
   searchParams,
@@ -9,17 +10,12 @@ export default async function ParentUnlockPage({
   const { error } = await searchParams;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FFFFFF] px-6">
-      <form action={submitParentPasscode} className="w-full max-w-xs">
-        <Image
-          src="/homeroom-wordmark.svg"
-          alt="homeroom"
-          width={160}
-          height={34}
-          className="mx-auto mb-2 h-8 w-auto"
-          priority
-        />
-        <p className="mb-6 text-center text-xs uppercase tracking-wide text-[#6B6B6B]">Parent Mode</p>
+    <AppShell center>
+      <BrandHeader align="center" wordmarkWidth={160} wordmarkHeight={34} />
+      <p className="mt-2 text-xs uppercase tracking-wide" style={{ color: COLORS.muted }}>
+        Parent Mode
+      </p>
+      <form action={submitParentPasscode} className="mt-6 w-full max-w-xs">
         <label htmlFor="passcode" className="sr-only">
           Parent passcode
         </label>
@@ -30,16 +26,17 @@ export default async function ParentUnlockPage({
           autoFocus
           required
           placeholder="Passcode"
-          className="w-full rounded border border-[#E1E3E6] bg-white px-4 py-2.5 text-[#1A1A1A] outline-none focus:border-[#1A1A1A]"
+          className="hr-flat-input py-2 text-center"
         />
-        {error && <p className="mt-3 text-sm text-[#E8264B]">Incorrect passcode.</p>}
-        <button
-          type="submit"
-          className="mt-4 w-full rounded bg-[#1A1A1A] px-4 py-2.5 text-white transition hover:bg-[#333]"
-        >
-          Unlock
+        {error && (
+          <p className="mt-3 text-center text-sm" style={{ color: COLORS.crimson }}>
+            Incorrect passcode.
+          </p>
+        )}
+        <button type="submit" className="hr-text-action mt-4 block w-full text-center" style={{ color: COLORS.text }}>
+          Unlock →
         </button>
       </form>
-    </main>
+    </AppShell>
   );
 }

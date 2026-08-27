@@ -1,25 +1,30 @@
-// The "homeroom" brand palette (design_handoff_homeroom_redesign/README.md)
-// — cream background, near-black ink, and a small, fixed set of functional
-// colors: crimson for attention-only states (live-now, "Show Mom" — never a
-// student accent, never changes), cobalt as the UI primary / default
-// student accent (also used for the imported family calendar overlay's chip
-// color — there's no longer a separate calendar-only blue), and tennis-ball
-// green as the brand accent itself, used sparingly. Subject ticks
-// (subjectColors.ts) and each student's own accentColor (cycled via
-// STUDENT_ACCENT_ROTATION below) are the other two places color appears.
+// The "homeroom" brand palette — HOMEROOM_UX_MIGRATION.md §3 is the source
+// of truth; keep every value here one-to-one with the `--hr-*` custom
+// properties in globals.css. Cream is the standard app background; white is
+// reserved for Parent Mode cards and the print report. Crimson is semantic
+// only (live-now, "Show Mom", errors, destructive actions) and is never a
+// student accent. Cobalt is the default system color / default student
+// accent (also the imported family calendar overlay's chip color). Tennis
+// is a brand/progress accent — never small text on cream or white, it
+// lacks contrast there. Subject ticks (subjectColors.ts) and each student's
+// own accentColor (cycled via STUDENT_ACCENT_ROTATION below) are the other
+// two places color appears.
 export const COLORS = {
-  // The mockup's own rendered screens sit on a plain white page (its
-  // "cream" token only ever appears as the surrounding *documentation*
-  // canvas around multiple mockups, not the app screens themselves) — white
-  // here to match exactly, per direct comparison against Canvas.dc.html.
-  background: "#FFFFFF",
+  background: "#FAF7F2",
+  white: "#FFFFFF",
   text: "#1A1A1A",
   muted: "#6B6B6B",
   mutedFaint: "#A9ACB2",
   hairline: "#E1E3E6",
+  dashed: "#C7C2B8",
   tennis: "#D8F609",
   cobalt: "#1657FF",
   crimson: "#E8264B",
+  magenta: "#F0179E",
+  seafoam: "#2FD9A8",
+  poppy: "#FF9500",
+  violet: "#B15CFF",
+  orange: "#FF5E00",
 } as const;
 
 // Tapping a student's own name cycles through this fixed order (README

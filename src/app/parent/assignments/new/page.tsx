@@ -1,6 +1,7 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { COLORS } from "@/lib/theme";
+import { AppShell, BrandHeader } from "@/components/AppShell";
+import { ParentNav, PageHeading } from "@/components/ParentNav";
 import { AssignmentForm } from "./AssignmentForm";
 
 export default async function NewAssignmentPage() {
@@ -10,11 +11,11 @@ export default async function NewAssignmentPage() {
   ]);
 
   return (
-    <main className="min-h-screen px-4 py-6 lg:px-10 lg:py-12" style={{ background: COLORS.background, color: COLORS.text }}>
-      <Link href="/parent" className="text-sm hover:underline" style={{ color: COLORS.muted }}>
-        ← Back to week
-      </Link>
-      <h1 className="mt-4 text-2xl font-medium">New assignment</h1>
+    <AppShell>
+      <BrandHeader>
+        <ParentNav />
+      </BrandHeader>
+      <PageHeading title="New assignment" />
 
       {students.length === 0 || subjects.length === 0 ? (
         <p className="mt-8 text-sm" style={{ color: COLORS.muted }}>
@@ -23,6 +24,6 @@ export default async function NewAssignmentPage() {
       ) : (
         <AssignmentForm students={students} subjects={subjects} />
       )}
-    </main>
+    </AppShell>
   );
 }

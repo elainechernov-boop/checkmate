@@ -1,50 +1,189 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { ProjectStatus } from "@/generated/prisma/enums";
+import { parseISODate, type WeekdayCode } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
-import { parseISODate } from "@/lib/dates";
-import { createProject } from "@/lib/projects";
+import { addProjectIdea, deleteProjectIdea, promoteProjectIdea } from "@/lib/projectIdeas";
+import {
+  addBacklogTask,
+  createProject,
+  deleteProject,
+  deleteProjectTask,
+  editProjectName,
+  editProjectTargetDate,
+  editProjectTaskTitle,
+  moveProjectTask,
+  planProjectTask,
+  reorderProjects,
+  unscheduleProjectTask,
+  type PlanRecurrenceChoice,
+} from "@/lib/projects";
+import { requireParentSession } from "@/lib/session";
 
-/** §7 lets students build their own projects; this gives the parent a way
- * to start one on a student's behalf — title (and optional target date)
- * only, same as the student's own "+ New project" form — so the student
- * finds it waiting in their own Projects band and fills in the tasks. */
-export async function createProjectForStudentAction(formData: FormData) {
-  const studentId = String(formData.get("studentId") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  const targetDateISO = String(formData.get("targetDate") ?? "");
-  if (!studentId || !name) return;
+/**
+ * HOMEROOM_UX_MIGRATION.md §5.12/§11 — Parent Projects is now the sole
+ * complete authoring surface for projects, ideas, and backlog steps
+ * (Elaine's decision: students cannot create tasks). Every mutation here
+ * calls `requireParentSession()` first — the `/parent/**` middleware guard
+ * already blocks a plain page visit without a parent session, but "UI
+ * removal alone is not an authorization boundary": these are the actual
+ * server actions students' own project tools used to call directly, so
+ * each one re-checks for itself rather than trusting that only an
+ * authorized page could have reached it.
+ *
+ * The underlying lib/projects.ts and lib/projectIdeas.ts functions still
+ * take a `studentId` and throw ProjectPermissionError on a mismatch — that
+ * ownership check stays meaningful even called from here (it's what stops
+ * a stale/tampered project id from one student's board silently acting on
+ * another's), so each action below looks up the project/task/idea's real
+ * owning student first and passes that through unchanged.
+ */
 
-  await createProject(prisma, studentId, name, targetDateISO ? parseISODate(targetDateISO) : null);
+async function studentIdForProject(projectId: string): Promise<string> {
+  const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { studentId: true } });
+  return project.studentId;
+}
+
+async function studentIdForTask(taskId: string): Promise<string> {
+  const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: taskId }, select: { studentId: true } });
+  return instance.studentId;
+}
+
+async function studentIdForIdea(ideaId: string): Promise<string> {
+  const idea = await prisma.projectIdea.findUniqueOrThrow({ where: { id: ideaId }, select: { studentId: true } });
+  return idea.studentId;
+}
+
+export async function createProjectAction(studentId: string, name: string) {
+  await requireParentSession();
+  await createProject(prisma, studentId, name, null);
   revalidatePath("/parent/projects");
 }
 
-/** §7 "Optionally, the parent can assign a subject to a project" — the
- * project's completed tasks then feed into the HST report's activity log
- * under that subject; untagged projects stay out of all compliance
- * reporting (§7, §8). */
-export async function setProjectSubjectAction(formData: FormData) {
-  const projectId = String(formData.get("projectId") ?? "");
-  const subjectId = String(formData.get("subjectId") ?? "") || null;
-  if (!projectId) return;
+export async function renameProjectAction(projectId: string, name: string) {
+  await requireParentSession();
+  const studentId = await studentIdForProject(projectId);
+  await editProjectName(prisma, studentId, projectId, name);
+  revalidatePath("/parent/projects");
+}
 
+export async function setProjectTargetDateAction(projectId: string, targetDateISO: string | null) {
+  await requireParentSession();
+  const studentId = await studentIdForProject(projectId);
+  await editProjectTargetDate(prisma, studentId, projectId, targetDateISO ? parseISODate(targetDateISO) : null);
+  revalidatePath("/parent/projects");
+}
+
+/** §7 "Optionally, the parent can assign a subject to a project" — feeds
+ * the project's completed work into the HST report under that subject;
+ * untagged projects stay out of compliance reporting entirely. */
+export async function setProjectSubjectAction(projectId: string, subjectId: string | null) {
+  await requireParentSession();
   await prisma.project.update({ where: { id: projectId }, data: { subjectId } });
   revalidatePath("/parent/projects");
 }
 
-/** §7 "can edit or delete anything inappropriate" — removes the project and
- * everything under it (its series, whose RecurrenceRule cascades, and its
- * instances) rather than leaving orphaned rows with a nulled projectId. */
-export async function deleteProjectAction(formData: FormData) {
-  const projectId = String(formData.get("projectId") ?? "");
-  if (!projectId) return;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.assignmentInstance.deleteMany({ where: { projectId } });
-    await tx.assignmentSeries.deleteMany({ where: { projectId } });
-    await tx.project.delete({ where: { id: projectId } });
+/** "Mark/restore project status" (§5.12) — archiving sets it aside without
+ * deleting it; restoring returns it to the active band. Recomputing status
+ * off task completion (recomputeProjectStatus) is untouched by this — that
+ * still owns the active/completed transition; this is the parent's own
+ * archived/active toggle on top of it. */
+export async function setProjectArchivedAction(projectId: string, archived: boolean) {
+  await requireParentSession();
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { status: archived ? ProjectStatus.archived : ProjectStatus.active },
   });
+  revalidatePath("/parent/projects");
+}
 
+export async function deleteProjectAction(projectId: string) {
+  await requireParentSession();
+  const studentId = await studentIdForProject(projectId);
+  await deleteProject(prisma, studentId, projectId);
   revalidatePath("/parent/projects");
   revalidatePath("/parent");
+}
+
+export async function reorderProjectsAction(studentId: string, orderedIds: string[]) {
+  await requireParentSession();
+  await reorderProjects(prisma, studentId, orderedIds);
+  revalidatePath("/parent/projects");
+}
+
+export async function addBacklogTaskAction(projectId: string, title: string) {
+  await requireParentSession();
+  const studentId = await studentIdForProject(projectId);
+  await addBacklogTask(prisma, studentId, projectId, title);
+  revalidatePath("/parent/projects");
+}
+
+export async function editProjectTaskTitleAction(taskId: string, title: string) {
+  await requireParentSession();
+  const studentId = await studentIdForTask(taskId);
+  await editProjectTaskTitle(prisma, studentId, taskId, title);
+  revalidatePath("/parent/projects");
+}
+
+export async function deleteProjectTaskAction(taskId: string) {
+  await requireParentSession();
+  const studentId = await studentIdForTask(taskId);
+  await deleteProjectTask(prisma, studentId, taskId);
+  revalidatePath("/parent/projects");
+}
+
+export async function planProjectTaskAction(
+  taskId: string,
+  choice: PlanRecurrenceChoice,
+  startDateISO: string,
+  daysOfWeek: WeekdayCode[],
+  untilDateISO: string | null
+) {
+  await requireParentSession();
+  const studentId = await studentIdForTask(taskId);
+  await planProjectTask(prisma, studentId, taskId, {
+    choice,
+    startDate: parseISODate(startDateISO),
+    daysOfWeek,
+    untilDate: untilDateISO ? parseISODate(untilDateISO) : null,
+  });
+  revalidatePath("/parent/projects");
+  revalidatePath("/parent");
+}
+
+export async function moveProjectTaskAction(taskId: string, newDueDateISO: string) {
+  await requireParentSession();
+  const studentId = await studentIdForTask(taskId);
+  await moveProjectTask(prisma, studentId, taskId, parseISODate(newDueDateISO));
+  revalidatePath("/parent/projects");
+  revalidatePath("/parent");
+}
+
+export async function unscheduleProjectTaskAction(taskId: string) {
+  await requireParentSession();
+  const studentId = await studentIdForTask(taskId);
+  await unscheduleProjectTask(prisma, studentId, taskId);
+  revalidatePath("/parent/projects");
+  revalidatePath("/parent");
+}
+
+export async function addProjectIdeaAction(studentId: string, text: string) {
+  await requireParentSession();
+  await addProjectIdea(prisma, studentId, text);
+  revalidatePath("/parent/projects");
+}
+
+export async function deleteProjectIdeaAction(ideaId: string) {
+  await requireParentSession();
+  const studentId = await studentIdForIdea(ideaId);
+  await deleteProjectIdea(prisma, studentId, ideaId);
+  revalidatePath("/parent/projects");
+}
+
+export async function promoteProjectIdeaAction(ideaId: string) {
+  await requireParentSession();
+  const studentId = await studentIdForIdea(ideaId);
+  await promoteProjectIdea(prisma, studentId, ideaId);
+  revalidatePath("/parent/projects");
 }

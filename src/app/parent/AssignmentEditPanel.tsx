@@ -47,15 +47,17 @@ const fieldLabel = "block text-[0.65rem] font-medium uppercase tracking-wide";
 const fieldInput = "mt-0.5 w-full border-b bg-transparent py-1 text-xs outline-none";
 
 /**
- * The redesign's "identical inline-expand/edit pattern, on the parent's own
- * board" (README §4) — every field EditAssignmentModal used to edit inside
- * a full-screen dialog, now rendered directly beneath the row instead
- * (ParentWeekBoard's RowFrame), no backdrop or portal. Every field still
- * submits together in one `updateAssignment(formData)` call — the
+ * HOMEROOM_UX_MIGRATION.md §5.6 "Parent row editor" — this is the one
+ * recommended departure from the original "every field in the same panel"
+ * handoff. Two levels, not one: everyday fields (title, subject, estimate,
+ * details, due date, review) are always visible right here; recurrence,
+ * series scope, fixed time, and reminder lead sit behind a plain
+ * `More options →` disclosure so a simple one-off edit doesn't render a
+ * very tall, cramped card inside a ~150-200px day column. Every field
+ * still submits together in one `updateAssignment(formData)` call — the
  * Repeat/Ends/scope-picker fields are too interdependent to usefully
  * commit one at a time, so "inline" here means "in place," not "each
- * field its own round trip" (matching how the read-only student panel
- * already works: one expand, one place, not five separate saves).
+ * field its own round trip."
  */
 export function EditPanel({
   instance,
@@ -74,6 +76,14 @@ export function EditPanel({
   const [endCondition, setEndCondition] = useState<string>(instance.series?.endCondition ?? "never");
   const [timeSensitive, setTimeSensitive] = useState(instance.isTimeSensitive);
   const [deleting, setDeleting] = useState(false);
+  // §5.6 — open by default only when an advanced field is already populated
+  // (a recurring/time-sensitive item), so editing it doesn't silently hide
+  // information that's already there; otherwise collapsed.
+  const [advancedOpen, setAdvancedOpen] = useState(isSeries || instance.isTimeSensitive);
+  // §4 "Deleting and undo" — a series-wide delete needs a small inline
+  // confirmation (never a centered browser dialog); a single occurrence
+  // deletes immediately with no prompt at all, recoverable via Undo.
+  const [confirmingSeriesDelete, setConfirmingSeriesDelete] = useState(false);
 
   const showRepeatSection = !isSeries || scope !== "only";
   const showDueDate = !isSeries || scope === "only";
@@ -86,13 +96,11 @@ export function EditPanel({
   }
 
   async function handleDelete() {
-    const message =
-      !isSeries || scope === "only"
-        ? "Delete this assignment? This can't be undone."
-        : scope === "following"
-          ? "Delete this and every future occurrence in this series? Completed work is kept. This can't be undone."
-          : "Delete this entire series? Completed work is kept. This can't be undone.";
-    if (!window.confirm(message)) return;
+    const seriesWide = isSeries && scope !== "only";
+    if (seriesWide && !confirmingSeriesDelete) {
+      setConfirmingSeriesDelete(true);
+      return;
+    }
 
     setDeleting(true);
     try {
@@ -100,6 +108,7 @@ export function EditPanel({
       onSaved();
     } finally {
       setDeleting(false);
+      setConfirmingSeriesDelete(false);
     }
   }
 
@@ -112,26 +121,6 @@ export function EditPanel({
     >
       <input type="hidden" name="instanceId" value={instance.id} />
       {isSeries && <input type="hidden" name="scope" value={scope} />}
-
-      {isSeries && (
-        <div>
-          <span className={fieldLabel} style={{ color: COLORS.muted }}>
-            Applies to
-          </span>
-          <div className="mt-1 flex gap-3">
-            {SCOPE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setScope(option.value)}
-                style={{ color: scope === option.value ? COLORS.text : COLORS.mutedFaint, fontWeight: scope === option.value ? 700 : 400 }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div>
         <label className={fieldLabel} style={{ color: COLORS.muted }}>
@@ -198,133 +187,169 @@ export function EditPanel({
         </div>
       )}
 
-      <div>
-        <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
-          <input type="checkbox" checked={timeSensitive} onChange={(event) => setTimeSensitive(event.target.checked)} />
-          Happens at a set time — highlight it and remind me
-        </label>
+      <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
+        <input type="checkbox" name="requiresReview" defaultChecked={instance.requiresReview} />
+        &ldquo;Show me the work&rdquo; — require sign-off before this counts as done
+      </label>
 
-        {timeSensitive && (
-          <div className="mt-2 flex items-end gap-3">
+      {/* §5.6 — everything past this point is occasional, not everyday:
+          collapsed by default unless one of these fields was already in use
+          (see advancedOpen's initial value above). */}
+      {!advancedOpen ? (
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen(true)}
+          className="self-start"
+          style={{ color: COLORS.muted }}
+        >
+          More options →
+        </button>
+      ) : (
+        <div className="flex flex-col gap-3 border-t pt-3" style={{ borderColor: COLORS.hairline }}>
+          {isSeries && (
             <div>
-              <label className={fieldLabel} style={{ color: COLORS.muted }}>
-                Time
-              </label>
-              <input
-                type="time"
-                name="scheduledTime"
-                required
-                defaultValue={instance.scheduledTime ?? ""}
-                className={fieldInput}
-                style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
-              />
+              <span className={fieldLabel} style={{ color: COLORS.muted }}>
+                Applies to
+              </span>
+              <div className="mt-1 flex gap-3">
+                {SCOPE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setScope(option.value)}
+                    style={{ color: scope === option.value ? COLORS.text : COLORS.mutedFaint, fontWeight: scope === option.value ? 700 : 400 }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
+
+          <div>
+            <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
+              <input type="checkbox" checked={timeSensitive} onChange={(event) => setTimeSensitive(event.target.checked)} />
+              Happens at a set time — highlight it and remind me
+            </label>
+
+            {timeSensitive && (
+              <div className="mt-2 flex items-end gap-3">
+                <div>
+                  <label className={fieldLabel} style={{ color: COLORS.muted }}>
+                    Time
+                  </label>
+                  <input
+                    type="time"
+                    name="scheduledTime"
+                    required
+                    defaultValue={instance.scheduledTime ?? ""}
+                    className={fieldInput}
+                    style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                  />
+                </div>
+                <div>
+                  <label className={fieldLabel} style={{ color: COLORS.muted }}>
+                    Remind
+                  </label>
+                  <select
+                    name="reminderMinutesBefore"
+                    defaultValue={String(instance.reminderMinutesBefore ?? 10)}
+                    className={fieldInput}
+                    style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                  >
+                    {REMINDER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {showRepeatSection && (
             <div>
               <label className={fieldLabel} style={{ color: COLORS.muted }}>
-                Remind
+                Repeat
               </label>
               <select
-                name="reminderMinutesBefore"
-                defaultValue={String(instance.reminderMinutesBefore ?? 10)}
+                name="repeat"
+                value={repeat}
+                onChange={(event) => setRepeat(event.target.value)}
                 className={fieldInput}
                 style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
               >
-                {REMINDER_OPTIONS.map((option) => (
+                {REPEAT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {showRepeatSection && (
-        <div>
-          <label className={fieldLabel} style={{ color: COLORS.muted }}>
-            Repeat
-          </label>
-          <select
-            name="repeat"
-            value={repeat}
-            onChange={(event) => setRepeat(event.target.value)}
-            className={fieldInput}
-            style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
-          >
-            {REPEAT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+          {showRepeatSection && showDaysOfWeek && (
+            <div>
+              <span className={fieldLabel} style={{ color: COLORS.muted }}>
+                On these days
+              </span>
+              <div className="mt-1 flex gap-3">
+                {WEEKDAYS.map((day) => (
+                  <label key={day.code} className="flex items-center gap-1 capitalize" style={{ color: COLORS.text }}>
+                    <input type="checkbox" name="daysOfWeek" value={day.code} defaultChecked={initialDaysOfWeek.has(day.code)} />
+                    {day.code}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {showRepeatSection && showDaysOfWeek && (
-        <div>
-          <span className={fieldLabel} style={{ color: COLORS.muted }}>
-            On these days
-          </span>
-          <div className="mt-1 flex gap-3">
-            {WEEKDAYS.map((day) => (
-              <label key={day.code} className="flex items-center gap-1 capitalize" style={{ color: COLORS.text }}>
-                <input type="checkbox" name="daysOfWeek" value={day.code} defaultChecked={initialDaysOfWeek.has(day.code)} />
-                {day.code}
+          {showRepeatSection && repeat !== "none" && (
+            <div>
+              <label className={fieldLabel} style={{ color: COLORS.muted }}>
+                Ends
               </label>
-            ))}
-          </div>
-        </div>
-      )}
+              <select
+                name="endCondition"
+                value={endCondition}
+                onChange={(event) => setEndCondition(event.target.value)}
+                className={fieldInput}
+                style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+              >
+                {END_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
 
-      {showRepeatSection && repeat !== "none" && (
-        <div>
-          <label className={fieldLabel} style={{ color: COLORS.muted }}>
-            Ends
-          </label>
-          <select
-            name="endCondition"
-            value={endCondition}
-            onChange={(event) => setEndCondition(event.target.value)}
-            className={fieldInput}
-            style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
-          >
-            {END_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          {endCondition === "onDate" && (
-            <input
-              type="date"
-              name="endDate"
-              required
-              defaultValue={instance.series?.endDate ? toISODate(instance.series.endDate) : ""}
-              className={fieldInput}
-              style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
-            />
-          )}
-          {endCondition === "afterNCount" && (
-            <input
-              type="number"
-              name="endCount"
-              min={1}
-              required
-              placeholder="Number of times"
-              defaultValue={instance.series?.endCount ?? ""}
-              className={fieldInput}
-              style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
-            />
+              {endCondition === "onDate" && (
+                <input
+                  type="date"
+                  name="endDate"
+                  required
+                  defaultValue={instance.series?.endDate ? toISODate(instance.series.endDate) : ""}
+                  className={fieldInput}
+                  style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                />
+              )}
+              {endCondition === "afterNCount" && (
+                <input
+                  type="number"
+                  name="endCount"
+                  min={1}
+                  required
+                  placeholder="Number of times"
+                  defaultValue={instance.series?.endCount ?? ""}
+                  className={fieldInput}
+                  style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                />
+              )}
+            </div>
           )}
         </div>
       )}
-
-      <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
-        <input type="checkbox" name="requiresReview" defaultChecked={instance.requiresReview} />
-        &ldquo;Show me the work&rdquo; — require sign-off before this counts as done
-      </label>
 
       <div className="flex items-center gap-4">
         <button type="submit" disabled={deleting} className="font-medium" style={{ color: COLORS.text }}>
@@ -333,9 +358,21 @@ export function EditPanel({
         <button type="button" onClick={onCancel} style={{ color: COLORS.mutedFaint }}>
           Cancel
         </button>
-        <button type="button" onClick={handleDelete} disabled={deleting} className="ml-auto font-medium" style={{ color: COLORS.crimson }}>
-          Delete
-        </button>
+        {confirmingSeriesDelete ? (
+          <span className="ml-auto flex items-center gap-2">
+            <span style={{ color: COLORS.muted }}>Delete series?</span>
+            <button type="button" onClick={handleDelete} disabled={deleting} className="font-medium" style={{ color: COLORS.crimson }}>
+              Delete
+            </button>
+            <button type="button" onClick={() => setConfirmingSeriesDelete(false)} disabled={deleting} style={{ color: COLORS.muted }}>
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button type="button" onClick={handleDelete} disabled={deleting} className="ml-auto font-medium" style={{ color: COLORS.crimson }}>
+            Delete
+          </button>
+        )}
       </div>
     </form>
   );

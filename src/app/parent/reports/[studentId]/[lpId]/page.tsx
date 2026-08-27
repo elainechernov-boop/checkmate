@@ -70,7 +70,7 @@ export default async function HSTReportPage({
                     className="block h-full"
                     style={{
                       width: `${maxCategoryMinutes > 0 ? Math.round((minutes / maxCategoryMinutes) * 100) : 0}%`,
-                      background: COLORS.cobalt,
+                      background: student.accentColor,
                     }}
                   />
                 </span>
@@ -90,7 +90,7 @@ export default async function HSTReportPage({
           ) : (
             <div className="mt-2 space-y-4">
               {report.completedBySubject.map((group) => (
-                <div key={group.subjectName}>
+                <div key={group.subjectName} style={{ breakInside: "avoid" }}>
                   <h3 className="text-sm font-medium">{group.subjectName}</h3>
                   <ul className="mt-1 text-sm" style={{ color: COLORS.muted }}>
                     {group.items.map((item, index) => (

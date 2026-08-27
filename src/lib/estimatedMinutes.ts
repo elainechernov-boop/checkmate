@@ -11,13 +11,13 @@ export function formatTotalMinutes(totalMinutes: number): string {
   return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
 
-// A task with no real estimate still costs *something* — without a
-// fallback, a day full of untimed tasks reads as zero minutes of work,
-// which makes both the "N min total" footer and the minutes-progress bar
-// meaningless (a bar that's always 0/0 or undefined). Display-only, never
-// written to the database — and deliberately excluded from Reports'
-// per-subject hour totals (hstReport.ts keeps summing only real estimates,
-// since those numbers can end up in a work-sample PDF export).
+// HOMEROOM_UX_MIGRATION.md §5.4: "Do not invent 30 minutes for an
+// unestimated item. Exclude null estimates from minute totals." This
+// fallback exists only for reminders.ts's own live-state window
+// computation (an untimed time-sensitive item still needs *some* duration
+// to know when "live" ends) — it must never feed a workload total or
+// progress bar, which is why it's isolated here rather than folded into
+// minutesFor below.
 export const DEFAULT_ESTIMATED_MINUTES = 30;
 
 export interface MinutesCandidate {
@@ -26,12 +26,22 @@ export interface MinutesCandidate {
   status: InstanceStatus;
 }
 
+// Real estimate only — an instance with none contributes 0, not a guessed
+// default, to every workload total below (see hstReport.ts, which already
+// followed this same real-estimates-only rule for the same reason).
 function minutesFor(instance: MinutesCandidate): number {
-  return instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? DEFAULT_ESTIMATED_MINUTES;
+  return instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? 0;
 }
 
-/** The day/board's full estimated-minutes total, with the 30-min fallback
- * applied to any task with no real estimate. */
+/** Whether any instance in the list carries a real (non-null) estimate —
+ * callers use this to decide whether a minutes total/progress bar means
+ * anything for this set, vs. a day of entirely unestimated work where the
+ * total would misleadingly read as "0 min". */
+export function hasAnyEstimate(instances: MinutesCandidate[]): boolean {
+  return instances.some((instance) => (instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null) != null);
+}
+
+/** The day/board's full estimated-minutes total — real estimates only. */
 export function sumEstimatedMinutes(instances: MinutesCandidate[]): number {
   return instances.reduce((sum, instance) => sum + minutesFor(instance), 0);
 }

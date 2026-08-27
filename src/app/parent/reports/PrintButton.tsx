@@ -2,8 +2,10 @@
 
 import { COLORS } from "@/lib/theme";
 
-/** README §3: "a plain-text 'Export as PDF work sample →' link" — no boxed
- * button anywhere in the redesign; Safari's own Print to PDF does the rest. */
+/** HOMEROOM_UX_MIGRATION.md §5.10 — a plain-text print action; no boxed
+ * button anywhere in the redesign, and never called a "work sample PDF"
+ * (this is a meeting-prep/activity report, not a work sample). Safari's
+ * own Print to PDF does the rest. */
 export function PrintButton() {
   return (
     <button
@@ -12,7 +14,7 @@ export function PrintButton() {
       className="text-sm hover:underline print:hidden"
       style={{ color: COLORS.cobalt }}
     >
-      Export as PDF work sample →
+      Print / Save as PDF →
     </button>
   );
 }

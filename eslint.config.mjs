@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Design-handoff reference material (Canvas.dc.html + its support
+    // bundle) — not application source, and not code we own; nothing here
+    // should ever be a lint target.
+    "design_handoff_homeroom_redesign/**",
   ]),
 ]);
 

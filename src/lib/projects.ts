@@ -77,6 +77,24 @@ export async function createProject(
   });
 }
 
+/** Renaming a project (§7/§12 Parent Projects: "Create/rename/delete/
+ * reorder a project") — title only, same ownership check as every other
+ * per-project edit below. */
+export async function editProjectName(
+  prisma: ProjectsPrisma,
+  studentId: string,
+  projectId: string,
+  name: string
+): Promise<void> {
+  const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
+  if (project.studentId !== studentId) {
+    throw new ProjectPermissionError("May only rename this student's own projects.");
+  }
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Project name is required.");
+  await prisma.project.update({ where: { id: projectId }, data: { name: trimmed } });
+}
+
 /** The redesign's inline click-to-edit target-date field (replaces
  * NewProjectModal's upfront optional date field — quick-create is now
  * name-only, and this is how a student sets or changes it afterward). */

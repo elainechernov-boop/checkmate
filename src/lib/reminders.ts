@@ -48,13 +48,14 @@ const SOON_WINDOW_MINUTES = 60;
 /** README §"Time-sensitive computation" — given a clock time + estimated
  * duration, which of the four callout states (§ Screens §1.2) an item is in
  * right now: `live` (currently happening, pulsing dot), `soon` (starts
- * within an hour, a quiet cobalt callout), `later` (a plain row with a
+ * within an hour, the student's own accent), `later` (a plain row with a
  * quiet time chip), or `past` (already over). Reuses `isReminderDue`'s
- * scheduled-time parsing; the fallback duration matches the day's own
- * minutes-total fallback (estimatedMinutes.ts) so an untimed live-now item
- * still resolves to a sensible one-item-long window instead of never
- * ending. Recomputed at render, not stored — see StudentWeekView's 60s poll
- * and the 20s reminder-check interval, both of which re-render this. */
+ * scheduled-time parsing; DEFAULT_ESTIMATED_MINUTES is this computation's
+ * own fallback duration (never a workload total's — see estimatedMinutes.ts)
+ * so an untimed live-now item still resolves to a sensible one-item-long
+ * window instead of never ending. Recomputed at render, not stored — see
+ * StudentWeekView's 60s poll and the 20s reminder-check interval, both of
+ * which re-render this. */
 export function timeBadge(scheduledTime: string, estimatedMinutes: number | null, now: Date): TimeBadgeState {
   const scheduled = parseTimeOn(scheduledTime, now);
   if (!scheduled) return "past";

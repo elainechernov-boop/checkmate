@@ -1,11 +1,32 @@
 @import "tailwindcss";
 
-/* §9: one typeface, used well — a fixed palette regardless of system
- * light/dark preference, not an adaptive theme. White, matching the
- * mockup's own rendered screens exactly (see lib/theme.ts's COLORS). */
+/* HOMEROOM_UX_MIGRATION.md §3 — the one shared source of visual truth.
+ * A fixed palette regardless of system light/dark preference, not an
+ * adaptive theme. `src/lib/theme.ts`'s COLORS re-exports these same hex
+ * values for runtime use (accent rotation, JS-computed styles) — keep the
+ * two in lockstep if either changes. */
 :root {
-  --background: #ffffff;
-  --foreground: #1a1a1a;
+  --hr-ink: #1a1a1a;
+  --hr-cream: #faf7f2;
+  --hr-white: #ffffff;
+  --hr-muted: #6b6b6b;
+  --hr-faint: #a9acb2;
+  --hr-hairline: #e1e3e6;
+  --hr-dashed: #c7c2b8;
+  --hr-tennis: #d8f609;
+  --hr-cobalt: #1657ff;
+  --hr-crimson: #e8264b;
+  --hr-magenta: #f0179e;
+  --hr-seafoam: #2fd9a8;
+  --hr-poppy: #ff9500;
+  --hr-violet: #b15cff;
+  --hr-orange: #ff5e00;
+
+  /* App-wide surface: cream everywhere except Parent Mode cards (white,
+   * via SettingsCard/AppShell card treatment) and the print report (its
+   * own explicit white, unaffected by this token). */
+  --background: var(--hr-cream);
+  --foreground: var(--hr-ink);
 }
 
 @theme inline {
@@ -15,8 +36,87 @@
   --font-headline: var(--font-syncopate);
 }
 
+/* HOMEROOM_UX_MIGRATION.md §3: "Switch from the six-column layout at
+ * approximately 1100px, not blindly at Tailwind's default `lg` breakpoint."
+ * Every `lg:` utility in the app (the student/parent week grids, the
+ * calendar strip, etc.) already exists specifically to make that one
+ * six-column/single-day switch, so redefining `lg` itself here is the one
+ * change that moves all of them together, at 1100px instead of the
+ * default 1024px. */
+@theme {
+  --breakpoint-lg: 68.75rem;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Shared primitives (HOMEROOM_UX_MIGRATION.md §3 "Shared primitives to
+ * create") lean on these two utility classes rather than repeating the
+ * same inline style object at every call site. */
+
+/* FlatField / InlineEntry: transparent input, bottom hairline only —
+ * "avoid rectangular input boxes except password fields and true
+ * error/confirmation surfaces." */
+.hr-flat-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--hr-hairline);
+  color: var(--hr-ink);
+  font: inherit;
+  padding: 0.125rem 0;
+  width: 100%;
+}
+.hr-flat-input:focus {
+  outline: none;
+  border-bottom-color: var(--hr-ink);
+}
+.hr-flat-input::placeholder {
+  color: var(--hr-faint);
+}
+
+/* TextAction: an unboxed text button with a consistent focus ring —
+ * every "×", "Approve", "Delete series?" etc. controls their own color,
+ * this only standardizes reset + focus/disabled state. */
+.hr-text-action {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+.hr-text-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.hr-text-action:focus-visible,
+.hr-flat-input:focus-visible,
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--hr-cobalt);
+  outline-offset: 2px;
+}
+
+/* HoverAction: hidden on pointer-hover-capable desktops until the
+ * containing row is hovered (pair with Tailwind's `group` on the row and
+ * `group-hover:opacity-100` here) or the control itself gets keyboard
+ * focus; always visible on touch layouts, where hover has no meaning and
+ * a permanently-hidden control would be unreachable. */
+.hr-hover-action {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.hr-hover-action:focus-visible {
+  opacity: 1;
+}
+@media (hover: none), (pointer: coarse) {
+  .hr-hover-action {
+    opacity: 1;
+  }
 }
