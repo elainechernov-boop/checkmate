@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, Frequency, InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, getToday, startOfUTCDay, toISODate, WEEKDAYS, type WeekdayCode } from "./dates";
 import { isBlockedDay, loadSchoolDayMap, type SchoolDayMap } from "./schoolCalendar";
@@ -229,47 +229,87 @@ export async function materializeSeries(
         !futureKeys.has(toISODate(instance.originalDueDate!))
     )
     .map((instance) => instance.id);
+
+  // Every create/update/delete below is collected here and fired
+  // concurrently at the end (Promise.all), rather than awaited one at a
+  // time in the loop — this used to be up to MATERIALIZATION_HORIZON_DAYS
+  // (60) sequential round trips per series, harmless on local SQLite but
+  // real, compounding network latency against a hosted Postgres, on
+  // *every* page load (extendAllMaterializationHorizons runs this for
+  // every series on every visit to /parent and /student/[id]). Not
+  // `$transaction([...])`: materializeSeries is sometimes called with an
+  // already-open interactive transaction client (assignmentEdits.ts's
+  // `tx`), and nesting a batch transaction inside one deadlocks. None of
+  // these operations touch the same row as another (stale deletes, updates,
+  // and creates all target disjoint ids by construction), so they don't
+  // need atomicity with each other — only with whatever transaction the
+  // caller already has them wrapped in, which running them through the
+  // same `prisma`/`tx` client already preserves. An existing, unchanged
+  // instance is also now skipped entirely — the old code re-wrote it
+  // unconditionally on every call even when nothing about it had actually
+  // drifted from the series, which was pure wasted writes on the steady-state
+  // (nothing to materialize) case that's true on most page loads.
+  const operations: Prisma.PrismaPromise<unknown>[] = [];
+
   if (staleIds.length > 0) {
-    await prisma.assignmentInstance.deleteMany({ where: { id: { in: staleIds } } });
+    operations.push(prisma.assignmentInstance.deleteMany({ where: { id: { in: staleIds } } }));
   }
 
   for (const date of futureOccurrences) {
     const existing = existingByDate.get(toISODate(date));
     if (existing) {
       if (existing.isOverride || existing.status === InstanceStatus.done) continue;
-      await prisma.assignmentInstance.update({
-        where: { id: existing.id },
-        data: {
-          title: series.title,
-          details: series.details,
-          subjectId: series.subjectId,
-          requiresReview: series.requiresReview,
-          isTimeSensitive: series.isTimeSensitive,
-          scheduledTime: series.scheduledTime,
-          reminderMinutesBefore: series.reminderMinutesBefore,
-          estimatedMinutes: series.estimatedMinutes,
-        },
-      });
+      const driftedFromSeries =
+        existing.title !== series.title ||
+        existing.details !== series.details ||
+        existing.subjectId !== series.subjectId ||
+        existing.requiresReview !== series.requiresReview ||
+        existing.isTimeSensitive !== series.isTimeSensitive ||
+        existing.scheduledTime !== series.scheduledTime ||
+        existing.reminderMinutesBefore !== series.reminderMinutesBefore ||
+        existing.estimatedMinutes !== series.estimatedMinutes;
+      if (!driftedFromSeries) continue;
+      operations.push(
+        prisma.assignmentInstance.update({
+          where: { id: existing.id },
+          data: {
+            title: series.title,
+            details: series.details,
+            subjectId: series.subjectId,
+            requiresReview: series.requiresReview,
+            isTimeSensitive: series.isTimeSensitive,
+            scheduledTime: series.scheduledTime,
+            reminderMinutesBefore: series.reminderMinutesBefore,
+            estimatedMinutes: series.estimatedMinutes,
+          },
+        })
+      );
     } else {
-      await prisma.assignmentInstance.create({
-        data: {
-          seriesId: series.id,
-          title: series.title,
-          details: series.details,
-          studentId: series.studentId,
-          subjectId: series.subjectId,
-          projectId: series.projectId,
-          createdBy: series.createdBy,
-          dueDate: date,
-          originalDueDate: date,
-          requiresReview: series.requiresReview,
-          isTimeSensitive: series.isTimeSensitive,
-          scheduledTime: series.scheduledTime,
-          reminderMinutesBefore: series.reminderMinutesBefore,
-          estimatedMinutes: series.estimatedMinutes,
-        },
-      });
+      operations.push(
+        prisma.assignmentInstance.create({
+          data: {
+            seriesId: series.id,
+            title: series.title,
+            details: series.details,
+            studentId: series.studentId,
+            subjectId: series.subjectId,
+            projectId: series.projectId,
+            createdBy: series.createdBy,
+            dueDate: date,
+            originalDueDate: date,
+            requiresReview: series.requiresReview,
+            isTimeSensitive: series.isTimeSensitive,
+            scheduledTime: series.scheduledTime,
+            reminderMinutesBefore: series.reminderMinutesBefore,
+            estimatedMinutes: series.estimatedMinutes,
+          },
+        })
+      );
     }
+  }
+
+  if (operations.length > 0) {
+    await Promise.all(operations);
   }
 }
 
