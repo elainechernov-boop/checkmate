@@ -172,37 +172,46 @@ export function AssignmentRow({
         fontSize: "0.8125rem",
         lineHeight: 1.35,
         borderBottom: isLast && !expanded ? undefined : `1px solid ${COLORS.hairline}`,
-        // Design tokens: "1.5px top+bottom rule (not a rounded card) for
-        // time-sensitive callouts" — crimson while live, cobalt while
-        // starting soon; negative margins bleed the highlight to the day
-        // column's own edges instead of just insetting within the row.
+        // Canvas.dc.html ground truth for the live/soon callout band: a
+        // square, edge-to-edge 1.5px top+bottom rule (crimson while live,
+        // cobalt while starting soon) — never a rounded card. The negative
+        // margins bleed the tint out to the day column's own 12px padding
+        // (DayColumn.tsx) so the band spans the same width the column's
+        // hairline does, and the matching positive padding keeps the text
+        // aligned with every ordinary row above/below it.
         ...(isCallout
           ? {
               background: `${calloutColor}${calloutBackgroundAlpha}`,
               borderTop: `1.5px solid ${calloutColor}`,
               borderBottom: `1.5px solid ${calloutColor}`,
-              marginLeft: "-0.5rem",
-              marginRight: "-0.5rem",
-              marginTop: "0.25rem",
-              marginBottom: "0.25rem",
-              paddingLeft: "0.5rem",
-              paddingRight: "0.5rem",
+              marginLeft: "-0.75rem",
+              marginRight: "-0.75rem",
+              marginTop: "6px",
+              marginBottom: "6px",
+              paddingLeft: "0.75rem",
+              paddingRight: "0.75rem",
+              paddingTop: "7px",
+              paddingBottom: "7px",
             }
           : undefined),
       }}
     >
       <div className="flex items-start" style={{ gap: 7 }}>
-        {/* The row's 3px identity bar (design tokens) — subject color, or
-            the student's own accent for a project task / self-typed item. */}
-        <span aria-hidden className="mt-0.5 shrink-0 self-stretch" style={{ width: 3, minHeight: 22, background: barColor(instance, accentColor) }} />
+        {/* The row's 3px identity bar — never shown inside a live/soon
+            callout band (Canvas.dc.html has no tick there at all; the band
+            itself is the whole row's identity). Subject color, or the
+            student's own accent for a project task / self-typed item. */}
+        {!isCallout && (
+          <span aria-hidden className="mt-0.5 shrink-0 self-stretch" style={{ width: 3, minHeight: 22, background: barColor(instance, accentColor) }} />
+        )}
 
         <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
           {isCallout && (
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center gap-2">
               {badge === "live" && (
                 <motion.span
                   aria-hidden
-                  className="inline-block rounded-full"
+                  className="inline-block shrink-0 rounded-full"
                   style={{ width: 6, height: 6, background: calloutColor }}
                   animate={prefersReducedMotion ? undefined : { opacity: [1, 0.35, 1] }}
                   transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
@@ -210,7 +219,7 @@ export function AssignmentRow({
               )}
               <span
                 className="font-bold uppercase"
-                style={{ color: calloutColor, fontSize: "0.6rem", letterSpacing: "0.03em" }}
+                style={{ color: calloutColor, fontSize: "10px", letterSpacing: "0.03em" }}
               >
                 {badge === "live" ? "Live now" : `Starts in ${minutesUntil(instance.scheduledTime!, now)} min`}
               </span>
