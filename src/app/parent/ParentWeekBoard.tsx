@@ -1357,7 +1357,7 @@ function AssignedCalendarEventRow({
   const isPast = now > event.end;
   return (
     <div
-      className="group relative flex items-start gap-2 rounded-sm py-0.5 pr-1 text-xs"
+      className="group relative flex items-start gap-2 py-0.5 pr-1 text-xs"
       style={{
         background: isPast ? undefined : "rgba(22,87,255,0.07)",
         boxShadow: isPast ? undefined : `inset 3px 0 0 ${COLORS.cobalt}`,
@@ -1515,7 +1515,7 @@ function CalendarStripEventRow({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className="group flex flex-col gap-1 rounded-sm p-1.5 text-xs"
+      className="group flex flex-col gap-1 p-1.5 text-xs"
       style={{
         background: "rgba(22,87,255,0.07)",
         boxShadow: `inset 3px 0 0 ${COLORS.cobalt}`,

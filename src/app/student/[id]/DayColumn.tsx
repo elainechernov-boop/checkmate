@@ -25,7 +25,7 @@ function CalendarEventChip({ event, now }: { event: FamilyCalendarEvent; now: Da
   const isPast = now > event.end;
   return (
     <div
-      className="mb-1.5 rounded-sm py-1 text-xs"
+      className="mb-1.5 py-1 text-xs"
       style={{
         background: isPast ? undefined : "rgba(22,87,255,0.07)",
         boxShadow: isPast ? undefined : `inset 3px 0 0 ${COLORS.cobalt}`,
