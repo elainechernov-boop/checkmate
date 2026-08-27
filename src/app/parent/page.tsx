@@ -1,6 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { AppShell, BrandHeader } from "@/components/AppShell";
+import { ParentNav } from "@/components/ParentNav";
 import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
@@ -107,24 +108,18 @@ export default async function ParentPage({
   const familyCalendarEvents = rawFamilyCalendarEvents.filter((event) => !dismissedEventKeys.has(event.id));
 
   return (
-    <main className="min-h-screen px-4 py-6 lg:px-10 lg:py-12" style={{ background: COLORS.background, color: COLORS.text }}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2.5" style={{ borderColor: COLORS.hairline }}>
-        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={140} height={22} className="h-[22px] w-auto" priority />
-        <nav className="flex flex-wrap items-center gap-5" style={{ fontSize: "0.78125rem" }}>
-          <span style={{ color: COLORS.text, fontWeight: 600 }}>This Week</span>
-          <Link href="/parent/students" style={{ color: COLORS.muted }} className="hover:underline">
-            Students
-          </Link>
-          <Link href="/parent/subjects" style={{ color: COLORS.muted }} className="hover:underline">
-            Subjects
-          </Link>
-          <Link href="/parent/reports" style={{ color: COLORS.muted }} className="hover:underline">
-            Reports
-          </Link>
-          <UndoMenu entries={recentUndoLog} />
-          <ParentNavMenu />
-        </nav>
-      </div>
+    <AppShell>
+      <BrandHeader>
+        <ParentNav
+          current="week"
+          extra={
+            <>
+              <UndoMenu entries={recentUndoLog} />
+              <ParentNavMenu />
+            </>
+          }
+        />
+      </BrandHeader>
 
       <ParentWeekBoard
         students={students}
@@ -155,6 +150,6 @@ export default async function ParentPage({
           .
         </p>
       )}
-    </main>
+    </AppShell>
   );
 }

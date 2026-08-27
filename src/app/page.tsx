@@ -1,16 +1,19 @@
-import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { COLORS } from "@/lib/theme";
+import { AppShell, BrandHeader } from "@/components/AppShell";
 
 export default async function Home() {
   const students = await prisma.student.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[#FFFFFF] px-6 text-[#1A1A1A]">
-      <Image src="/homeroom-wordmark.svg" alt="homeroom" width={160} height={34} className="h-9 w-auto" priority />
-      <p className="mt-4 text-sm text-[#6B6B6B]">Who&rsquo;s working today?</p>
+    <AppShell center>
+      <BrandHeader align="center" wordmarkWidth={160} wordmarkHeight={34} />
+      <p className="mt-4 text-sm" style={{ color: COLORS.muted }}>
+        Who&rsquo;s working today?
+      </p>
 
-      <div className="mt-10 flex gap-10">
+      <div className="mt-10 flex flex-wrap justify-center gap-10">
         {students.map((student) => (
           <Link
             key={student.id}
@@ -30,9 +33,9 @@ export default async function Home() {
         ))}
       </div>
 
-      <Link href="/parent/unlock" className="mt-14 text-sm text-[#6B6B6B] hover:underline">
+      <Link href="/parent/unlock" className="mt-14 text-sm hover:underline" style={{ color: COLORS.muted }}>
         Parent Mode
       </Link>
-    </main>
+    </AppShell>
   );
 }

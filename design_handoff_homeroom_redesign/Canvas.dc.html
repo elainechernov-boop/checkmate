@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="icon" type="image/svg+xml" href="assets/homeroom-favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syncopate:wght@400;700&display=swap">
+<style>
+  body { margin: 0; background: #EFEFEA; font-family: "Inter", system-ui, sans-serif; }
+  a { color: #B5451B; }
+  a:hover { color: #1A1A1A; }
+</style>
+</helmet>
+
+<section style="display: flex; flex-direction: column; gap: 44px; padding: 48px 56px 100px; max-width: 1400px;">
+
+  <div style="display: flex; align-items: center; gap: 14px;">
+    <img src="assets/homeroom-favicon.svg" alt="" style="width: 48px; height: 48px; display: block;">
+    <img src="assets/homeroom-wordmark.svg" alt="homeroom" style="height: 34px; display: block;">
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Colors</span>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #1A1A1A; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Ink — #1A1A1A</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Text, icons</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #FAF7F2; display: block; border: 1px solid #E1E3E6;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Cream — #FAF7F2</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Page background</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #6B6B6B; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Muted — #6B6B6B</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Secondary text, meta</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #D8F609; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Tennis Ball — #D8F609</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Brand accent — logo, primary CTAs, "today"</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #F0179E; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Magenta — #F0179E</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Miles's accent</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #1657FF; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Cobalt — #1657FF</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">UI primary — "today," active states</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #E8264B; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Crimson — #E8264B</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Attention only — live now, "Show Mom"</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #2FD9A8; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Sea Foam — #2FD9A8</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Violet's accent</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="width: 90px; height: 90px; border-radius: 14px; background: #FF5E00; display: block;"></span>
+        <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Bright Orange — #FF5E00</span>
+        <span style="font-size: 11px; color: #6B6B6B; max-width: 90px;">Extra student-accent option</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Type</span>
+    <div style="display: flex; flex-direction: column; gap: 8px; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); max-width: 640px;">
+      <span style="font-family: Inter; font-weight: 700; font-size: 28px; color: #1A1A1A;">Inter 700 — day names, section labels</span>
+      <span style="font-family: Inter; font-weight: 600; font-size: 20px; color: #1A1A1A;">Inter 600 — assignment titles</span>
+      <span style="font-family: Inter; font-weight: 400; font-size: 15px; color: #1A1A1A;">Inter 400 — body copy, meta lines, times</span>
+      <span style="font-family: 'Syncopate', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; color: #1657FF;">Syncopate 700 — names &amp; project titles</span>
+      <span style="font-size: 12px; color: #6B6B6B; padding-top: 6px; border-top: 1px solid #E1E3E6; margin-top: 6px;">Inter for everything else. Syncopate is the one "fun, wide" headline font — reserved for a student's own name and project titles, so it feels like a little reward, not the everyday voice of the app. The logotype itself is a hand-drawn mark, not a font — never re-set "homeroom" in either.</span>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Keep — the completion burst</span>
+    <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #444; max-width: 700px;">The current burst (`ItemCelebration.tsx`) is: a random emoji shoots out from the tapped row with a trailing stream of sparkles, plus a sound. Keep this exactly — it's the one deliberate exception to "no chrome." The only change: recolor the sparkle trail to the brand palette below (it's currently generic confetti colors).</p>
+    <div style="position: relative; width: 280px; height: 140px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.06); display: flex; align-items: center; justify-content: center; overflow: visible;">
+      <span style="font-size: 14px; color: #6B6B6B; text-decoration: line-through;">Latin ch. 9 vocab</span>
+      <span style="position: absolute; top: 4px; left: 190px; font-size: 26px;">🎉</span>
+      <span style="position: absolute; top: 20px; left: 175px; font-size: 11px; color: #D8F609;">✦</span>
+      <span style="position: absolute; top: 45px; left: 195px; font-size: 9px; color: #F0179E;">✦</span>
+      <span style="position: absolute; top: 30px; left: 220px; font-size: 13px; color: #1657FF;">✦</span>
+      <span style="position: absolute; top: 55px; left: 160px; font-size: 8px; color: #2FD9A8;">✦</span>
+      <span style="position: absolute; top: 12px; left: 235px; font-size: 10px; color: #FF9500;">✦</span>
+    </div>
+    <span style="font-size: 11px; color: #A9ACB2; max-width: 420px;">Same random emoji, same trailing-sparkle motion and sound, launched from wherever the row was tapped — only the sparkles themselves switch to tennis-ball green, magenta, cobalt, sea foam, and poppy instead of generic confetti colors.</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Popups → inline</span>
+    <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #444; max-width: 700px;">TeuxDeux has almost no dialogs. Every modal in the current app (assignment details, new project, plan a task, passcode approval) becomes one of these two patterns instead — see HANDOFF.md for the full list.</p>
+    <div style="display: flex; gap: 28px; flex-wrap: wrap;">
+      <div style="display: flex; flex-direction: column; gap: 8px; width: 320px;">
+        <span style="font-size: 11px; color: #6B6B6B; font-weight: 600;">Student view — click the meta line, not the title</span>
+        <div style="background: #fff; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06);">
+          <div style="display: flex; align-items: flex-start; gap: 7px;">
+            <span style="width: 3px; align-self: stretch; min-height: 20px; background: #1657FF;"></span>
+            <div style="display: flex; flex-direction: column; gap: 1px;">
+              <span style="font-size: 13px; color: #1A1A1A;">Latin ch. 9 quiz</span>
+              <span style="font-size: 10.5px; color: #6B6B6B; text-decoration: underline dotted; cursor: pointer;">Latin · 15 min</span>
+            </div>
+          </div>
+          <div style="margin-top: 8px; padding: 8px 0 2px 10px; border-top: 1px solid #E1E3E6; display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-size: 12px; color: #1A1A1A;">Notes: covers ch. 9 vocab + declensions</span>
+            <span style="font-size: 12px; color: #E8264B;">Status: waiting on Mom</span>
+          </div>
+        </div>
+        <span style="font-size: 11px; color: #A9ACB2;">No "..." menu anywhere. Title click = complete it; meta-line click = expand/collapse this read-only panel. Click elsewhere to close.</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; width: 320px;">
+        <span style="font-size: 11px; color: #6B6B6B; font-weight: 600;">Parent view — same panel, fields are click-to-edit</span>
+        <div style="background: #fff; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06);">
+          <div style="display: flex; align-items: flex-start; gap: 7px;">
+            <span style="width: 3px; align-self: stretch; min-height: 20px; background: #1657FF;"></span>
+            <div style="display: flex; flex-direction: column; gap: 1px;">
+              <span style="font-size: 13px; color: #1A1A1A;">Latin ch. 9 quiz</span>
+              <span style="font-size: 10.5px; color: #6B6B6B; text-decoration: underline dotted; cursor: pointer;">Latin · 15 min</span>
+            </div>
+          </div>
+          <div style="margin-top: 8px; padding: 8px 0 2px 10px; border-top: 1px solid #E1E3E6; display: flex; flex-direction: column; gap: 6px;">
+            <input value="Covers ch. 9 vocab + declensions" style="border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 2px 0; font-size: 12px; outline: none; width: 100%; font-family: Inter; color: #1A1A1A;">
+            <span style="font-size: 12px; color: #1A1A1A;">Due: <span style="text-decoration: underline dotted; cursor: pointer;">Sep 10</span></span>
+            <span style="font-size: 11px; color: #E8264B;">Delete this assignment</span>
+          </div>
+        </div>
+        <span style="font-size: 11px; color: #A9ACB2;">Same expand, no separate "edit mode" toggle — every field is just always click-to-edit for whoever's allowed to.</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; width: 320px;">
+        <span style="font-size: 11px; color: #6B6B6B; font-weight: 600;">Was "+ New project" → now a blank line</span>
+        <div style="background: #fff; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 13px; color: #1A1A1A; font-weight: 600;">Bird feeder <span style="font-size: 11px; color: #6B6B6B; font-weight: 400;">by Oct 4</span></span>
+          <span style="font-size: 12px; color: #1A1A1A; padding: 2px 0; border-bottom: 1px solid #E1E3E6;">Cut the roof pieces</span>
+          <input placeholder="Add a step" style="border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 12px; outline: none; width: 100%; font-family: Inter;">
+          <input placeholder="Start a new project, press Enter" style="border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 12px; outline: none; width: 100%; font-family: Inter; color: #A9ACB2; font-style: italic;">
+        </div>
+        <span style="font-size: 11px; color: #A9ACB2;">"Plan it" turns the task row's own date into a click-to-edit field, right there — no separate dialog.</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Screen — student week (complete)</span>
+    <div style="background: #FFFFFF; border: 1px solid #E1E3E6; border-radius: 4px; padding: 26px 30px 30px;">
+      <div style="padding-bottom: 16px;">
+        <img src="assets/homeroom-wordmark.svg" alt="homeroom" style="height: 18px; display: block;">
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 18px; border-bottom: 2px solid #1A1A1A;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <span style="font-family: 'Syncopate', sans-serif; font-weight: 700; font-size: 19px; letter-spacing: .03em; text-transform: uppercase; color: #1657FF; cursor: pointer; border-bottom: 1px dashed #1657FF;" title="Tap to change my color">Miles's Week</span>
+          <span style="font-size: 12px; color: #6B6B6B;">Sep 8 – 13</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <span style="font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1657FF;">4-day streak · 2/6 today</span>
+          <span style="font-size: 12px; color: #6B6B6B; letter-spacing: .04em; text-transform: uppercase;">← Prev week &nbsp;&nbsp; Next week →</span>
+        </div>
+      </div>
+      <p style="margin: 6px 0 0; font-size: 11px; color: #A9ACB2;">Tap Miles's own name to cycle his color — each tap advances to the next one, becomes his "today" and accent color everywhere on his board.</p>
+
+      <div style="display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 0;">
+        <!-- MON — all done -->
+        <div style="display: flex; flex-direction: column; padding: 10px 12px 0; border-left: 1px solid #E1E3E6;">
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1A1A1A;">Mon</span>
+          <span style="font-size: 10.5px; color: #6B6B6B; padding-top: 2px; text-transform: uppercase;">Sep 8 · 3/3 done</span>
+          <span style="height: 3px; background: #E1E3E6; display: block; margin: 5px 0 6px;"><span style="height: 3px; width: 100%; background: #1657FF; display: block;"></span></span>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #E1E3E6;"></span>
+            <span style="font-size: 13px; color: #6B6B6B; text-decoration: line-through;">Saxon 6 — Lesson 42</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #E1E3E6;"></span>
+            <span style="font-size: 13px; color: #6B6B6B; text-decoration: line-through;">Latin ch. 9 vocab</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #E1E3E6;"></span>
+            <span style="font-size: 13px; color: #6B6B6B; text-decoration: line-through;">Read ch. 4, Wind in the Willows</span>
+          </div>
+          <span style="margin-top: auto; padding-top: 10px; font-size: 10.5px; color: #A9ACB2;">65 min total</span>
+        </div>
+        <!-- TUE — mixed -->
+        <div style="display: flex; flex-direction: column; padding: 10px 12px 0; border-left: 1px solid #E1E3E6;">
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1A1A1A;">Tue</span>
+          <span style="font-size: 10.5px; color: #6B6B6B; padding-top: 2px; text-transform: uppercase;">Sep 9 · 2/3 done</span>
+          <span style="height: 3px; background: #E1E3E6; display: block; margin: 5px 0 6px;"><span style="height: 3px; width: 67%; background: #1657FF; display: block;"></span></span>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #E1E3E6;"></span>
+            <span style="font-size: 13px; color: #6B6B6B; text-decoration: line-through;">Saxon 6 — Lesson 43</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #E1E3E6;"></span>
+            <span style="font-size: 13px; color: #6B6B6B; text-decoration: line-through;">Narration: the river bank</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #1A1A1A;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">Watercolor study <span style="color: #6B6B6B; font-size: 10.5px;">· Art · 25 min</span></span>
+          </div>
+          <span style="margin-top: auto; padding-top: 10px; font-size: 10.5px; color: #A9ACB2;">75 min total</span>
+        </div>
+        <!-- WED — today, every state -->
+        <div style="display: flex; flex-direction: column; padding: 10px 12px 0; border-left: 1px solid #E1E3E6;">
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1657FF;">Wed</span>
+          <span style="font-size: 10.5px; color: #6B6B6B; padding-top: 2px; text-transform: uppercase;">Sep 10 · 1/5 done</span>
+          <span style="height: 3px; background: #E1E3E6; display: block; margin: 5px 0 6px;"><span style="height: 3px; width: 12%; background: #1657FF; display: block;"></span></span>
+
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 7px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 22px; background: #1657FF;"></span>
+            <span style="font-size: 12.5px; color: #1A1A1A;">Rock collection labels <span style="color: #E8264B; font-weight: 700; font-size: 10.5px;" title="Rolled forward 2 days">»»</span></span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; padding: 7px 0; margin: 6px 0; border-top: 1.5px solid #E8264B; border-bottom: 1.5px solid #E8264B; background: rgba(232,38,75,.1);">
+            <span style="width: 6px; height: 6px; border-radius: 999px; background: #E8264B; flex-shrink: 0;"></span>
+            <div style="display: flex; flex-direction: column; gap: 1px;">
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #E8264B;">Live now</span>
+              <span style="font-size: 12.5px; color: #1A1A1A;">Zoom: Book Club Circle</span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 6px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 22px; background: #F0179E;"></span>
+            <span style="font-size: 12.5px; color: #1A1A1A;">Build the volcano base <span style="color: #F0179E; font-size: 10.5px;">· Volcano</span></span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px; padding: 8px 0 4px;">
+            <span style="flex: 1; height: 1px; background: #E1E3E6;"></span>
+            <span style="font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: #6B6B6B; font-weight: 700;">Afternoon</span>
+            <span style="flex: 1; height: 1px; background: #E1E3E6;"></span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; padding: 7px 0; margin-bottom: 6px; border-top: 1.5px solid #1657FF; border-bottom: 1.5px solid #1657FF; background: rgba(22,87,255,.08);">
+            <div style="display: flex; flex-direction: column; gap: 1px;">
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #1657FF;">Starts in 45 min</span>
+              <span style="font-size: 12.5px; color: #1A1A1A;">Piano lesson</span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 6px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 22px; background: #1A1A1A;"></span>
+            <span style="font-size: 12.5px; color: #1A1A1A;">Latin ch. 9 quiz <span style="color: #E8264B; font-weight: 700; font-size: 10.5px;">✋ Mom 🔑</span></span>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 6px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 22px; background: #E1E3E6;"></span>
+            <span style="font-size: 12.5px; color: #6B6B6B; text-decoration: line-through;">Copywork — psalm 23</span>
+          </div>
+
+          <input placeholder="Type here, press Enter" style="margin-top: 6px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 5px 0; font-size: 12.5px; outline: none; width: 100%; font-family: Inter; color: #1A1A1A;">
+          <span style="margin-top: auto; padding-top: 10px; font-size: 10.5px; color: #A9ACB2;">120 min total</span>
+        </div>
+        <!-- THU -->
+        <div style="display: flex; flex-direction: column; padding: 10px 12px 0; border-left: 1px solid #E1E3E6;">
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1A1A1A;">Thu</span>
+          <span style="font-size: 10.5px; color: #6B6B6B; padding-top: 2px; text-transform: uppercase;">Sep 11 · 0/3 done</span>
+          <span style="height: 3px; background: #E1E3E6; display: block; margin: 5px 0 6px;"><span style="height: 3px; width: 0%; background: #1657FF; display: block;"></span></span>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #1A1A1A;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">Saxon 6 — Lesson 45 <span style="color: #6B6B6B; font-size: 10.5px;">· Math · 30 min</span></span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #1A1A1A;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">History: Rome timeline <span style="color: #6B6B6B; font-size: 10.5px;">· History · 25 min</span></span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #F0179E;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">Paint the volcano <span style="color: #F0179E; font-size: 10.5px;">· Volcano</span></span>
+          </div>
+          <span style="margin-top: auto; padding-top: 10px; font-size: 10.5px; color: #A9ACB2;">75 min total</span>
+        </div>
+        <!-- FRI -->
+        <div style="display: flex; flex-direction: column; padding: 10px 12px 0; border-left: 1px solid #E1E3E6;">
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1A1A1A;">Fri</span>
+          <span style="font-size: 10.5px; color: #6B6B6B; padding-top: 2px; text-transform: uppercase;">Sep 12 · 0/3 done</span>
+          <span style="height: 3px; background: #E1E3E6; display: block; margin: 5px 0 6px;"><span style="height: 3px; width: 0%; background: #1657FF; display: block;"></span></span>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #1A1A1A;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">Saxon 6 — Test 8 <span style="color: #6B6B6B; font-size: 10.5px;">· Math · 40 min</span></span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #1A1A1A;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">Latin chapter 10 <span style="color: #6B6B6B; font-size: 10.5px;">· Latin · 20 min</span></span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #1A1A1A;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">Nature journal walk <span style="color: #6B6B6B; font-size: 10.5px;">· Science · 30 min · Today at 3:30</span></span>
+          </div>
+          <span style="margin-top: auto; padding-top: 10px; font-size: 10.5px; color: #A9ACB2;">90 min total</span>
+        </div>
+        <!-- SAT -->
+        <div style="display: flex; flex-direction: column; padding: 10px 12px 0; border-left: 1px solid #E1E3E6;">
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1A1A1A;">Sat</span>
+          <span style="font-size: 10.5px; color: #6B6B6B; padding-top: 2px; text-transform: uppercase;">Sep 13 · 0/1 done</span>
+          <span style="height: 3px; background: #E1E3E6; display: block; margin: 5px 0 6px;"><span style="height: 3px; width: 0%; background: #1657FF; display: block;"></span></span>
+          <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+            <span style="width: 3px; align-self: stretch; min-height: 24px; background: #1A1A1A;"></span>
+            <span style="font-size: 13px; color: #1A1A1A;">Scout badge meeting <span style="color: #E8264B; font-weight: 700; font-size: 10.5px;">9:00 AM</span></span>
+          </div>
+          <span style="margin-top: auto; padding-top: 10px; font-size: 10.5px; color: #A9ACB2;">60 min total</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 22px; padding-top: 18px; border-top: 2px solid #1A1A1A; display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #6B6B6B; font-weight: 700;">Projects</span>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          <div style="width: 240px; display: flex; flex-direction: column; gap: 6px; padding-left: 16px; border-left: 1px solid #E1E3E6;">
+            <span style="font-family: 'Syncopate', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #1A1A1A;">Volcano <span style="font-family: Inter; font-size: 11px; letter-spacing: normal; text-transform: none; color: #6B6B6B; font-weight: 400;">by Sep 20</span></span>
+            <span style="height: 3px; background: #E1E3E6; display: block;"><span style="height: 3px; width: 45%; background: #1657FF; display: block;"></span></span>
+            <span style="font-size: 12px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; align-items: center; justify-content: space-between;">Mix the plaster <span style="font-size: 11px; color: #1657FF;">Plan it</span></span>
+            <span style="font-size: 12px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; align-items: center; justify-content: space-between;">Write the label card <span style="font-size: 11px; color: #1657FF;">Plan it</span></span>
+            <input placeholder="Add a step" style="border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 4px 0; font-size: 12px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="width: 240px; display: flex; flex-direction: column; gap: 6px; padding-left: 16px; border-left: 1px solid #E1E3E6;">
+            <span style="font-family: 'Syncopate', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #1A1A1A;">Bird feeder <span style="font-family: Inter; font-size: 11px; letter-spacing: normal; text-transform: none; color: #6B6B6B; font-weight: 400;">by Oct 4</span></span>
+            <span style="height: 3px; background: #E1E3E6; display: block;"><span style="height: 3px; width: 20%; background: #1657FF; display: block;"></span></span>
+            <span style="font-size: 12px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; align-items: center; justify-content: space-between;">Cut the roof pieces <span style="font-size: 11px; color: #1657FF;">Plan it</span></span>
+            <input placeholder="Add a step" style="border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 4px 0; font-size: 12px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+        </div>
+        <span style="font-size: 12px; color: #A9ACB2;">▸ Finished (1)</span>
+      </div>
+      <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 4px; max-width: 360px;">
+        <span style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #6B6B6B; font-weight: 700;">Someday</span>
+        <span style="font-size: 13px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; align-items: center; justify-content: space-between;">Learn to whittle a spoon <span style="font-size: 11px; color: #1657FF;">→ Start project</span></span>
+        <span style="font-size: 13px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; align-items: center; justify-content: space-between;">Comic about the cat <span style="font-size: 11px; color: #1657FF;">→ Start project</span></span>
+        <input placeholder="Type an idea, press Enter" style="border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 5px 0; font-size: 13px; outline: none; width: 100%; font-family: Inter;">
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Screen — parent mode (complete)</span>
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px 10px; border-bottom: 1px solid #E1E3E6;">
+        <div>
+          <img src="assets/homeroom-wordmark.svg" alt="homeroom" style="height: 22px; display: block;">
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px; font-size: 12.5px; color: #6B6B6B;">
+          <span style="color: #1A1A1A; font-weight: 600;">This Week</span>
+          <span>Students</span>
+          <span>Subjects</span>
+          <span>Reports</span>
+          <span style="color: #A9ACB2;">⋯</span>
+        </div>
+      </div>
+
+      <div style="background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06);">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #E1E3E6;">
+          <span style="font-family: Inter; font-weight: 700; font-size: 17px; color: #1A1A1A;">This Week — Family Calendar</span>
+          <span style="font-size: 11.5px; color: #6B6B6B;">from your Google Calendar</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 0; padding-top: 12px;">
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">MON</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; margin-top: 6px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 4px;">
+                <span style="font-size: 11.5px; color: #1A1A1A;">Orthodontist — Miles</span>
+                <span style="font-size: 10px; color: #A9ACB2;">✕</span>
+              </div>
+              <span style="font-size: 10px; font-weight: 700; color: #1657FF;">2:00 PM</span>
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 9px; color: #A9ACB2;">drag to a kid, or →</span>
+                <span style="width: 16px; height: 16px; border-radius: 999px; background: #F0179E; color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center;">M</span>
+                <span style="width: 16px; height: 16px; border-radius: 999px; background: #2FD9A8; color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center;">V</span>
+              </div>
+            </div>
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6;"><span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">TUE</span></div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6;"><span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">WED</span></div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">THU</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; margin-top: 6px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <span style="font-size: 11.5px; color: #1A1A1A;">Teacher workday</span>
+              <span style="font-size: 10px; font-weight: 700; color: #1657FF;">All day</span>
+            </div>
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">FRI</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; margin-top: 6px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <span style="font-size: 11.5px; color: #1A1A1A;">Soccer practice</span>
+              <span style="font-size: 10px; font-weight: 700; color: #1657FF;">5:00 PM</span>
+              <span style="width: 16px; height: 16px; border-radius: 999px; background: #2FD9A8; color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center;">V</span>
+            </div>
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">SAT</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; margin-top: 6px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <span style="font-size: 11.5px; color: #1A1A1A;">Family bike ride</span>
+              <span style="font-size: 10px; font-weight: 700; color: #1657FF;">10:00 AM</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Miles's full board -->
+      <div style="background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06);">
+        <div style="display: flex; align-items: baseline; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid #E1E3E6;">
+          <span style="font-family: 'Syncopate', sans-serif; font-weight: 700; font-size: 17px; letter-spacing: .04em; text-transform: uppercase; color: #F0179E;">Miles</span>
+          <span style="font-size: 11.5px; color: #6B6B6B;">Sep 8 – 13</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 0; padding-top: 10px;">
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 170px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">MON</span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #E1E3E6; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #6B6B6B; text-decoration: line-through;">Saxon 6 — Lesson 42</span>
+            </div>
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 4px; padding: 5px 6px; margin-top: 4px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <span style="font-size: 11px; color: #1A1A1A;">Orthodontist <span style="color: #1657FF; font-weight: 700;">· 2:00 PM</span></span>
+              <span style="font-size: 10px; color: #A9ACB2;">✕</span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 170px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">TUE</span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #E1E3E6; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #6B6B6B; text-decoration: line-through;">Watercolor study</span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 170px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1657FF;">WED <span style="font-size: 9px; font-weight: 400; color: #E8264B; text-transform: uppercase;">· Field trip</span></span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 8px 0 5px;">
+              <span style="flex: 1; height: 1px; background: #E1E3E6;"></span>
+              <span style="font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; color: #6B6B6B; font-weight: 700;">Morning</span>
+              <span style="flex: 1; height: 1px; background: #E1E3E6;"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #1A1A1A;">Aquarium field trip</span>
+            </div>
+            <input placeholder="+ Add" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 170px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">THU</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; padding: 5px 6px; margin-bottom: 4px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <span style="font-size: 11px; color: #1A1A1A;">Teacher workday <span style="color: #1657FF; font-weight: 700;">· All day</span></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #1A1A1A;">History: Rome timeline</span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 170px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">FRI</span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #1A1A1A;">Saxon 6 — Test 8</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #1A1A1A;">Latin chapter 10</span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 170px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">SAT</span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #1A1A1A;">Scout badge meeting <span style="color: #E8264B; font-weight: 700; font-size: 10px;">9:00</span></span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+        </div>
+        <div style="display: flex; gap: 18px; padding-top: 10px; margin-top: 6px; border-top: 1px solid #E1E3E6;">
+          <span style="font-size: 10.5px; color: #A9ACB2;">65 min total</span>
+          <span style="font-size: 10.5px; color: #A9ACB2;">Pending review: Latin quiz — <span style="color: #1657FF;">Approve</span> · <span style="color: #6B6B6B;">Return</span></span>
+        </div>
+      </div>
+
+      <!-- Violet's full board -->
+      <div style="background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06);">
+        <div style="display: flex; align-items: baseline; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid #E1E3E6;">
+          <span style="font-family: 'Syncopate', sans-serif; font-weight: 700; font-size: 17px; letter-spacing: .04em; text-transform: uppercase; color: #2FD9A8;">Violet</span>
+          <span style="font-size: 11.5px; color: #6B6B6B;">Sep 8 – 13</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 0; padding-top: 10px;">
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 150px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">MON</span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #E1E3E6; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #6B6B6B; text-decoration: line-through;">Handwriting practice</span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 150px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">TUE</span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #1A1A1A;">Phonics — blend th</span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 150px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1657FF;">WED</span>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #E1E3E6;">
+              <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+              <span style="font-size: 12px; color: #1A1A1A;">Latin chapter 9</span>
+            </div>
+            <input placeholder="+ Add" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 150px;">
+            <span style="font-size: 11px; font-weight: 700; color: #A9ACB2;">THU <span style="font-size: 9px; text-transform: uppercase;">· Sick day</span></span>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 150px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">FRI</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; padding: 5px 6px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <span style="font-size: 11px; color: #1A1A1A;">Soccer practice <span style="color: #1657FF; font-weight: 700;">· 5:00 PM</span></span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+          <div style="padding: 0 10px; border-left: 1px solid #E1E3E6; min-height: 150px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A1A;">SAT</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; padding: 5px 6px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+              <span style="font-size: 11px; color: #1A1A1A;">Family bike ride <span style="color: #1657FF; font-weight: 700;">· 10:00 AM</span></span>
+            </div>
+            <input placeholder="Type here, press Enter" style="margin-top: 5px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 3px 0; font-size: 11.5px; outline: none; width: 100%; font-family: Inter;">
+          </div>
+        </div>
+        <div style="padding-top: 10px; margin-top: 6px; border-top: 1px solid #E1E3E6;">
+          <span style="font-size: 10.5px; color: #A9ACB2;">30 min total</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Parent Mode — reports &amp; calendar settings</span>
+    <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+      <div style="background: #fff; border-radius: 12px; padding: 18px 22px; box-shadow: 0 1px 3px rgba(0,0,0,.06); width: 320px;">
+        <span style="font-size: 15px; font-weight: 700; color: #1A1A1A;">Reports</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
+          <span style="font-size: 12px; color: #1A1A1A; font-weight: 600;">Miles <span style="color: #6B6B6B; font-weight: 400;">— this week</span></span>
+          <span style="font-size: 12px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; justify-content: space-between;">Math <span style="color: #6B6B6B;">3.5 hrs</span></span>
+          <span style="font-size: 12px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; justify-content: space-between;">ELA <span style="color: #6B6B6B;">2.2 hrs</span></span>
+          <span style="font-size: 12px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; justify-content: space-between;">Latin <span style="color: #6B6B6B;">1.8 hrs</span></span>
+          <span style="font-size: 11px; color: #1657FF; padding-top: 6px;">Export as PDF work sample →</span>
+        </div>
+      </div>
+      <div style="background: #fff; border-radius: 12px; padding: 18px 22px; box-shadow: 0 1px 3px rgba(0,0,0,.06); width: 320px;">
+        <span style="font-size: 15px; font-weight: 700; color: #1A1A1A;">Family Calendar</span>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px;">
+          <span style="font-size: 11px; color: #6B6B6B; text-transform: uppercase; letter-spacing: .04em;">Calendar (.ics) link</span>
+          <input value="https://calendar.google.com/…/basic.ics" style="border: 0; border-bottom: 1px solid #E1E3E6; background: transparent; padding: 5px 0; font-size: 12px; outline: none; width: 100%; font-family: Inter; color: #1A1A1A;">
+          <span style="font-size: 11px; color: #6B6B6B; padding-top: 8px;">Hidden events</span>
+          <span style="font-size: 12px; color: #1A1A1A; padding: 3px 0; border-bottom: 1px solid #E1E3E6; display: flex; justify-content: space-between;">Dentist reminder <span style="color: #1657FF; font-size: 11px;">Show again</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <span style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6B6B6B; font-weight: 600;">Mobile — single-day pager</span>
+    <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #444; max-width: 700px;">Below the 6-column breakpoint, both screens swap the week grid for one day at a time — swipe or tap a dot to move days. Same rows, same rules, same tap/hover-reveal/blank-input behavior; only the layout narrows to one column.</p>
+    <div style="display: flex; gap: 24px;">
+      <div style="width: 300px; border: 1px solid #1A1A1A; border-radius: 22px; padding: 16px 14px 20px; background: #FFFFFF;">
+        <img src="assets/homeroom-wordmark.svg" alt="homeroom" style="height: 16px; display: block; margin-bottom: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 11px; color: #6B6B6B;">← </span>
+          <span style="font-size: 16px; font-weight: 700; text-transform: uppercase; color: #1657FF;">Wed · Sep 10</span>
+          <span style="font-size: 11px; color: #6B6B6B;"> →</span>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 5px; padding: 6px 0 12px;">
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #1657FF;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 7px 0; margin-bottom: 6px; border-top: 1.5px solid #E8264B; border-bottom: 1.5px solid #E8264B; background: rgba(232,38,75,.1);">
+          <span style="width: 6px; height: 6px; border-radius: 999px; background: #E8264B; animation: pulse2 1.4s ease-in-out infinite;"></span>
+          <div style="display: flex; flex-direction: column; gap: 1px;">
+            <span style="font-size: 9.5px; font-weight: 700; color: #E8264B;">LIVE NOW</span>
+            <span style="font-size: 13px; color: #1A1A1A;">Zoom: Book Club Circle</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+          <span style="width: 3px; align-self: stretch; min-height: 22px; background: #1A1A1A;"></span>
+          <span style="font-size: 13px; color: #1A1A1A;">Latin ch. 9 quiz <span style="color: #E8264B; font-weight: 700; font-size: 10.5px;">✋ Mom</span></span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 0; border-bottom: 1px solid #E1E3E6;">
+          <span style="width: 3px; align-self: stretch; min-height: 22px; background: #E1E3E6;"></span>
+          <span style="font-size: 13px; color: #6B6B6B; text-decoration: line-through;">Copywork — psalm 23</span>
+        </div>
+        <input placeholder="Type here, press Enter" style="margin-top: 8px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 6px 0; font-size: 13px; outline: none; width: 100%; font-family: Inter;">
+      </div>
+      <div style="width: 300px; border: 1px solid #1A1A1A; border-radius: 22px; padding: 16px 14px 20px; background: #FFFFFF;">
+        <img src="assets/homeroom-wordmark.svg" alt="homeroom" style="height: 16px; display: block; margin-bottom: 10px;">
+        <span style="font-size: 11px; color: #6B6B6B; text-transform: uppercase;">Parent Mode · Miles</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 2px;">
+          <span style="font-size: 11px; color: #6B6B6B;">← </span>
+          <span style="font-size: 16px; font-weight: 700; text-transform: uppercase; color: #F0179E;">Wed · Sep 10</span>
+          <span style="font-size: 11px; color: #6B6B6B;"> →</span>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 5px; padding: 6px 0 12px;">
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #F0179E;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+          <span style="width: 5px; height: 5px; border-radius: 999px; background: #E1E3E6;"></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; margin-bottom: 6px; border-radius: 3px; background: rgba(22,87,255,.07); border-left: 3px solid #1657FF;">
+          <span style="font-size: 12px; color: #1A1A1A;">Orthodontist <span style="color: #1657FF; font-weight: 700;">· 2:00 PM</span></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; padding: 7px 0; border-bottom: 1px solid #E1E3E6;">
+          <span style="width: 3px; height: 16px; background: #1A1A1A; border-radius: 2px;"></span>
+          <span style="font-size: 13px; color: #1A1A1A;">Latin ch. 9 quiz</span>
+        </div>
+        <input placeholder="+ Add" style="margin-top: 8px; border: 0; border-bottom: 1px dashed #C7C2B8; background: transparent; padding: 6px 0; font-size: 13px; outline: none; width: 100%; font-family: Inter;">
+      </div>
+    </div>
+    <span style="font-size: 11px; color: #A9ACB2;">No drag on mobile (it would fight the swipe gesture) — delete is always-visible here instead of hover-reveal, since there's no hover on touch.</span>
+  </div>
+
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:900}}"></script>
+</body>
+</html>
