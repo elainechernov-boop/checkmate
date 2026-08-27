@@ -1158,7 +1158,7 @@ function RowFrame({
         }}
         aria-label={`Delete ${instance.title}`}
         title="Delete"
-        className="absolute right-0.5 top-0.5 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1211,7 +1211,7 @@ function SeparatorRow({ separator, onDelete }: { separator: DaySeparator; onDele
         }}
         aria-label={`Delete ${separator.label} separator`}
         title="Delete"
-        className="absolute right-0.5 top-1 rounded px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
+        className="absolute right-0.5 top-1 px-1 text-xs text-[#A9ACB2] opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
       >
         ✕
       </button>
@@ -1384,7 +1384,7 @@ function AssignedCalendarEventRow({
         }}
         aria-label={`Remove "${event.title}" from this board`}
         title="Remove from this board"
-        className="shrink-0 rounded px-1 text-xs opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
+        className="shrink-0 px-1 text-xs opacity-100 transition-opacity lg:opacity-0 hover:text-[#1A1A1A] lg:group-hover:opacity-100"
         style={{ color: COLORS.muted }}
       >
         ✕
