@@ -8,12 +8,12 @@ export default async function Home() {
 
   return (
     <AppShell center>
-      <BrandHeader align="center" wordmarkWidth={160} wordmarkHeight={34} />
-      <p className="mt-4 text-sm" style={{ color: COLORS.muted }}>
+      <BrandHeader align="center" wordmarkWidth={155} wordmarkHeight={33} />
+      <p className="mt-7" style={{ color: COLORS.muted, fontSize: 12 }}>
         Who&rsquo;s working today?
       </p>
 
-      <div className="mt-10 flex flex-wrap justify-center gap-10">
+      <div className="mt-[18px] flex flex-wrap justify-center gap-x-6 gap-y-[18px]">
         {students.map((student) => (
           <Link
             key={student.id}
@@ -33,7 +33,7 @@ export default async function Home() {
         ))}
       </div>
 
-      <Link href="/parent/unlock" className="mt-14 text-sm hover:underline" style={{ color: COLORS.muted }}>
+      <Link href="/parent/unlock" className="mt-7 hover:underline" style={{ color: COLORS.muted, fontSize: 12 }}>
         Parent Mode
       </Link>
     </AppShell>
