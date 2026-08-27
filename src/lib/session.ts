@@ -1,4 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
 
 export const FAMILY_COOKIE = "checkmate_family";
 export const PARENT_COOKIE = "checkmate_parent";
@@ -47,6 +48,26 @@ export function verifyFamilySession(token: string | undefined): boolean {
 
 export function verifyParentSession(token: string | undefined): boolean {
   return !!token && verify(token, "parent");
+}
+
+/**
+ * HOMEROOM_UX_MIGRATION.md §11 authorization: "Apply the check inside
+ * parent-only server actions, especially project and idea mutation.
+ * Middleware protects pages, but the actions themselves must not rely
+ * solely on a hidden UI." The `/parent/**` middleware guard in proxy.ts
+ * already blocks a normal page visit without a parent session, but a
+ * Server Action is its own callable endpoint — this is the same check,
+ * called directly inside the action so removing/hiding a button is never
+ * the only thing standing between a family-session browser and a
+ * parent-only mutation. Throws (rather than redirecting) since actions
+ * run inside the fetch a form/mutation triggered, not a page navigation.
+ */
+export async function requireParentSession(): Promise<void> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(PARENT_COOKIE)?.value;
+  if (!verifyParentSession(token)) {
+    throw new Error("Parent Mode session required.");
+  }
 }
 
 /** Constant-time comparison of two secrets, regardless of their length. */
