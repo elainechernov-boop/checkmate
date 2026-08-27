@@ -358,13 +358,13 @@ export function ParentWeekBoard({
 
   return (
     <>
-      <div className="mt-8 flex items-center justify-between text-sm">
+      <div className="mt-5 flex items-center justify-between text-sm">
         <Link href={`/parent?week=${prevWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
           ← Prev week
         </Link>
         {!isCurrentWeek && (
           <Link href="/parent" className="px-1 text-[#6B6B6B] hover:underline">
-            📅 Today
+            Today
           </Link>
         )}
         <Link href={`/parent?week=${nextWeek}`} className="px-1 text-[#6B6B6B] hover:underline">
@@ -472,10 +472,10 @@ export function ParentWeekBoard({
       <div role="alert" aria-live="assertive">
         {actionError && (
           <div
-            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm shadow-lg"
-            style={{ background: COLORS.crimson, color: COLORS.white }}
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+            style={{ background: COLORS.white, padding: "5px 8px" }}
           >
-            {actionError}
+            <span style={{ color: COLORS.crimson, fontSize: 11.5 }}>{actionError}</span>
           </div>
         )}
       </div>
@@ -629,10 +629,10 @@ function StudentBoard({
 
   return (
     <section
-      className={`mt-6 rounded-xl p-5 ${mobileActive ? "" : "hidden lg:block"}`}
-      style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}
+      className={`mt-5 rounded-xl ${mobileActive ? "" : "hidden lg:block"}`}
+      style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)", padding: "20px 24px" }}
     >
-      <div className="flex items-baseline gap-3 border-b pb-3" style={{ borderColor: COLORS.hairline }}>
+      <div className="flex items-baseline gap-3.5 border-b pb-3" style={{ borderColor: COLORS.hairline }}>
         <Link
           href={`/student/${student.id}`}
           className="hover:underline"
@@ -647,9 +647,7 @@ function StudentBoard({
         >
           {student.name}
         </Link>
-        <span className="text-xs" style={{ color: COLORS.muted }}>
-          {formatWeekRange(days[0], days[5])}
-        </span>
+        <span style={{ color: COLORS.muted, fontSize: 11.5 }}>{formatWeekRange(days[0], days[5])}</span>
       </div>
       {/* Explicit `id` makes dnd-kit's internal aria-describedby id
           deterministic — without it, dnd-kit derives it from a module-level
@@ -968,8 +966,14 @@ function DayCell({
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type here, press Enter"
-          className="mt-2 w-full border-b bg-transparent py-1 text-sm outline-none"
-          style={{ borderColor: COLORS.hairline, color: COLORS.text, borderBottomStyle: "dashed" }}
+          className="mt-[5px] w-full border-b bg-transparent outline-none"
+          style={{
+            borderColor: COLORS.hairline,
+            color: COLORS.text,
+            borderBottomStyle: "dashed",
+            fontSize: 11.5,
+            padding: "3px 0",
+          }}
         />
         <div className="mt-1.5">
           {/* §6 divider — click to append one at the bottom, or (desktop
@@ -988,15 +992,19 @@ function DayCell({
           )}
         </div>
       </div>
-      {assignmentMinutes > 0 && (
-        <p className="mt-1 text-center text-xs" style={{ color: COLORS.mutedFaint }}>
-          {formatTotalMinutes(assignmentMinutes)} total
-        </p>
-      )}
-      {projectMinutes > 0 && (
-        <p className="text-center text-xs" style={{ color: COLORS.mutedFaint }}>
-          {formatTotalMinutes(projectMinutes)} project time
-        </p>
+      {(assignmentMinutes > 0 || projectMinutes > 0) && (
+        <div style={{ borderTop: `1px solid ${COLORS.hairline}`, marginTop: 6, paddingTop: 10 }}>
+          {assignmentMinutes > 0 && (
+            <p className="text-center" style={{ color: COLORS.mutedFaint, fontSize: 10.5 }}>
+              {formatTotalMinutes(assignmentMinutes)} total
+            </p>
+          )}
+          {projectMinutes > 0 && (
+            <p className="text-center" style={{ color: COLORS.mutedFaint, fontSize: 10.5 }}>
+              {formatTotalMinutes(projectMinutes)} project time
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1414,14 +1422,10 @@ function CalendarStrip({
   for (const event of events) eventsByDay.get(event.dateISO)?.push(event);
 
   return (
-    <section className="mt-8 rounded-xl px-6 py-5" style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
-      <div className="flex items-baseline justify-between border-b pb-2" style={{ borderColor: COLORS.hairline }}>
-        <h2 className="text-sm font-bold" style={{ color: COLORS.text }}>
-          This Week — Family Calendar
-        </h2>
-        <span className="text-xs" style={{ color: COLORS.muted }}>
-          from your Google Calendar
-        </span>
+    <section className="mt-5 rounded-xl px-6 py-5" style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+      <div className="flex items-baseline justify-between border-b pb-3" style={{ borderColor: COLORS.hairline }}>
+        <h2 style={{ color: COLORS.text, fontSize: 17, fontWeight: 700 }}>This Week — Family Calendar</h2>
+        <span style={{ color: COLORS.muted, fontSize: 11.5 }}>from your Google Calendar</span>
       </div>
       {/* §5.6: one faint instructional sentence here, replacing the "drag to
           a kid, or" text that used to repeat on every single event row. */}
@@ -1434,12 +1438,12 @@ function CalendarStrip({
         </p>
       ) : (
         <>
-          <div className="mt-3 hidden gap-4 lg:grid lg:grid-cols-6">
+          <div className="mt-3 hidden lg:grid lg:grid-cols-6">
             {days.map((day) => {
               const dateISO = toISODate(day);
               return (
-                <div key={dateISO}>
-                  <span className="block text-xs font-bold" style={{ color: COLORS.text }}>
+                <div key={dateISO} style={{ padding: "0 10px", borderLeft: `1px solid ${COLORS.hairline}` }}>
+                  <span className="block font-bold" style={{ color: COLORS.text, fontSize: 11 }}>
                     {formatDayWeekdayShort(day)}
                   </span>
                   <div className="mt-1.5 flex flex-col gap-1.5">
@@ -1619,8 +1623,9 @@ function DraggableRow({
           position: "relative",
           cursor: "grab",
           touchAction: "none",
+          fontSize: 12,
         }}
-        className="flex items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]"
+        className="flex items-start gap-2 pr-4 hover:bg-black/[0.03]"
       >
         <RowContents instance={instance} accentColor={accentColor} onToggleExpand={() => setExpanded((current) => !current)} />
       </div>
@@ -1651,7 +1656,7 @@ function StaticRow({
 
   return (
     <RowFrame instance={instance} isLast={isLast} subjects={subjects} expanded={expanded} onCloseExpanded={() => setExpanded(false)} onDelete={onDelete}>
-      <div className="flex items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]">
+      <div className="flex items-start gap-2 pr-4 hover:bg-black/[0.03]" style={{ fontSize: 12 }}>
         <RowContents instance={instance} accentColor={accentColor} onToggleExpand={() => setExpanded((current) => !current)} />
       </div>
     </RowFrame>

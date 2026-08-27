@@ -116,7 +116,7 @@ export function EditPanel({
     <form
       action={handleSubmit}
       onClick={(event) => event.stopPropagation()}
-      className="mt-2 flex flex-col gap-3 border-t pt-3 text-xs"
+      className="mt-2 flex flex-col gap-1.5 border-t pt-3 text-xs"
       style={{ borderColor: COLORS.hairline }}
     >
       <input type="hidden" name="instanceId" value={instance.id} />
@@ -205,7 +205,7 @@ export function EditPanel({
           More options →
         </button>
       ) : (
-        <div className="flex flex-col gap-3 border-t pt-3" style={{ borderColor: COLORS.hairline }}>
+        <div className="flex flex-col gap-1.5 border-t pt-3" style={{ borderColor: COLORS.hairline }}>
           {isSeries && (
             <div>
               <span className={fieldLabel} style={{ color: COLORS.muted }}>
@@ -359,7 +359,7 @@ export function EditPanel({
           Cancel
         </button>
         {confirmingSeriesDelete ? (
-          <span className="ml-auto flex items-center gap-2">
+          <span className="ml-auto flex items-center gap-2" style={{ fontSize: 11 }}>
             <span style={{ color: COLORS.muted }}>Delete series?</span>
             <button type="button" onClick={handleDelete} disabled={deleting} className="font-medium" style={{ color: COLORS.crimson }}>
               Delete
@@ -369,8 +369,14 @@ export function EditPanel({
             </button>
           </span>
         ) : (
-          <button type="button" onClick={handleDelete} disabled={deleting} className="ml-auto font-medium" style={{ color: COLORS.crimson }}>
-            Delete
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="ml-auto font-medium"
+            style={{ color: COLORS.crimson, fontSize: 11 }}
+          >
+            Delete this assignment
           </button>
         )}
       </div>

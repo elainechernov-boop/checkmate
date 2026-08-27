@@ -23,18 +23,26 @@ export function UndoToast({
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-lg px-4 py-2.5 text-sm shadow-lg"
-      style={{ background: COLORS.text, color: COLORS.background }}
+      className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3"
+      // BUILD_SPEC.md Screen 12-K: a minimal contextual text line, not a
+      // black rounded card — the white backing is only for legibility over
+      // whatever's beneath it, with no border/radius/shadow of its own.
+      style={{ background: COLORS.white, padding: "5px 8px" }}
     >
-      <span>{message}</span>
-      <button type="button" className="hr-text-action font-semibold underline" onClick={onUndo}>
+      <span style={{ color: COLORS.muted, fontSize: 11.5 }}>{message}</span>
+      <button
+        type="button"
+        className="hr-text-action font-semibold"
+        style={{ color: COLORS.cobalt, fontSize: 11.5 }}
+        onClick={onUndo}
+      >
         Undo
       </button>
       <button
         type="button"
         aria-label="Dismiss"
         className="hr-text-action"
-        style={{ color: COLORS.mutedFaint }}
+        style={{ color: COLORS.mutedFaint, fontSize: 11.5 }}
         onClick={onDismiss}
       >
         ×
