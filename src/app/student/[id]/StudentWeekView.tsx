@@ -332,15 +332,15 @@ export function StudentWeekView({
   return (
     <main
       style={{ background: COLORS.background, color: COLORS.text }}
-      className="min-h-screen px-4 py-6 lg:px-[30px] lg:pb-[30px] lg:pt-[26px]"
+      className="min-h-screen px-4 pb-6 pt-4 lg:px-[30px] lg:pb-[30px] lg:pt-[26px]"
     >
-      <div className="flex items-center justify-between">
-        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={110} height={18} className="h-[18px] w-auto" priority />
+      <div className="mb-[10px] flex items-center justify-between lg:mb-4">
+        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={110} height={18} className="h-4 w-auto lg:h-[18px]" priority />
         <StudentMenu muted={muted} onToggleMute={toggleMute} onOpenComingUp={() => setComingUpOpen(true)} />
       </div>
 
       <header
-        className="mt-4 flex flex-wrap items-baseline justify-between gap-3"
+        className="flex flex-wrap items-baseline justify-between gap-3"
         style={{ borderBottom: `2px solid ${COLORS.text}`, paddingBottom: 18 }}
       >
         <div className="flex items-baseline gap-3.5">

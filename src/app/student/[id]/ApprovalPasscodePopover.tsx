@@ -65,13 +65,16 @@ export function ApprovalPasscodePopover({
       style={{ borderColor: COLORS.hairline }}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-1.5">
+        <label htmlFor="approval-passcode" style={{ color: COLORS.muted, fontSize: 11 }}>
+          Passcode
+        </label>
         <input
+          id="approval-passcode"
           type="password"
           autoFocus
           required
           value={passcode}
           onChange={(event) => setPasscode(event.target.value)}
-          placeholder="Passcode"
           className="border-b bg-transparent px-0 py-1 text-sm outline-none"
           style={{ borderColor: COLORS.hairline, color: COLORS.text }}
         />

@@ -75,11 +75,14 @@ export function ComingUpPanel({
             transition={slideTransition}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium" style={{ color: COLORS.text }}>
-                Coming Up
-              </h2>
-              <button onClick={onClose} className="text-sm" style={{ color: COLORS.muted }}>
-                Close
+              <h2 style={{ color: COLORS.text, fontSize: 15, fontWeight: 700 }}>Coming Up</h2>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="hover:opacity-100"
+                style={{ color: COLORS.mutedFaint, fontSize: 20, lineHeight: 1, opacity: 0.8 }}
+              >
+                ×
               </button>
             </div>
 
@@ -92,12 +95,20 @@ export function ComingUpPanel({
             <div className="mt-6 flex flex-col gap-5">
               {[...groups.values()].map(({ date, items: dayItems }) => (
                 <div key={toISODate(date)}>
-                  <div className="text-xs font-medium" style={{ color: COLORS.muted }}>
+                  <div className="font-medium uppercase" style={{ color: COLORS.muted, fontSize: "0.65625rem" }}>
                     {formatComingUpDate(date)}
                   </div>
-                  <ul className="mt-1.5 flex flex-col gap-1">
-                    {dayItems.map((item) => (
-                      <li key={item.id} className="flex items-baseline gap-2 text-sm" style={{ color: COLORS.mutedFaint }}>
+                  <ul className="mt-1.5 flex flex-col">
+                    {dayItems.map((item, index) => (
+                      <li
+                        key={item.id}
+                        className="flex items-baseline gap-2 text-sm"
+                        style={{
+                          color: COLORS.mutedFaint,
+                          padding: "4px 0",
+                          borderBottom: index === dayItems.length - 1 ? undefined : `1px solid ${COLORS.hairline}`,
+                        }}
+                      >
                         <span
                           aria-hidden
                           className="inline-block h-2 w-0.5 shrink-0"

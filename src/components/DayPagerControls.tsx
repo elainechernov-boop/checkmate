@@ -30,14 +30,14 @@ export function DayPagerControls({
   onNext: () => void;
 }) {
   return (
-    <div className="mt-3 flex flex-col items-center gap-1.5">
+    <div className="flex flex-col items-center">
       <div className="flex w-full items-center justify-between gap-2">
         <button
           type="button"
           onClick={onPrev}
           aria-label="Previous day"
-          className="px-2 py-1 text-xl leading-none"
-          style={{ color: COLORS.muted }}
+          className="px-2 py-3 leading-none"
+          style={{ color: COLORS.muted, fontSize: 11 }}
         >
           ‹
         </button>
@@ -51,13 +51,13 @@ export function DayPagerControls({
           type="button"
           onClick={onNext}
           aria-label="Next day"
-          className="px-2 py-1 text-xl leading-none"
-          style={{ color: COLORS.muted }}
+          className="px-2 py-3 leading-none"
+          style={{ color: COLORS.muted, fontSize: 11 }}
         >
           ›
         </button>
       </div>
-      <div className="flex items-center gap-[5px]">
+      <div className="flex items-center gap-[5px]" style={{ padding: "6px 0 12px" }}>
         {labels.map((label, index) => (
           <button
             key={`${label}-${index}`}
