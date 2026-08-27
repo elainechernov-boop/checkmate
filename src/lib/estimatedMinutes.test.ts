@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import {
-  DEFAULT_ESTIMATED_MINUTES,
   formatTotalMinutes,
+  hasAnyEstimate,
   minutesProgress,
   sumEstimatedMinutes,
   type MinutesCandidate,
@@ -35,9 +35,24 @@ describe("sumEstimatedMinutes", () => {
     expect(total).toBe(60);
   });
 
-  it("falls back to the default for a task with no estimate anywhere", () => {
-    const total = sumEstimatedMinutes([candidate({ estimatedMinutes: null, series: null })]);
-    expect(total).toBe(DEFAULT_ESTIMATED_MINUTES);
+  it("excludes a task with no real estimate anywhere, rather than guessing one", () => {
+    const total = sumEstimatedMinutes([
+      candidate({ estimatedMinutes: null, series: null }),
+      candidate({ estimatedMinutes: 15 }),
+    ]);
+    expect(total).toBe(15);
+  });
+});
+
+describe("hasAnyEstimate", () => {
+  it("is false when every instance has no real estimate", () => {
+    expect(hasAnyEstimate([candidate({ estimatedMinutes: null, series: null })])).toBe(false);
+  });
+
+  it("is true when at least one instance has a real estimate", () => {
+    expect(
+      hasAnyEstimate([candidate({ estimatedMinutes: null, series: null }), candidate({ estimatedMinutes: 20 })])
+    ).toBe(true);
   });
 });
 

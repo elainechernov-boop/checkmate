@@ -54,7 +54,7 @@ export default async function StudentPage({
     project: { select: { id: true, name: true } },
   } as const;
 
-  const [weekInstances, comingUp, projects, projectIdeas, daySeparators, streak] = await Promise.all([
+  const [weekInstances, comingUp, projects, daySeparators, streak] = await Promise.all([
     prisma.assignmentInstance.findMany({
       where: { studentId: id, dueDate: { gte: monday, lt: weekEnd } },
       include: instanceInclude,
@@ -83,7 +83,6 @@ export default async function StudentPage({
       // untouched project shares sortOrder 0).
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
-    prisma.projectIdea.findMany({ where: { studentId: id }, orderBy: { createdAt: "asc" } }),
     // §6 "Morning/Afternoon/Evening" — parent-placed, read-only here; the
     // student can reorder within one but never add, edit, or cross one.
     prisma.daySeparator.findMany({ where: { studentId: id, date: { gte: monday, lt: weekEnd } } }),
@@ -136,7 +135,6 @@ export default async function StudentPage({
         backlogTasks: instances,
         progress: progressByProject.get(project.id) ?? { done: 0, total: 0 },
       }))}
-      projectIdeas={projectIdeas}
       daySeparators={daySeparators}
       calendarEvents={assignedCalendarEvents}
       streak={streak}

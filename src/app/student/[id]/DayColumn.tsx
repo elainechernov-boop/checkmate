@@ -1,16 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
@@ -79,7 +70,6 @@ function SortableRow({
   prefersReducedMotion,
   isLast,
   accentColor,
-  studentId,
   now,
   onToggle,
 }: {
@@ -87,7 +77,6 @@ function SortableRow({
   prefersReducedMotion: boolean;
   isLast: boolean;
   accentColor: string;
-  studentId: string;
   now: Date;
   onToggle: (origin: { x: number; y: number }) => void;
   // Open-bucket rows are never pendingReview (§6's ordering), so this
@@ -125,67 +114,8 @@ function SortableRow({
         prefersReducedMotion={prefersReducedMotion}
         isLast={isLast}
         accentColor={accentColor}
-        studentId={studentId}
         now={now}
         onToggle={onToggle}
-      />
-    </div>
-  );
-}
-
-function DraggableProjectRow({
-  instance,
-  interactive,
-  prefersReducedMotion,
-  isLast,
-  accentColor,
-  studentId,
-  now,
-  onToggle,
-  onApproveViaPasscode,
-}: {
-  instance: StudentInstance;
-  interactive: boolean;
-  prefersReducedMotion: boolean;
-  isLast: boolean;
-  accentColor: string;
-  studentId: string;
-  now: Date;
-  onToggle: (origin: { x: number; y: number }) => void;
-  onApproveViaPasscode: (passcode: string, origin: { x: number; y: number }) => Promise<void>;
-}) {
-  // §7: "move between days" is the student's own project task's right on
-  // any day, not just today's own reorder (SortableRow above, which only
-  // ever governs today's cell). This is a plain cross-day draggable in the
-  // outer, band-level DndContext StudentWeekView owns — the same mechanism
-  // a Projects-band backlog task already uses to land on a day in the
-  // first place (see BacklogTaskRow in ProjectsBand.tsx).
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: instance.id });
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      style={{
-        transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 10 : undefined,
-        position: "relative",
-        cursor: isDragging ? "grabbing" : "grab",
-        touchAction: "none",
-      }}
-    >
-      <AssignmentRow
-        instance={instance}
-        interactive={interactive}
-        prefersReducedMotion={prefersReducedMotion}
-        isLast={isLast}
-        accentColor={accentColor}
-        studentId={studentId}
-        now={now}
-        onToggle={onToggle}
-        onApproveViaPasscode={onApproveViaPasscode}
       />
     </div>
   );
@@ -198,7 +128,6 @@ export function DayColumn({
   instances,
   separators,
   calendarEvents,
-  studentId,
   studentName,
   accentColor,
   prefersReducedMotion,
@@ -209,6 +138,7 @@ export function DayColumn({
   onReorderOpen,
   onApproveViaPasscode,
   enableDrag = true,
+  compactHeader = false,
 }: {
   day: Date;
   isToday: boolean;
@@ -221,7 +151,6 @@ export function DayColumn({
   // This day's own parent-assigned family-calendar events (CalendarEventChip
   // above) — read-only context, not part of the day's sortOrder sequence.
   calendarEvents: FamilyCalendarEvent[];
-  studentId: string;
   studentName: string;
   accentColor: string;
   prefersReducedMotion: boolean;
@@ -238,15 +167,14 @@ export function DayColumn({
   // would fight the page-swipe gesture for the same pointer, so the pager
   // passes false here and every row renders plain (tap-only) instead.
   enableDrag?: boolean;
+  // §5.5: the mobile pager's own centered "Wed · Sep 10" heading already
+  // names this day — a second weekday/date line inside the column would be
+  // a duplicate. Mobile passes true and gets only the done-count line.
+  compactHeader?: boolean;
 }) {
   const [showTakeover, setShowTakeover] = useState(false);
   const wasAllDone = useRef<boolean | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  // §7 drag-to-day: this whole column is one drop target in the outer,
-  // band-level DndContext (StudentWeekView) that a Projects-band backlog
-  // task can land on — entirely separate from the DndContext below, which
-  // only ever governs today's own open-item reorder.
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: toISODate(day) });
 
   const { rolled, timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
   // §6/§12: time-sensitive items share the same sortOrder numbering space as
@@ -264,13 +192,9 @@ export function DayColumn({
     pendingReview.length === 0 &&
     rolled.length === 0;
   const totalRows = rolled.length + timeSensitive.length + open.length + pendingReview.length + completed.length;
-  // A long list of small items adds up to less than it looks like — the
-  // same reassurance Parent Mode's own day cells already give the parent
-  // (formatTotalMinutes), now surfaced to the kid whose list it is. Both
-  // this total and the progress bar below apply the 30-min fallback to any
-  // task with no real estimate (estimatedMinutes.ts) — otherwise an
-  // untimed task counts as free, which makes the bar meaningless on a day
-  // full of them.
+  // §5.4: real estimates only — an untimed task contributes nothing to
+  // either total, and both totals/the bar below hide themselves (via the
+  // `> 0` guards) rather than ever showing a fabricated number.
   const totalMinutes = sumEstimatedMinutes(instances);
   const { done: doneMinutes, total: progressTotalMinutes } = minutesProgress(instances);
   const progressPercent = progressTotalMinutes > 0 ? Math.min(100, Math.round((doneMinutes / progressTotalMinutes) * 100)) : 0;
@@ -313,66 +237,58 @@ export function DayColumn({
 
   function plainRow(instance: StudentInstance) {
     const rowInteractive = interactive && instance.status !== InstanceStatus.excused;
-    const rowProps = {
-      instance,
-      interactive: rowInteractive,
-      prefersReducedMotion,
-      isLast: instance.id === lastRowId,
-      accentColor,
-      studentId,
-      now,
-      onToggle: (origin: { x: number; y: number }) => onToggle(instance, origin),
-      // Available even on a non-today column — a pendingReview item holds
-      // its original day rather than rolling (§5), but parent approval
-      // isn't gated by the student-only "today only" interactivity rule.
-      onApproveViaPasscode: (passcode: string, origin: { x: number; y: number }) =>
-        onApproveViaPasscode(instance, passcode, origin),
-    };
-
-    // Own project task, still open (or rolled, which is still status
-    // "open") — draggable to another day regardless of which day this is,
-    // the bug this fixes (§7's "move between days" wasn't reachable once a
-    // task left the backlog for anywhere but today). Today's own open
-    // items already get this via SortableRow instead, so this only ever
-    // fires for a non-today cell.
-    if (enableDrag && !interactive && instance.project && instance.status === InstanceStatus.open) {
-      return <DraggableProjectRow key={instance.id} {...rowProps} />;
-    }
-
-    return <AssignmentRow key={instance.id} {...rowProps} />;
+    return (
+      <AssignmentRow
+        key={instance.id}
+        instance={instance}
+        interactive={rowInteractive}
+        prefersReducedMotion={prefersReducedMotion}
+        isLast={instance.id === lastRowId}
+        accentColor={accentColor}
+        now={now}
+        onToggle={(origin: { x: number; y: number }) => onToggle(instance, origin)}
+        // Available even on a non-today column — a pendingReview item holds
+        // its original day rather than rolling (§5), but parent approval
+        // isn't gated by the student-only "today only" interactivity rule.
+        onApproveViaPasscode={(passcode: string, origin: { x: number; y: number }) =>
+          onApproveViaPasscode(instance, passcode, origin)
+        }
+      />
+    );
   }
 
   return (
     <div className="flex flex-col">
       <div
-        ref={setDroppableRef}
         className="flex flex-1 flex-col p-3 pt-0 transition-colors"
-        style={{
-          borderLeft: `1px solid ${COLORS.hairline}`,
-          background: isOver ? `${accentColor}0d` : undefined,
-        }}
+        style={{ borderLeft: `1px solid ${COLORS.hairline}` }}
       >
         <div className="relative flex items-start justify-between pt-3">
           {/* The redesign's day header order (Canvas.dc.html): a short bold
               weekday first, almost all the visual weight there, then a tiny
               date + done-count line beneath it. Today's name picks up the
-              student's own accent color instead of the near-black default. */}
+              student's own accent color instead of the near-black default.
+              On the mobile pager, the weekday+date already appears in the
+              centered pager heading above, so only the done-count remains
+              here (§5.5: no duplicate day heading). */}
           <div className="flex flex-col leading-tight">
-            <span
-              className="font-bold uppercase"
-              style={{
-                color: isToday ? accentColor : COLORS.text,
-                fontSize: "0.8125rem",
-                letterSpacing: "0.04em",
-              }}
-            >
-              {formatDayWeekdayShort(day)}
-            </span>
+            {!compactHeader && (
+              <span
+                className="font-bold uppercase"
+                style={{
+                  color: isToday ? accentColor : COLORS.text,
+                  fontSize: "0.8125rem",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {formatDayWeekdayShort(day)}
+              </span>
+            )}
             <span
               className="font-medium uppercase"
               style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.04em" }}
             >
-              {formatMonthDayLine(day)} · {completed.length}/{totalRows} done
+              {compactHeader ? `${completed.length}/${totalRows} done` : `${formatMonthDayLine(day)} · ${completed.length}/${totalRows} done`}
             </span>
           </div>
           {showTakeover && (
@@ -385,7 +301,9 @@ export function DayColumn({
         </div>
 
         {/* Minutes-done ÷ minutes-total for the day (design tokens §1.2) —
-            not an assignment-count bar, in the student's own accent color. */}
+            not an assignment-count bar, in the student's own accent color.
+            Hidden entirely when nothing on the day carries a real estimate
+            (§5.4: never show a bar built from invented minutes). */}
         {progressTotalMinutes > 0 && (
           <span aria-hidden className="mt-1.5 block h-[3px]" style={{ background: COLORS.hairline }}>
             <span className="block h-full" style={{ width: `${progressPercent}%`, background: accentColor }} />
@@ -444,7 +362,6 @@ export function DayColumn({
                           prefersReducedMotion={prefersReducedMotion}
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
-                          studentId={studentId}
                           now={now}
                           onToggle={(origin) => onToggle(instance, origin)}
                         />
@@ -455,7 +372,6 @@ export function DayColumn({
                           prefersReducedMotion={prefersReducedMotion}
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
-                          studentId={studentId}
                           now={now}
                           onToggle={(origin) => onToggle(instance, origin)}
                         />
@@ -483,7 +399,8 @@ export function DayColumn({
             (design tokens: "N min total", plain and left-aligned, never
             centered below the card) — raw minutes, not hour-converted
             (formatTotalMinutes' "2h" form is for longer, aggregate totals
-            like Reports, not a single day's). */}
+            like Reports, not a single day's). Hidden when no real estimate
+            exists on the day (§5.4). */}
         {totalMinutes > 0 && (
           <p className="mt-auto pt-2.5 text-left" style={{ color: COLORS.mutedFaint, fontSize: "0.65rem" }}>
             {totalMinutes} min total

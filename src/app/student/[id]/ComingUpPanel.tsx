@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatComingUpDate, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
@@ -28,6 +29,27 @@ export function ComingUpPanel({
   }
 
   const slideTransition = prefersReducedMotion ? { duration: 0.15 } : { duration: 0.25, ease: "easeOut" as const };
+
+  // §6/§4: "Coming Up... close on outside click, Close, or Escape, and
+  // restore focus" — the invoking control (the header's "⋯" menu item) gets
+  // focus back once this closes, same as ParentNavMenu/UndoMenu's dropdowns.
+  const invokerRef = useRef<Element | null>(null);
+  useEffect(() => {
+    if (open) {
+      invokerRef.current = document.activeElement;
+      return;
+    }
+    if (invokerRef.current instanceof HTMLElement) invokerRef.current.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
 
   return (
     <AnimatePresence>

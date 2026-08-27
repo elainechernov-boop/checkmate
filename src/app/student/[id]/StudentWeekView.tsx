@@ -5,26 +5,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import type { Student } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
-import { addDays, defaultWeekStart, formatDayWeekdayShort, formatMonthDayLine, toISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, formatDayWeekdayShort, formatMonthDayLine, formatWeekRange, toISODate } from "@/lib/dates";
 import { COLORS, nextAccentColor } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
 import { approveReviewViaPasscode, cycleAccentColorAction, reorderOpenItems, toggleInstance } from "./actions";
-import { moveProjectTaskAction, reorderProjectsAction } from "./projectActions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
 import { ItemCelebration } from "./ItemCelebration";
-import { IdeasList } from "./IdeasList";
 import { ProjectsBand } from "./ProjectsBand";
 import { ReminderTakeover } from "./ReminderTakeover";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
-import type { DaySeparator, ProjectIdea, StudentInstance, StudentProject } from "./types";
+import type { DaySeparator, StudentInstance, StudentProject } from "./types";
 
 const DAY_SHORT_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -51,7 +47,6 @@ export function StudentWeekView({
   instances,
   comingUp,
   projects,
-  projectIdeas,
   daySeparators,
   calendarEvents,
   streak,
@@ -63,8 +58,9 @@ export function StudentWeekView({
   today: Date;
   instances: StudentInstance[];
   comingUp: StudentInstance[];
+  // Read-only motivational summary only (§5.4) — all authoring lives in
+  // Parent Mode's /parent/projects.
   projects: StudentProject[];
-  projectIdeas: ProjectIdea[];
   daySeparators: DaySeparator[];
   // Family-calendar events a parent has dragged/tapped onto this student's
   // board (Parent Mode's CalendarEventAssignment) — read-only here, marks
@@ -80,14 +76,11 @@ export function StudentWeekView({
 }) {
   const router = useRouter();
   const prefersReducedMotion = !!useReducedMotion();
-  const bandSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const [localAccentColor, setLocalAccentColor] = useState(student.accentColor);
   const [syncedAccentColor, setSyncedAccentColor] = useState(student.accentColor);
   const [localInstances, setLocalInstances] = useState(instances);
   const [syncedInstances, setSyncedInstances] = useState(instances);
-  const [localProjects, setLocalProjects] = useState(projects);
-  const [syncedProjects, setSyncedProjects] = useState(projects);
   const [comingUpOpen, setComingUpOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [celebratedToday, setCelebratedToday] = useState(true); // avoid a flash before the effect below settles
@@ -137,10 +130,6 @@ export function StudentWeekView({
   if (student.accentColor !== syncedAccentColor) {
     setSyncedAccentColor(student.accentColor);
     setLocalAccentColor(student.accentColor);
-  }
-  if (projects !== syncedProjects) {
-    setSyncedProjects(projects);
-    setLocalProjects(projects);
   }
 
   // §5 step 3: "the full completion sequence... plays on the student's
@@ -226,10 +215,6 @@ export function StudentWeekView({
   }, []);
 
   const weekHasAnyItems = localInstances.length > 0 || calendarEvents.length > 0;
-  // A backlog task needs somewhere to be dropped, even on an otherwise
-  // silent week (§9's "an empty week shows nothing at all" is about there
-  // being nothing to plan, not about hiding valid drop targets).
-  const hasBacklogTasks = localProjects.some((p) => p.backlogTasks.length > 0);
   // The week view is Mon-Sat (§6) — on a Sunday there's no column that
   // equals "today" at all, so nothing is interactive. Say so plainly
   // (this is a fact about the real today, not about whichever week is
@@ -328,103 +313,6 @@ export function StudentWeekView({
     );
   }
 
-  /**
-   * §7 drag-to-day, covering both ends of a project task's life: a
-   * Projects-band backlog task dropped on a day column for the first time,
-   * and an *already-scheduled* project task dragged onto a different day to
-   * move it — DayColumn's own draggable-project-row (for non-today cells;
-   * today's own reorder DndContext handles today's rows separately, so the
-   * two never register the same draggable/droppable). Parent-assigned rows
-   * never register as draggables here at all, so there's nothing to guard
-   * against a student moving those.
-   */
-  async function handleWeekDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over) return;
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    // §7 "prioritized" — reordering the project cards themselves. Both ends
-    // of the drag are project ids here, never a day column or a task, so
-    // this branch has to run before the day/task lookups below.
-    if (localProjects.some((p) => p.id === activeId)) {
-      if (activeId === overId) return;
-      const previousOrder = localProjects;
-      const ids = previousOrder.map((p) => p.id);
-      const oldIndex = ids.indexOf(activeId);
-      const newIndex = ids.indexOf(overId);
-      if (oldIndex === -1 || newIndex === -1) return;
-      const reordered = arrayMove(previousOrder, oldIndex, newIndex);
-      setLocalProjects(reordered);
-      try {
-        await reorderProjectsAction(student.id, reordered.map((p) => p.id));
-      } catch {
-        setLocalProjects(previousOrder);
-      }
-      return;
-    }
-
-    const taskId = activeId;
-    const dateISO = overId;
-    const targetDay = days.find((day) => toISODate(day) === dateISO);
-    if (!targetDay) return;
-
-    let backlogTask: StudentInstance | null = null;
-    for (const project of localProjects) {
-      const found = project.backlogTasks.find((t) => t.id === taskId);
-      if (found) {
-        backlogTask = found;
-        break;
-      }
-    }
-
-    if (backlogTask) {
-      const scheduledTask = backlogTask;
-      setLocalProjects((current) =>
-        current.map((p) =>
-          p.id === scheduledTask.projectId ? { ...p, backlogTasks: p.backlogTasks.filter((t) => t.id !== taskId) } : p
-        )
-      );
-      setLocalInstances((current) => [
-        ...current,
-        { ...scheduledTask, dueDate: targetDay, originalDueDate: targetDay },
-      ]);
-
-      try {
-        await moveProjectTaskAction(student.id, taskId, dateISO);
-      } catch {
-        setLocalProjects((current) =>
-          current.map((p) =>
-            p.id === scheduledTask.projectId ? { ...p, backlogTasks: [...p.backlogTasks, scheduledTask] } : p
-          )
-        );
-        setLocalInstances((current) => current.filter((i) => i.id !== taskId));
-      }
-      return;
-    }
-
-    // Not in any backlog — an already-scheduled project task being moved to
-    // a different day instead.
-    const scheduled = localInstances.find((i) => i.id === taskId);
-    if (!scheduled || !scheduled.dueDate || toISODate(scheduled.dueDate) === dateISO) return;
-    const previousDueDate = scheduled.dueDate;
-    const previousOriginalDueDate = scheduled.originalDueDate;
-
-    setLocalInstances((current) =>
-      current.map((i) => (i.id === taskId ? { ...i, dueDate: targetDay, originalDueDate: targetDay } : i))
-    );
-
-    try {
-      await moveProjectTaskAction(student.id, taskId, dateISO);
-    } catch {
-      setLocalInstances((current) =>
-        current.map((i) =>
-          i.id === taskId ? { ...i, dueDate: previousDueDate, originalDueDate: previousOriginalDueDate } : i
-        )
-      );
-    }
-  }
-
   function toggleMute() {
     const next = !muted;
     setMuted(next);
@@ -452,11 +340,12 @@ export function StudentWeekView({
         className="mt-4 flex flex-wrap items-baseline justify-between gap-3"
         style={{ borderBottom: `2px solid ${COLORS.text}`, paddingBottom: 18 }}
       >
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-baseline gap-3.5">
           <button
             type="button"
             onClick={handleCycleAccentColor}
             title="Tap to change my color"
+            aria-label={`My color is ${localAccentColor}. Tap to change it.`}
             className="border-b border-dashed uppercase"
             style={{
               color: localAccentColor,
@@ -469,10 +358,17 @@ export function StudentWeekView({
           >
             {student.name}&rsquo;s week
           </button>
+          {/* §5.4: "Visible week range beside the name; the current
+              implementation omits this and must restore it." */}
+          <span style={{ color: COLORS.muted, fontSize: 12 }}>{formatWeekRange(days[0], days[5])}</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="uppercase" style={{ color: COLORS.cobalt, fontWeight: 700, letterSpacing: "0.04em", fontSize: 12 }}>
-            {streak}-day streak · {todayDoneCount}/{todayInstances.length} today
+          {/* §5.4: the student's own accent, not fixed cobalt; omit the
+              streak phrase entirely at zero rather than showing "0-day
+              streak." */}
+          <span className="uppercase" style={{ color: localAccentColor, fontWeight: 700, letterSpacing: "0.04em", fontSize: 12 }}>
+            {streak > 0 ? `${streak}-day streak · ` : ""}
+            {todayDoneCount}/{todayInstances.length} today
           </span>
           <Link
             href={`/student/${student.id}?week=${toISODate(addDays(monday, -7))}`}
@@ -502,117 +398,94 @@ export function StudentWeekView({
         </p>
       )}
 
-      {/* Explicit `id`, same reasoning as ParentWeekBoard's own DndContext:
-          without it, dnd-kit's internal aria-describedby id comes from a
-          module-level counter that isn't SSR-safe, which is a real
-          hydration-attribute mismatch once more than one draggable is
-          registered (now true here too, with the project cards sortable). */}
-      <DndContext
-        id={`student-week-${student.id}`}
-        sensors={bandSensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleWeekDragEnd}
-      >
-        {(weekHasAnyItems || hasBacklogTasks) && (
-          <>
-            {/* Desktop: the full six-column week (§6). Below `lg`, six
-                columns of full assignment rows have no room to breathe, so
-                a phone gets the swipeable single-day pager instead. */}
-            <div className="mt-8 hidden grid-cols-6 lg:grid">
-              {days.map((day) => {
-                const dayISO = toISODate(day);
-                const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
-                const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
-                const dayCalendarEvents = calendarEvents.filter((event) => event.dateISO === dayISO);
-                const isToday = dayISO === todayISO;
-                return (
-                  <DayColumn
-                    key={dayISO}
-                    day={day}
-                    isToday={isToday}
-                    interactive={isToday}
-                    instances={dayInstances}
-                    separators={daySeparatorsForDay}
-                    calendarEvents={dayCalendarEvents}
-                    now={now}
-                    studentId={student.id}
-                    studentName={student.name}
-                    accentColor={localAccentColor}
-                    prefersReducedMotion={prefersReducedMotion}
-                    celebrated={celebratedToday}
-                    onCelebrate={handleCelebrate}
-                    onToggle={handleToggle}
-                    onReorderOpen={handleReorderOpen}
-                    onApproveViaPasscode={handleApproveViaPasscode}
-                  />
-                );
-              })}
-            </div>
+      {weekHasAnyItems && (
+        <>
+          {/* Desktop: the full six-column week (§6). Below `lg`, six
+              columns of full assignment rows have no room to breathe, so
+              a phone gets the swipeable single-day pager instead. */}
+          <div className="mt-8 hidden grid-cols-6 lg:grid">
+            {days.map((day) => {
+              const dayISO = toISODate(day);
+              const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
+              const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
+              const dayCalendarEvents = calendarEvents.filter((event) => event.dateISO === dayISO);
+              const isToday = dayISO === todayISO;
+              return (
+                <DayColumn
+                  key={dayISO}
+                  day={day}
+                  isToday={isToday}
+                  interactive={isToday}
+                  instances={dayInstances}
+                  separators={daySeparatorsForDay}
+                  calendarEvents={dayCalendarEvents}
+                  now={now}
+                  studentName={student.name}
+                  accentColor={localAccentColor}
+                  prefersReducedMotion={prefersReducedMotion}
+                  celebrated={celebratedToday}
+                  onCelebrate={handleCelebrate}
+                  onToggle={handleToggle}
+                  onReorderOpen={handleReorderOpen}
+                  onApproveViaPasscode={handleApproveViaPasscode}
+                />
+              );
+            })}
+          </div>
 
-            <div className="mt-8 lg:hidden">
-              <DayPagerControls
-                activeIndex={mobileDayIndex}
-                labels={DAY_SHORT_LABELS}
-                currentLabel={`${formatDayWeekdayShort(days[mobileDayIndex])} · ${formatMonthDayLine(days[mobileDayIndex])}`}
-                accentColor={localAccentColor}
-                onSelect={goToDayIndex}
-                onPrev={goToPrevDay}
-                onNext={goToNextDay}
-              />
-              {(() => {
-                const day = days[mobileDayIndex];
-                const dayISO = toISODate(day);
-                const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
-                const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
-                const dayCalendarEvents = calendarEvents.filter((event) => event.dateISO === dayISO);
-                const isToday = dayISO === todayISO;
-                return (
-                  <SwipeDayPager
-                    dayKey={dayISO}
-                    onSwipeLeft={goToNextDay}
-                    onSwipeRight={goToPrevDay}
-                    prefersReducedMotion={prefersReducedMotion}
-                  >
-                    <div className="mt-3">
-                      <DayColumn
-                        day={day}
-                        isToday={isToday}
-                        interactive={isToday}
-                        instances={dayInstances}
-                        separators={daySeparatorsForDay}
-                        calendarEvents={dayCalendarEvents}
-                        studentId={student.id}
-                        studentName={student.name}
-                        accentColor={localAccentColor}
-                        prefersReducedMotion={prefersReducedMotion}
-                        celebrated={celebratedToday}
-                        now={now}
-                        onCelebrate={handleCelebrate}
-                        onToggle={handleToggle}
-                            onReorderOpen={handleReorderOpen}
-                        onApproveViaPasscode={handleApproveViaPasscode}
-                        enableDrag={false}
-                      />
-                    </div>
-                  </SwipeDayPager>
-                );
-              })()}
-            </div>
-          </>
-        )}
+          <div className="mt-8 lg:hidden">
+            <DayPagerControls
+              activeIndex={mobileDayIndex}
+              labels={DAY_SHORT_LABELS}
+              currentLabel={`${formatDayWeekdayShort(days[mobileDayIndex])} · ${formatMonthDayLine(days[mobileDayIndex])}`}
+              accentColor={localAccentColor}
+              onSelect={goToDayIndex}
+              onPrev={goToPrevDay}
+              onNext={goToNextDay}
+            />
+            {(() => {
+              const day = days[mobileDayIndex];
+              const dayISO = toISODate(day);
+              const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
+              const daySeparatorsForDay = daySeparators.filter((s) => toISODate(s.date) === dayISO);
+              const dayCalendarEvents = calendarEvents.filter((event) => event.dateISO === dayISO);
+              const isToday = dayISO === todayISO;
+              return (
+                <SwipeDayPager
+                  dayKey={dayISO}
+                  onSwipeLeft={goToNextDay}
+                  onSwipeRight={goToPrevDay}
+                  prefersReducedMotion={prefersReducedMotion}
+                >
+                  <div className="mt-3">
+                    <DayColumn
+                      day={day}
+                      isToday={isToday}
+                      interactive={isToday}
+                      instances={dayInstances}
+                      separators={daySeparatorsForDay}
+                      calendarEvents={dayCalendarEvents}
+                      studentName={student.name}
+                      accentColor={localAccentColor}
+                      prefersReducedMotion={prefersReducedMotion}
+                      celebrated={celebratedToday}
+                      now={now}
+                      onCelebrate={handleCelebrate}
+                      onToggle={handleToggle}
+                      onReorderOpen={handleReorderOpen}
+                      onApproveViaPasscode={handleApproveViaPasscode}
+                      enableDrag={false}
+                      compactHeader
+                    />
+                  </div>
+                </SwipeDayPager>
+              );
+            })()}
+          </div>
+        </>
+      )}
 
-        <ProjectsBand
-          studentId={student.id}
-          accentColor={localAccentColor}
-          projects={localProjects}
-          today={today}
-          prefersReducedMotion={prefersReducedMotion}
-        />
-      </DndContext>
-
-      {/* Outside the week/projects DndContext above — ideas never drag
-          anywhere, they're a plain list (§7's "someday" scratch list). */}
-      <IdeasList studentId={student.id} ideas={projectIdeas} />
+      <ProjectsBand accentColor={localAccentColor} projects={projects} />
 
       <ComingUpPanel
         open={comingUpOpen}
