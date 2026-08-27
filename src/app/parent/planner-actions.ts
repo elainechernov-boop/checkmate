@@ -31,8 +31,9 @@ const REPEAT_TO_FREQUENCY: Record<string, Frequency> = {
 };
 
 export async function quickCreateAssignment(studentId: string, dueDateISO: string, title: string) {
-  await quickCreateInstance(prisma, studentId, parseISODate(dueDateISO), title);
+  const created = await quickCreateInstance(prisma, studentId, parseISODate(dueDateISO), title);
   revalidatePath("/parent");
+  return created;
 }
 
 export async function rescheduleInstance(instanceId: string, newDueDateISO: string) {
@@ -58,6 +59,7 @@ export async function addDaySeparatorAction(
   finalOrder.splice(index, 0, created.id);
   await reorderDayRows(prisma, studentId, dateISO, finalOrder);
   revalidatePath("/parent");
+  return { separator: created, finalOrder };
 }
 
 export async function deleteDaySeparatorAction(separatorId: string) {

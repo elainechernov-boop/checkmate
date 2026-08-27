@@ -6,7 +6,7 @@ import { setSchoolDayType } from "./schoolCalendar";
 
 type UndoPrisma = Pick<
   PrismaClient,
-  "undoLogEntry" | "assignmentInstance" | "assignmentSeries" | "removedOccurrence" | "schoolDay"
+  "undoLogEntry" | "assignmentInstance" | "assignmentSeries" | "removedOccurrence" | "schoolDay" | "daySeparator"
 >;
 
 const MAX_LOG_ENTRIES = 20;

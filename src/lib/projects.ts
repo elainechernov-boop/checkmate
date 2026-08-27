@@ -12,6 +12,7 @@ type ProjectsPrisma = Pick<
   | "recurrenceRule"
   | "schoolDay"
   | "removedOccurrence"
+  | "daySeparator"
   | "$transaction"
 >;
 

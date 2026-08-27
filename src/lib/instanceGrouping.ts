@@ -36,10 +36,18 @@ export function bucketDayInstances<T extends DisplayInstance>(instances: T[]) {
     .filter((i) => i.status === InstanceStatus.open && i.rolledCount === 0 && !i.isTimeSensitive)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.getTime() - b.createdAt.getTime());
 
-  const pendingReview = instances.filter((i) => i.status === InstanceStatus.pendingReview);
-  const completed = instances.filter(
-    (i) => i.status === InstanceStatus.done || i.status === InstanceStatus.excused
-  );
+  // Neither bucket used to sort at all — they just inherited whatever order
+  // the base query happened to return, which could silently drift from
+  // Parent Mode's own display (ParentWeekBoard sorts every row, regardless
+  // of status, by this same sortOrder). Sorting both here the same way
+  // keeps a "Show Mom"/done row in the same relative order on both sides,
+  // however either side last reordered it.
+  const pendingReview = instances
+    .filter((i) => i.status === InstanceStatus.pendingReview)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const completed = instances
+    .filter((i) => i.status === InstanceStatus.done || i.status === InstanceStatus.excused)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 
   return { rolled, timeSensitive, open, pendingReview, completed };
 }

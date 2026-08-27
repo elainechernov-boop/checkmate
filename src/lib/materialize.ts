@@ -150,7 +150,7 @@ function addMonthsClamped(start: Date, monthsToAdd: number): Date {
 
 type MaterializablePrisma = Pick<
   PrismaClient,
-  "assignmentSeries" | "assignmentInstance" | "schoolDay" | "removedOccurrence"
+  "assignmentSeries" | "assignmentInstance" | "schoolDay" | "removedOccurrence" | "daySeparator"
 >;
 
 /**
@@ -221,6 +221,32 @@ export async function materializeSeries(
     existingFutureInstances.map((instance) => [toISODate(instance.originalDueDate!), instance])
   );
 
+  // A freshly-materialized occurrence lands at the bottom of its day's
+  // existing rows (matching quickCreateInstance's own fix), not at
+  // sortOrder 0 — scanned once across the whole horizon, for every one of
+  // this student's instances/separators (not just this series'), and kept
+  // up to date in-memory as new rows below get their sortOrder assigned.
+  const [horizonInstances, horizonSeparators] = await Promise.all([
+    prisma.assignmentInstance.findMany({
+      where: { studentId: series.studentId, dueDate: { gte: asOf, lte: horizonEnd } },
+      select: { dueDate: true, sortOrder: true },
+    }),
+    prisma.daySeparator.findMany({
+      where: { studentId: series.studentId, date: { gte: asOf, lte: horizonEnd } },
+      select: { date: true, sortOrder: true },
+    }),
+  ]);
+  const maxSortOrderByDate = new Map<string, number>();
+  for (const instance of horizonInstances) {
+    if (!instance.dueDate) continue;
+    const key = toISODate(instance.dueDate);
+    maxSortOrderByDate.set(key, Math.max(maxSortOrderByDate.get(key) ?? -1, instance.sortOrder));
+  }
+  for (const separator of horizonSeparators) {
+    const key = toISODate(separator.date);
+    maxSortOrderByDate.set(key, Math.max(maxSortOrderByDate.get(key) ?? -1, separator.sortOrder));
+  }
+
   const staleIds = existingFutureInstances
     .filter(
       (instance) =>
@@ -285,6 +311,9 @@ export async function materializeSeries(
         })
       );
     } else {
+      const dateKey = toISODate(date);
+      const nextSortOrder = (maxSortOrderByDate.get(dateKey) ?? -1) + 1;
+      maxSortOrderByDate.set(dateKey, nextSortOrder);
       operations.push(
         prisma.assignmentInstance.create({
           data: {
@@ -302,6 +331,7 @@ export async function materializeSeries(
             scheduledTime: series.scheduledTime,
             reminderMinutesBefore: series.reminderMinutesBefore,
             estimatedMinutes: series.estimatedMinutes,
+            sortOrder: nextSortOrder,
           },
         })
       );

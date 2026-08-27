@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { AssignmentInstance, PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, InstanceStatus, type Frequency } from "@/generated/prisma/enums";
 import { addDays, getToday, startOfUTCDay } from "./dates";
 import { materializeSeries } from "./materialize";
@@ -356,15 +356,19 @@ export async function deleteAllInSeries(
  * via the full edit modal. Lands at the bottom of the day's existing rows
  * (instances and separators share one sortOrder numbering space per day —
  * see reorderInstances.ts) rather than defaulting to sortOrder 0, which
- * would put it at the top. */
+ * would put it at the top. Returns the created row (shaped with its always-
+ * null relations) so the caller can show it immediately rather than waiting
+ * on a full page revalidation — see ParentWeekBoard's submitQuickAdd. */
 export async function quickCreateInstance(
   prisma: Pick<PrismaClient, "assignmentInstance" | "daySeparator">,
   studentId: string,
   dueDate: Date,
   title: string
-): Promise<void> {
+): Promise<
+  (AssignmentInstance & { subject: null; project: null; series: null }) | null
+> {
   const trimmed = title.trim();
-  if (!trimmed || !studentId) return;
+  if (!trimmed || !studentId) return null;
 
   const [instances, separators] = await Promise.all([
     prisma.assignmentInstance.findMany({ where: { studentId, dueDate }, select: { sortOrder: true } }),
@@ -372,7 +376,7 @@ export async function quickCreateInstance(
   ]);
   const maxSortOrder = Math.max(-1, ...instances.map((i) => i.sortOrder), ...separators.map((s) => s.sortOrder));
 
-  await prisma.assignmentInstance.create({
+  const created = await prisma.assignmentInstance.create({
     data: {
       title: trimmed,
       studentId,
@@ -383,4 +387,5 @@ export async function quickCreateInstance(
       sortOrder: maxSortOrder + 1,
     },
   });
+  return { ...created, subject: null, project: null, series: null };
 }

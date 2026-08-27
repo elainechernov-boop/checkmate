@@ -357,6 +357,28 @@ export function ParentWeekBoard({
     }
   }
 
+  /** Quick-add and "add divider" both already write correct final data on
+   * the server (quickCreateInstance/addDaySeparator compute the right
+   * bottom-of-day sortOrder themselves) — the only thing missing was
+   * showing that result locally instead of waiting on a full page
+   * revalidation, the same gap every other mutation here already closed. */
+  function handleQuickAddCreated(created: EditableInstance) {
+    setLocalInstances((current) => [...current, created]);
+  }
+
+  function handleSeparatorCreated(result: { separator: DaySeparator; finalOrder: string[] }) {
+    const orderIndex = new Map(result.finalOrder.map((id, index) => [id, index]));
+    setLocalDaySeparators((current) => {
+      const withNew = current.some((s) => s.id === result.separator.id) ? current : [...current, result.separator];
+      return withNew.map((separator) =>
+        orderIndex.has(separator.id) ? { ...separator, sortOrder: orderIndex.get(separator.id)! } : separator
+      );
+    });
+    setLocalInstances((current) =>
+      current.map((instance) => (orderIndex.has(instance.id) ? { ...instance, sortOrder: orderIndex.get(instance.id)! } : instance))
+    );
+  }
+
   return (
     <>
       <div className="mt-5 flex items-center justify-between text-sm">
@@ -461,6 +483,8 @@ export function ParentWeekBoard({
                 onDayTypeChange={(dateISO, type) => handleDayTypeChange(student.id, dateISO, type)}
                 onReorderDay={(dateISO, orderedIds) => handleReorderDay(student.id, dateISO, orderedIds)}
                 onReschedule={handleReschedule}
+                onQuickAdd={handleQuickAddCreated}
+                onSeparatorCreated={handleSeparatorCreated}
                 mobileDayIndex={mobileDayIndex}
                 mobileActive={student.id === mobileStudentId}
                 onSwipeLeft={goToNextDay}
@@ -500,6 +524,8 @@ function StudentBoard({
   onDayTypeChange,
   onReorderDay,
   onReschedule,
+  onQuickAdd,
+  onSeparatorCreated,
   mobileDayIndex,
   mobileActive,
   onSwipeLeft,
@@ -522,6 +548,8 @@ function StudentBoard({
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
   onReorderDay: (dateISO: string, orderedIds: string[]) => void | Promise<void>;
   onReschedule: (instanceId: string, newDateISO: string) => void | Promise<void>;
+  onQuickAdd: (created: EditableInstance) => void;
+  onSeparatorCreated: (result: { separator: DaySeparator; finalOrder: string[] }) => void;
   mobileDayIndex: number;
   // §5.6 — only the currently-selected student's board renders its mobile
   // (single-day) section; every board still renders its desktop grid
@@ -622,11 +650,14 @@ function StudentBoard({
   }
 
   /** SeparatorCreateRow's submit — one round trip creates the row and lands
-   * it at the exact spot the handle was dropped (see addDaySeparatorAction). */
+   * it at the exact spot the handle was dropped (see addDaySeparatorAction).
+   * Applies the result locally right away instead of waiting on a full page
+   * revalidation. */
   async function handleCreateSeparator(dateISO: string, index: number, label: string) {
     const existingOrderedIds = (byDay.get(dateISO) ?? []).map(rowId);
     setCreatingSeparator(null);
-    await addDaySeparatorAction(student.id, dateISO, label, index, existingOrderedIds);
+    const result = await addDaySeparatorAction(student.id, dateISO, label, index, existingOrderedIds);
+    if (result) onSeparatorCreated(result);
   }
 
   return (
@@ -681,6 +712,7 @@ function StudentBoard({
                 subjects={subjects}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
+                onQuickAdd={onQuickAdd}
                 creatingSeparatorIndex={creatingSeparator?.dateISO === dateISO ? creatingSeparator.index : null}
                 onRequestSeparator={() => setCreatingSeparator({ dateISO, index: (byDay.get(dateISO) ?? []).length })}
                 onSubmitSeparator={(label) => handleCreateSeparator(dateISO, creatingSeparator?.index ?? 0, label)}
@@ -716,6 +748,7 @@ function StudentBoard({
                 subjects={subjects}
                 onDelete={onDelete}
                 onDayTypeChange={onDayTypeChange}
+                onQuickAdd={onQuickAdd}
                 enableDrag={false}
                 creatingSeparatorIndex={creatingSeparator?.dateISO === dateISO ? creatingSeparator.index : null}
                 onRequestSeparator={() => setCreatingSeparator({ dateISO, index: (byDay.get(dateISO) ?? []).length })}
@@ -744,6 +777,7 @@ function DayCell({
   subjects,
   onDelete,
   onDayTypeChange,
+  onQuickAdd,
   enableDrag = true,
   creatingSeparatorIndex,
   onRequestSeparator,
@@ -766,6 +800,7 @@ function DayCell({
   subjects: { id: string; name: string }[];
   onDelete: (id: string) => void;
   onDayTypeChange: (dateISO: string, type: SchoolDayType) => void;
+  onQuickAdd: (created: EditableInstance) => void;
   // The mobile day pager (single day, swipe-driven) passes false: reorder
   // and cross-day-reschedule drags need the desktop grid's per-student
   // DndContext and would otherwise contend with the pager's own swipe
@@ -798,10 +833,12 @@ function DayCell({
     else assignmentMinutes += minutes;
   }
 
-  function submitQuickAdd() {
+  async function submitQuickAdd() {
     const trimmed = text.trim();
     setText("");
-    if (trimmed) void quickCreateAssignment(studentId, dateISO, trimmed);
+    if (!trimmed) return;
+    const created = await quickCreateAssignment(studentId, dateISO, trimmed);
+    if (created) onQuickAdd(created);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {

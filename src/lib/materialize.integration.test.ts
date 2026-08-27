@@ -53,6 +53,45 @@ describe("materializeSeries", () => {
     ]);
   });
 
+  it("lands each materialized occurrence after that day's existing rows, not at sortOrder 0", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    // A pre-existing row on one of the series' occurrence days, e.g. a
+    // parent's own quick-added task, already at the bottom of that day.
+    const existingDueDate = parseISODate("2026-08-04");
+    await prisma.assignmentInstance.create({
+      data: {
+        title: "Reading",
+        studentId: student.id,
+        createdBy: "parent",
+        dueDate: existingDueDate,
+        originalDueDate: existingDueDate,
+        status: "open",
+        sortOrder: 2,
+      },
+    });
+
+    const series = await prisma.assignmentSeries.create({
+      data: {
+        title: "Math worksheet",
+        studentId: student.id,
+        subjectId: subject.id,
+        createdBy: "parent",
+        startDate: parseISODate("2026-08-03"),
+        endCondition: EndCondition.onDate,
+        endDate: parseISODate("2026-08-05"),
+        recurrence: { create: { frequency: Frequency.weekdays, interval: 1 } },
+      },
+    });
+
+    await materializeSeries(prisma, series.id, parseISODate("2026-08-03"));
+
+    const materialized = await prisma.assignmentInstance.findFirstOrThrow({
+      where: { seriesId: series.id, dueDate: existingDueDate },
+    });
+    expect(materialized.sortOrder).toBe(3);
+  });
+
   it("omits a field-trip Tuesday from a weekly Tue/Thu series", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma, { name: "Latin" });

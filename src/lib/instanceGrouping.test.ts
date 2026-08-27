@@ -66,4 +66,19 @@ describe("bucketDayInstances — §12 time-sensitive pinning", () => {
     expect(pendingReview.map((i) => i.id)).toEqual(["pending"]);
     expect(completed.map((i) => i.id)).toEqual(["done"]);
   });
+
+  it("sorts pendingReview and completed by sortOrder, matching Parent Mode's own ordering", () => {
+    // Passed in out of sortOrder order (e.g. the query's own incidental
+    // order) — the bucket itself must still come out sorted, the same way
+    // ParentWeekBoard sorts every row (any status) by sortOrder.
+    const pendingB = item({ id: "pendingB", status: InstanceStatus.pendingReview, sortOrder: 5 });
+    const pendingA = item({ id: "pendingA", status: InstanceStatus.pendingReview, sortOrder: 1 });
+    const doneB = item({ id: "doneB", status: InstanceStatus.done, sortOrder: 4 });
+    const doneA = item({ id: "doneA", status: InstanceStatus.excused, sortOrder: 0 });
+
+    const { pendingReview, completed } = bucketDayInstances([pendingB, pendingA, doneB, doneA]);
+
+    expect(pendingReview.map((i) => i.id)).toEqual(["pendingA", "pendingB"]);
+    expect(completed.map((i) => i.id)).toEqual(["doneA", "doneB"]);
+  });
 });
