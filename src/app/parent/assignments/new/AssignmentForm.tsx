@@ -29,8 +29,10 @@ const REMINDER_OPTIONS = [
   { value: "60", label: "1 hour before" },
 ];
 
-const fieldLabel = "block text-xs font-medium uppercase tracking-wide";
+const fieldLabel = "block font-medium uppercase tracking-wide";
+const fieldLabelStyle = { fontSize: 10.5 };
 const fieldInput = "mt-1 w-full border-b bg-transparent py-1.5 outline-none";
+const fieldInputStyle = { fontSize: 13 };
 
 export function AssignmentForm({ students, subjects }: { students: Student[]; subjects: Subject[] }) {
   const [repeat, setRepeat] = useState("none");
@@ -47,17 +49,17 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
   }
 
   return (
-    <form action={createAssignment} className="mt-8 max-w-lg space-y-6 text-sm" style={{ color: COLORS.text }}>
+    <form action={createAssignment} className="mt-8 max-w-[640px] space-y-[18px]" style={{ color: COLORS.text }}>
       <div>
-        <label className={fieldLabel} style={{ color: COLORS.muted }}>
+        <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
           Title
         </label>
-        <input type="text" name="title" required autoFocus className={fieldInput} style={{ borderColor: COLORS.hairline }} />
+        <input type="text" name="title" required autoFocus className={fieldInput} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }} />
       </div>
 
       {/* §5.13 — plain text/accent toggles, not large filled cards. */}
       <div>
-        <span className={fieldLabel} style={{ color: COLORS.muted }}>
+        <span className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
           Student{studentIds.length > 1 ? "s" : ""}
         </span>
         {students.length > 1 && (
@@ -104,10 +106,10 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
       </div>
 
       <div>
-        <label className={fieldLabel} style={{ color: COLORS.muted }}>
+        <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
           Subject
         </label>
-        <select name="subjectId" required className={fieldInput} style={{ borderColor: COLORS.hairline }}>
+        <select name="subjectId" required className={fieldInput} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }}>
           {subjects.map((subject) => (
             <option key={subject.id} value={subject.id}>
               {subject.name}
@@ -117,32 +119,32 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
       </div>
 
       <div>
-        <label className={fieldLabel} style={{ color: COLORS.muted }}>
+        <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
           Due date
         </label>
-        <input type="date" name="dueDate" required className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline }} />
+        <input type="date" name="dueDate" required className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }} />
       </div>
 
       {/* §5.13 — everything past this point is occasional, collapsed by
           default; kept open once anything inside it is already in use. */}
       {!advancedOpen ? (
-        <button type="button" onClick={() => setAdvancedOpen(true)} className="block" style={{ color: COLORS.muted }}>
+        <button type="button" onClick={() => setAdvancedOpen(true)} className="block" style={{ color: COLORS.muted, fontSize: 13 }}>
           More options →
         </button>
       ) : (
-        <div className="flex flex-col gap-6 border-t pt-6" style={{ borderColor: COLORS.hairline }}>
+        <div className="flex flex-col gap-[18px] border-t pt-6" style={{ borderColor: COLORS.hairline, ...fieldInputStyle }}>
           <div>
-            <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
               Details (optional)
             </label>
-            <textarea name="details" rows={2} className={fieldInput} style={{ borderColor: COLORS.hairline }} />
+            <textarea name="details" rows={2} className={fieldInput} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }} />
           </div>
 
           <div>
-            <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
               Est. minutes (optional)
             </label>
-            <input type="number" name="estimatedMinutes" min={0} className={`${fieldInput} w-32`} style={{ borderColor: COLORS.hairline }} />
+            <input type="number" name="estimatedMinutes" min={0} className={`${fieldInput} w-32`} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }} />
           </div>
 
           <div>
@@ -154,16 +156,16 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
             {timeSensitive && (
               <div className="mt-2 flex items-end gap-3">
                 <div>
-                  <label className={fieldLabel} style={{ color: COLORS.muted }}>
+                  <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
                     Time
                   </label>
-                  <input type="time" name="scheduledTime" required className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline }} />
+                  <input type="time" name="scheduledTime" required className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }} />
                 </div>
                 <div>
-                  <label className={fieldLabel} style={{ color: COLORS.muted }}>
+                  <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
                     Remind
                   </label>
-                  <select name="reminderMinutesBefore" defaultValue="10" className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline }}>
+                  <select name="reminderMinutesBefore" defaultValue="10" className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }}>
                     {REMINDER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -176,7 +178,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
           </div>
 
           <div>
-            <label className={fieldLabel} style={{ color: COLORS.muted }}>
+            <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
               Repeat
             </label>
             <select
@@ -184,7 +186,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
               value={repeat}
               onChange={(event) => setRepeat(event.target.value)}
               className={fieldInput}
-              style={{ borderColor: COLORS.hairline }}
+              style={{ borderColor: COLORS.hairline, ...fieldInputStyle }}
             >
               {REPEAT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -196,7 +198,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
 
           {showDaysOfWeek && (
             <div>
-              <span className={fieldLabel} style={{ color: COLORS.muted }}>
+              <span className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
                 On these days
               </span>
               <div className="mt-1 flex gap-3">
@@ -212,7 +214,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
 
           {repeat !== "none" && (
             <div>
-              <label className={fieldLabel} style={{ color: COLORS.muted }}>
+              <label className={fieldLabel} style={{ color: COLORS.muted, ...fieldLabelStyle }}>
                 Ends
               </label>
               <select
@@ -220,7 +222,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
                 value={endCondition}
                 onChange={(event) => setEndCondition(event.target.value)}
                 className={fieldInput}
-                style={{ borderColor: COLORS.hairline }}
+                style={{ borderColor: COLORS.hairline, ...fieldInputStyle }}
               >
                 {END_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -230,7 +232,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
               </select>
 
               {endCondition === "onDate" && (
-                <input type="date" name="endDate" required className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline }} />
+                <input type="date" name="endDate" required className={`${fieldInput} w-auto`} style={{ borderColor: COLORS.hairline, ...fieldInputStyle }} />
               )}
               {endCondition === "afterNCount" && (
                 <input
@@ -240,7 +242,7 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
                   required
                   placeholder="Number of times"
                   className={fieldInput}
-                  style={{ borderColor: COLORS.hairline }}
+                  style={{ borderColor: COLORS.hairline, ...fieldInputStyle }}
                 />
               )}
             </div>
@@ -256,8 +258,8 @@ export function AssignmentForm({ students, subjects }: { students: Student[]; su
       <button
         type="submit"
         disabled={studentIds.length === 0}
-        className="hr-text-action font-medium disabled:cursor-not-allowed disabled:opacity-40"
-        style={{ color: COLORS.text }}
+        className="hr-text-action font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        style={{ color: COLORS.text, fontSize: 13 }}
       >
         Create assignment →
       </button>

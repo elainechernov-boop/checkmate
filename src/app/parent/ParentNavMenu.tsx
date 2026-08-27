@@ -8,6 +8,9 @@ const LINKS = [
   { href: "/parent/projects", label: "New project" },
   { href: "/parent/assignments/new", label: "New assignment" },
   { href: "/parent/calendar", label: "Calendar settings" },
+  // Screen 22: "Lock/switch options as appropriate" — mirrors the student
+  // menu's own "Switch student" link back to the picker.
+  { href: "/", label: "Switch student" },
 ];
 
 /** The redesign's plain nav row (README §2 "This Week · Students · Subjects
