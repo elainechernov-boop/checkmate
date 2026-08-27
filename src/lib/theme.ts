@@ -1,16 +1,16 @@
-// The "homeroom" brand palette — HOMEROOM_UX_MIGRATION.md §3 is the source
-// of truth; keep every value here one-to-one with the `--hr-*` custom
-// properties in globals.css. Cream is the standard app background; white is
-// reserved for Parent Mode cards and the print report. Crimson is semantic
-// only (live-now, "Show Mom", errors, destructive actions) and is never a
-// student accent. Cobalt is the default system color / default student
-// accent (also the imported family calendar overlay's chip color). Tennis
-// is a brand/progress accent — never small text on cream or white, it
-// lacks contrast there. Subject ticks (subjectColors.ts) and each student's
-// own accentColor (cycled via STUDENT_ACCENT_ROTATION below) are the other
-// two places color appears.
+// The "homeroom" brand palette — HOMEROOM_SCREEN_BY_SCREEN_BUILD_SPEC.md
+// Part I is the source of truth; keep every value here one-to-one with the
+// `--hr-*` custom properties in globals.css. White is the app surface
+// everywhere, including Parent Mode cards and the print report. Crimson is
+// semantic only (live-now, "Show Mom", errors, destructive actions) and is
+// never a student accent. Cobalt is the default system color / default
+// student accent (also the imported family calendar overlay's chip color).
+// Tennis is a brand/progress accent — never small text on white, it lacks
+// contrast there. Each student's own accentColor (cycled via
+// STUDENT_ACCENT_ROTATION below) is the only other place color appears on
+// ordinary rows; subjects are muted text metadata, never a color.
 export const COLORS = {
-  background: "#FAF7F2",
+  background: "#FFFFFF",
   white: "#FFFFFF",
   text: "#1A1A1A",
   muted: "#6B6B6B",

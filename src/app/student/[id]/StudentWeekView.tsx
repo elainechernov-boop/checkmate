@@ -491,6 +491,7 @@ export function StudentWeekView({
         open={comingUpOpen}
         onClose={() => setComingUpOpen(false)}
         items={comingUp}
+        accentColor={localAccentColor}
         prefersReducedMotion={prefersReducedMotion}
       />
 

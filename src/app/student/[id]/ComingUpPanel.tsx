@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatComingUpDate, toISODate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
-import { getSubjectColor } from "@/lib/subjectColors";
 import type { StudentInstance } from "./types";
 
 /** §2/§5: the next 14 days of due dates, kept minimal and read-only — grayed,
@@ -13,11 +12,13 @@ export function ComingUpPanel({
   open,
   onClose,
   items,
+  accentColor,
   prefersReducedMotion,
 }: {
   open: boolean;
   onClose: () => void;
   items: StudentInstance[];
+  accentColor: string;
   prefersReducedMotion: boolean;
 }) {
   const groups = new Map<string, { date: Date; items: StudentInstance[] }>();
@@ -100,7 +101,7 @@ export function ComingUpPanel({
                         <span
                           aria-hidden
                           className="inline-block h-2 w-0.5 shrink-0"
-                          style={{ background: getSubjectColor(item.subject?.name) }}
+                          style={{ background: item.project ? accentColor : COLORS.text }}
                         />
                         {item.title}
                       </li>

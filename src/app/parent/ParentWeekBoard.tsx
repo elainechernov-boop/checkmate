@@ -29,7 +29,6 @@ import {
 } from "@/lib/dates";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
-import { getSubjectColor } from "@/lib/subjectColors";
 import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime } from "@/lib/reminders";
 import { COLORS } from "@/lib/theme";
@@ -928,6 +927,7 @@ function DayCell({
                       instance={row.instance}
                       isLast={index === rows.length - 1 && creatingSeparatorIndex == null}
                       subjects={subjects}
+                      accentColor={accentColor}
                       onDelete={() => onDelete(row.instance.id)}
                     />
                   )}
@@ -949,6 +949,7 @@ function DayCell({
                   instance={row.instance}
                   isLast={index === rows.length - 1}
                   subjects={subjects}
+                  accentColor={accentColor}
                   onDelete={() => onDelete(row.instance.id)}
                 />
               )
@@ -1004,7 +1005,15 @@ function DayCell({
 /** The visual content shared by both row variants below — everything
  * except the outer element that carries (or doesn't carry) dnd-kit's
  * sortable wiring. */
-function RowContents({ instance, onToggleExpand }: { instance: EditableInstance; onToggleExpand: () => void }) {
+function RowContents({
+  instance,
+  accentColor,
+  onToggleExpand,
+}: {
+  instance: EditableInstance;
+  accentColor: string;
+  onToggleExpand: () => void;
+}) {
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
   // Mirrors the student view's own read of "done" (§6) — struck through and
   // muted, so the parent board shows at a glance what's actually finished
@@ -1019,12 +1028,17 @@ function RowContents({ instance, onToggleExpand }: { instance: EditableInstance;
     .filter(Boolean)
     .join(" · ");
 
+  // BUILD_SPEC.md Part I §1 exact identity-tick algorithm: done/excused ->
+  // hairline gray, project task -> student accent, everything else -> ink.
+  // Subject is never a color, only muted text metadata (above).
+  const tickColor = isDone ? COLORS.hairline : instance.project ? accentColor : COLORS.text;
+
   return (
     <>
       <span
         aria-hidden
         className="mt-1 inline-block self-stretch"
-        style={{ width: 2, background: getSubjectColor(instance.subject?.name), flexShrink: 0 }}
+        style={{ width: 3, background: tickColor, flexShrink: 0 }}
       />
       <span className="min-w-0 flex-1">
         <span className="flex items-start gap-1.5">
@@ -1102,26 +1116,12 @@ function RowFrame({
   children: ReactNode;
 }) {
   const isPendingReview = instance.status === InstanceStatus.pendingReview;
-  const isTimeSensitive = instance.isTimeSensitive && !!instance.scheduledTime;
 
   return (
     <div
-      className="group relative flex flex-col gap-1 rounded-sm px-1 py-0.5"
+      className="group relative flex flex-col gap-1 px-1 py-0.5"
       style={{
         borderBottom: isLast ? undefined : `1px solid ${COLORS.hairline}`,
-        // §12: mirrors the student view's whole-row highlight (not just the
-        // amber time text below) — bleeds to the day cell's own edges the
-        // same way, still within §9's two-color budget.
-        ...(isTimeSensitive
-          ? {
-              background: "rgba(181, 69, 27, 0.07)",
-              boxShadow: `inset 3px 0 0 ${COLORS.crimson}`,
-              marginLeft: "-0.75rem",
-              marginRight: "-0.75rem",
-              paddingLeft: "0.85rem",
-              paddingRight: "0.75rem",
-            }
-          : undefined),
       }}
     >
       {children}
@@ -1591,11 +1591,13 @@ function DraggableRow({
   instance,
   isLast,
   subjects,
+  accentColor,
   onDelete,
 }: {
   instance: EditableInstance;
   isLast: boolean;
   subjects: { id: string; name: string }[];
+  accentColor: string;
   onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -1620,7 +1622,7 @@ function DraggableRow({
         }}
         className="flex items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]"
       >
-        <RowContents instance={instance} onToggleExpand={() => setExpanded((current) => !current)} />
+        <RowContents instance={instance} accentColor={accentColor} onToggleExpand={() => setExpanded((current) => !current)} />
       </div>
     </RowFrame>
   );
@@ -1636,11 +1638,13 @@ function StaticRow({
   instance,
   isLast,
   subjects,
+  accentColor,
   onDelete,
 }: {
   instance: EditableInstance;
   isLast: boolean;
   subjects: { id: string; name: string }[];
+  accentColor: string;
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -1648,7 +1652,7 @@ function StaticRow({
   return (
     <RowFrame instance={instance} isLast={isLast} subjects={subjects} expanded={expanded} onCloseExpanded={() => setExpanded(false)} onDelete={onDelete}>
       <div className="flex items-start gap-2 pr-4 text-sm hover:bg-black/[0.03]">
-        <RowContents instance={instance} onToggleExpand={() => setExpanded((current) => !current)} />
+        <RowContents instance={instance} accentColor={accentColor} onToggleExpand={() => setExpanded((current) => !current)} />
       </div>
     </RowFrame>
   );

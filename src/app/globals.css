@@ -22,10 +22,12 @@
   --hr-violet: #b15cff;
   --hr-orange: #ff5e00;
 
-  /* App-wide surface: cream everywhere except Parent Mode cards (white,
-   * via SettingsCard/AppShell card treatment) and the print report (its
-   * own explicit white, unaffected by this token). */
-  --background: var(--hr-cream);
+  /* App-wide surface: white everywhere (HOMEROOM_SCREEN_BY_SCREEN_BUILD_SPEC.md
+   * Part I §1 — "Remove #FAF7F2 from all visible page surfaces. Do not
+   * substitute another off-white."). --hr-cream stays defined only so
+   * nothing breaks if referenced elsewhere; it is no longer used as a
+   * surface. */
+  --background: var(--hr-white);
   --foreground: var(--hr-ink);
 }
 

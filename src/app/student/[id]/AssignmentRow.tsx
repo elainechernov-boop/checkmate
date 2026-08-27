@@ -7,7 +7,6 @@ import { playCompletionTick } from "@/lib/completionSound";
 import { formatComingUpDate } from "@/lib/dates";
 import { formatRollMark } from "@/lib/instanceGrouping";
 import { formatScheduledTime, timeBadge, type TimeBadgeState } from "@/lib/reminders";
-import { getSubjectColor } from "@/lib/subjectColors";
 import { COLORS } from "@/lib/theme";
 import { ApprovalPasscodePopover } from "./ApprovalPasscodePopover";
 import type { StudentInstance } from "./types";
@@ -31,15 +30,16 @@ function isFadedLook(status: InstanceStatus): boolean {
   return status === InstanceStatus.pendingReview;
 }
 
-// The row's 3px identity bar (design tokens §"Spacing/shape") — a done row
-// mutes to the hairline gray, a project task or self-typed item (no
-// subject, since a project series never carries one — §3) takes the
-// student's own accent, and everything else takes its subject's color.
+// The row's 3px identity bar (BUILD_SPEC.md Part I §1 exact algorithm): a
+// done/excused row mutes to the hairline gray, a project task takes the
+// student's own accent, a subject-less historical student-authored item
+// also takes the student's own accent, and everything else — ordinary
+// parent-assigned work — is plain ink. Subject is never a color.
 function barColor(instance: StudentInstance, accentColor: string | undefined): string {
   if (isMutedLook(instance.status)) return COLORS.hairline;
   if (instance.project) return accentColor ?? COLORS.text;
-  if (instance.subject) return getSubjectColor(instance.subject.name);
-  return accentColor ?? COLORS.text;
+  if (!instance.subject) return accentColor ?? COLORS.text;
+  return COLORS.text;
 }
 
 function statusLabel(instance: StudentInstance): string {
@@ -167,7 +167,7 @@ export function AssignmentRow({
 
   return (
     <div
-      className="relative flex flex-col gap-1 rounded-sm py-1.5"
+      className="relative flex flex-col gap-1 py-1.5"
       style={{
         fontSize: "0.8125rem",
         borderBottom: isLast && !expanded ? undefined : `1px solid ${COLORS.hairline}`,
