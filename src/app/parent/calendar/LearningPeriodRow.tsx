@@ -15,25 +15,25 @@ export function LearningPeriodRow({ lp }: { lp: LearningPeriod }) {
     <form action={updateLearningPeriod} className="flex flex-wrap items-end gap-4 border-b py-3 text-sm" style={{ borderColor: COLORS.hairline }}>
       <input type="hidden" name="id" value={lp.id} />
       <div>
-        <label className="block text-xs" style={{ color: COLORS.muted }}>
+        <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
           Name
         </label>
         <input type="text" name="name" defaultValue={lp.name} required className="hr-flat-input w-24" />
       </div>
       <div>
-        <label className="block text-xs" style={{ color: COLORS.muted }}>
+        <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
           Start
         </label>
         <input type="date" name="startDate" defaultValue={toISODate(lp.startDate)} required className="hr-flat-input" />
       </div>
       <div>
-        <label className="block text-xs" style={{ color: COLORS.muted }}>
+        <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
           End
         </label>
         <input type="date" name="endDate" defaultValue={toISODate(lp.endDate)} required className="hr-flat-input" />
       </div>
       <div>
-        <label className="block text-xs" style={{ color: COLORS.muted }}>
+        <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
           HST meeting (optional)
         </label>
         <input

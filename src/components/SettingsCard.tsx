@@ -11,8 +11,8 @@ import { COLORS } from "@/lib/theme";
 export function SettingsCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`rounded-xl p-5 ${className}`}
-      style={{ background: COLORS.white, boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}
+      className={`rounded-xl ${className}`}
+      style={{ background: COLORS.white, boxShadow: "0 1px 3px rgba(0,0,0,.06)", padding: "18px 22px" }}
     >
       {children}
     </div>

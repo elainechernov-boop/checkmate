@@ -60,7 +60,7 @@ export function FamilyCalendarCard({
   return (
     <form action={saveFamilyCalendarSettings} className="mt-3 flex flex-wrap items-end gap-4 text-sm">
       <div className="min-w-0 flex-1">
-        <label className="block text-xs" style={{ color: COLORS.muted }}>
+        <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
           Secret iCal address
         </label>
         <input
@@ -74,7 +74,7 @@ export function FamilyCalendarCard({
         />
       </div>
       <div>
-        <label className="block text-xs" style={{ color: COLORS.muted }}>
+        <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
           Timezone
         </label>
         <select name="timeZone" defaultValue={familyCalendar?.timeZone ?? "America/Los_Angeles"} className="hr-flat-input">
