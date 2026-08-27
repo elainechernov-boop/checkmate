@@ -207,6 +207,17 @@ export function ParentWeekBoard({
     assignedStudentIdsByEvent.get(assignment.eventKey)!.add(assignment.studentId);
   }
 
+  // §4 "Async feedback" — every optimistic action below reverts to
+  // `previous` on failure (already true) and now also surfaces a quiet,
+  // auto-dismissing message instead of failing silently.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const errorTimeoutRef = useRef<number | null>(null);
+  function reportError(message: string) {
+    setActionError(message);
+    if (errorTimeoutRef.current) window.clearTimeout(errorTimeoutRef.current);
+    errorTimeoutRef.current = window.setTimeout(() => setActionError(null), 5000);
+  }
+
   async function handleAssign(eventId: string, studentId: string) {
     const previous = localAssignments;
     if (!previous.some((a) => a.eventKey === eventId && a.studentId === studentId)) {
@@ -216,6 +227,7 @@ export function ParentWeekBoard({
       await assignCalendarEventAction(eventId, studentId);
     } catch {
       setLocalAssignments(previous);
+      reportError("Couldn't assign that event. Try again.");
     }
   }
 
@@ -226,6 +238,7 @@ export function ParentWeekBoard({
       await unassignCalendarEventAction(eventId, studentId);
     } catch {
       setLocalAssignments(previous);
+      reportError("Couldn't remove that event. Try again.");
     }
   }
 
@@ -253,6 +266,12 @@ export function ParentWeekBoard({
     setMobileDayIndex(requestedDayIndex ?? defaultDayIndex(days, todayISO, isCurrentWeek));
   }
 
+  // §5.6 "Parent mobile architecture" — one student and one day at a time,
+  // not every board stacked. Plain text tabs (`Miles · Violet`); changing
+  // the selected day (above) never resets which student is selected here.
+  const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id ?? "");
+  const mobileStudentId = students.some((s) => s.id === selectedStudentId) ? selectedStudentId : (students[0]?.id ?? "");
+
   function goToDayIndex(index: number) {
     setMobileDayIndex(index);
   }
@@ -278,14 +297,24 @@ export function ParentWeekBoard({
    * the day disappear via re-materialization; any standalone instance left
    * behind moves straight to the next school day — see setDayType. */
   async function handleDayTypeChange(studentId: string, dateISO: string, type: SchoolDayType) {
-    await setDayType(studentId, dateISO, type);
+    try {
+      await setDayType(studentId, dateISO, type);
+    } catch {
+      reportError("Couldn't change that day's type. Try again.");
+    }
   }
 
   /** The hover-X on each row (Parent Mode only) — a deliberate small target
    * the parent clicks on purpose, so unlike the edit sheet's delete this
-   * skips any "are you sure": always deletes just this one occurrence. */
+   * skips any "are you sure": always deletes just this one occurrence, and
+   * the resulting Undo entry (recordUndo in deleteAssignment) is the
+   * recovery path, not a confirmation prompt. */
   async function handleDeleteInstance(instanceId: string) {
-    await deleteAssignment(instanceId, "only");
+    try {
+      await deleteAssignment(instanceId, "only");
+    } catch {
+      reportError("Couldn't delete that. Try again.");
+    }
   }
 
   /** Same-day drag-reorder (mixing assignments and separators freely — a
@@ -307,6 +336,7 @@ export function ParentWeekBoard({
     } catch {
       setLocalInstances(previousInstances);
       setLocalDaySeparators(previousSeparators);
+      reportError("Couldn't reorder that. Try again.");
     }
   }
 
@@ -323,6 +353,7 @@ export function ParentWeekBoard({
       await rescheduleInstance(instanceId, newDateISO);
     } catch {
       setLocalInstances(previousInstances);
+      reportError("Couldn't reschedule that. Try again.");
     }
   }
 
@@ -342,9 +373,35 @@ export function ParentWeekBoard({
         </Link>
       </div>
 
-      {/* Below `lg`, six columns per student don't fit — everyone's board
-          instead shows just the one day the pager is on, in step across
-          students, so a parent scanning "today" for both kids swipes once. */}
+      {/* Below `lg`, six columns per student don't fit, and stacking every
+          board (the old mobile layout) buries the second kid's board below
+          a full scroll of the first's — §5.6's "one student and one day at
+          a time" instead: plain text tabs pick the student, the pager below
+          pages the day, and only that one student's board renders its
+          mobile section (see StudentBoard's mobileActive). */}
+      {students.length > 1 && (
+        <div className="mt-6 flex items-center gap-4 lg:hidden">
+          {students.map((student) => (
+            <button
+              key={student.id}
+              type="button"
+              onClick={() => setSelectedStudentId(student.id)}
+              aria-pressed={student.id === mobileStudentId}
+              className="uppercase"
+              style={{
+                fontFamily: "var(--font-syncopate)",
+                fontWeight: 700,
+                fontSize: 14,
+                letterSpacing: "0.03em",
+                color: student.id === mobileStudentId ? student.accentColor : COLORS.mutedFaint,
+              }}
+            >
+              {student.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {students.length > 0 && (
         <div className="lg:hidden">
           <DayPagerControls
@@ -382,6 +439,8 @@ export function ParentWeekBoard({
             students={students}
             assignedStudentIdsByEvent={assignedStudentIdsByEvent}
             onAssign={handleAssign}
+            onUnassign={handleUnassign}
+            mobileSelectedDateISO={toISODate(days[mobileDayIndex])}
           />
 
           {students.map((student) => (
@@ -402,6 +461,7 @@ export function ParentWeekBoard({
                 onReorderDay={(dateISO, orderedIds) => handleReorderDay(student.id, dateISO, orderedIds)}
                 onReschedule={handleReschedule}
                 mobileDayIndex={mobileDayIndex}
+                mobileActive={student.id === mobileStudentId}
                 onSwipeLeft={goToNextDay}
                 onSwipeRight={goToPrevDay}
               />
@@ -409,6 +469,17 @@ export function ParentWeekBoard({
           ))}
         </DndContext>
       )}
+
+      <div role="alert" aria-live="assertive">
+        {actionError && (
+          <div
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm shadow-lg"
+            style={{ background: COLORS.crimson, color: COLORS.white }}
+          >
+            {actionError}
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -429,6 +500,7 @@ function StudentBoard({
   onReorderDay,
   onReschedule,
   mobileDayIndex,
+  mobileActive,
   onSwipeLeft,
   onSwipeRight,
 }: {
@@ -450,6 +522,10 @@ function StudentBoard({
   onReorderDay: (dateISO: string, orderedIds: string[]) => void | Promise<void>;
   onReschedule: (instanceId: string, newDateISO: string) => void | Promise<void>;
   mobileDayIndex: number;
+  // §5.6 — only the currently-selected student's board renders its mobile
+  // (single-day) section; every board still renders its desktop grid
+  // unconditionally (that one is already CSS-hidden below `lg` regardless).
+  mobileActive: boolean;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
 }) {
@@ -553,7 +629,10 @@ function StudentBoard({
   }
 
   return (
-    <section className="mt-6 rounded-xl p-5" style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
+    <section
+      className={`mt-6 rounded-xl p-5 ${mobileActive ? "" : "hidden lg:block"}`}
+      style={{ background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}
+    >
       <div className="flex items-baseline gap-3 border-b pb-3" style={{ borderColor: COLORS.hairline }}>
         <Link
           href={`/student/${student.id}`}
@@ -613,7 +692,7 @@ function StudentBoard({
         </div>
       </DndContext>
 
-      {(() => {
+      {mobileActive && (() => {
         const day = days[mobileDayIndex];
         const dateISO = toISODate(day);
         return (
@@ -739,7 +818,13 @@ function DayCell({
     <div className="flex flex-col">
       <div
         ref={setNodeRef}
-        className="min-h-[100px] px-2.5 transition-colors"
+        // Named group (`group/divider`, not plain `group`) — this wraps
+        // every row below, each of which already has its own unnamed
+        // `group` scoping its own hover-X delete button; a plain `group`
+        // here would make hovering anywhere in the whole day cell reveal
+        // every row's delete button at once, not just the one under the
+        // pointer. The divider handle below opts in with `group-hover/divider`.
+        className="group/divider min-h-[100px] px-2.5 transition-colors"
         style={{
           borderLeft: `1px solid ${COLORS.hairline}`,
           background: isOver ? `${accentColor}0d` : undefined,
@@ -897,7 +982,7 @@ function DayCell({
               onClick={onRequestSeparator}
               className="text-xs text-[#A9ACB2] hover:text-[#6B6B6B]"
             >
-              + Separator
+              — Add divider
             </button>
           )}
         </div>
@@ -1218,27 +1303,32 @@ function SeparatorHandle({ dateISO, onClick }: { dateISO: string; onClick: () =>
     id: separatorHandleId(dateISO),
   });
 
+  // §5.6/§3: "Replace the permanently visible dashed `⠿ Separator` box with
+  // a quiet text action such as `— Add divider`, revealed on hover/focus
+  // desktop and visible on touch layouts" (globals.css's .hr-hover-action,
+  // paired with the day cell's own `group` — see DayCell). Still the same
+  // drag-to-place handle as before; only the at-rest visual weight changes.
   return (
-    <div
+    <button
+      type="button"
       ref={setNodeRef}
       {...attributes}
       {...listeners}
       onClick={onClick}
       style={{
         transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.6 : 1,
+        opacity: isDragging ? 0.6 : undefined,
         zIndex: isDragging ? 10 : undefined,
         position: "relative",
         cursor: isDragging ? "grabbing" : "grab",
         touchAction: "none",
-        borderColor: COLORS.hairline,
         color: COLORS.mutedFaint,
       }}
-      className="rounded border border-dashed px-2 py-0.5 text-xs hover:text-[#6B6B6B]"
-      title="Click to add a separator, or drag it to where you want it"
+      className="hr-hover-action group-hover/divider:opacity-100 text-xs hover:text-[#6B6B6B]"
+      title="Click to add a divider, or drag it to where you want it"
     >
-      ⠿ Separator
-    </div>
+      — Add divider
+    </button>
   );
 }
 
@@ -1306,12 +1396,18 @@ function CalendarStrip({
   students,
   assignedStudentIdsByEvent,
   onAssign,
+  onUnassign,
+  mobileSelectedDateISO,
 }: {
   days: Date[];
   events: FamilyCalendarEvent[];
   students: Student[];
   assignedStudentIdsByEvent: Map<string, Set<string>>;
   onAssign: (eventId: string, studentId: string) => void;
+  onUnassign: (eventId: string, studentId: string) => void;
+  // §5.6 "Shared family agenda... one selected day mobile" — which day's
+  // events the mobile layout collapses to (desktop always shows all six).
+  mobileSelectedDateISO: string;
 }) {
   const eventsByDay = new Map<string, FamilyCalendarEvent[]>();
   for (const day of days) eventsByDay.set(toISODate(day), []);
@@ -1327,34 +1423,61 @@ function CalendarStrip({
           from your Google Calendar
         </span>
       </div>
+      {/* §5.6: one faint instructional sentence here, replacing the "drag to
+          a kid, or" text that used to repeat on every single event row. */}
+      <p className="mt-1.5 text-xs" style={{ color: COLORS.mutedFaint }}>
+        Tap a student&rsquo;s initial to assign an event, or drag it onto their board.
+      </p>
       {events.length === 0 ? (
         <p className="mt-3 text-xs" style={{ color: COLORS.mutedFaint }}>
           Nothing this week.
         </p>
       ) : (
-        <div className="mt-3 grid grid-flow-col auto-cols-[150px] gap-4 overflow-x-auto pb-1 lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-6 lg:overflow-visible lg:pb-0">
-          {days.map((day) => {
-            const dateISO = toISODate(day);
-            return (
-              <div key={dateISO}>
-                <span className="block text-xs font-bold" style={{ color: COLORS.text }}>
-                  {formatDayWeekdayShort(day)}
-                </span>
-                <div className="mt-1.5 flex flex-col gap-1.5">
-                  {(eventsByDay.get(dateISO) ?? []).map((event) => (
-                    <CalendarStripEventRow
-                      key={event.id}
-                      event={event}
-                      students={students}
-                      assignedStudentIds={assignedStudentIdsByEvent.get(event.id) ?? EMPTY_STUDENT_ID_SET}
-                      onAssign={onAssign}
-                    />
-                  ))}
+        <>
+          <div className="mt-3 hidden gap-4 lg:grid lg:grid-cols-6">
+            {days.map((day) => {
+              const dateISO = toISODate(day);
+              return (
+                <div key={dateISO}>
+                  <span className="block text-xs font-bold" style={{ color: COLORS.text }}>
+                    {formatDayWeekdayShort(day)}
+                  </span>
+                  <div className="mt-1.5 flex flex-col gap-1.5">
+                    {(eventsByDay.get(dateISO) ?? []).map((event) => (
+                      <CalendarStripEventRow
+                        key={event.id}
+                        event={event}
+                        students={students}
+                        assignedStudentIds={assignedStudentIdsByEvent.get(event.id) ?? EMPTY_STUDENT_ID_SET}
+                        onAssign={onAssign}
+                        onUnassign={onUnassign}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex flex-col gap-1.5 lg:hidden">
+            {(eventsByDay.get(mobileSelectedDateISO) ?? []).length === 0 ? (
+              <p className="text-xs" style={{ color: COLORS.mutedFaint }}>
+                Nothing this day.
+              </p>
+            ) : (
+              (eventsByDay.get(mobileSelectedDateISO) ?? []).map((event) => (
+                <CalendarStripEventRow
+                  key={event.id}
+                  event={event}
+                  students={students}
+                  assignedStudentIds={assignedStudentIdsByEvent.get(event.id) ?? EMPTY_STUDENT_ID_SET}
+                  onAssign={onAssign}
+                  onUnassign={onUnassign}
+                />
+              ))
+            )}
+          </div>
+        </>
       )}
     </section>
   );
@@ -1367,6 +1490,7 @@ function CalendarStripEventRow({
   students,
   assignedStudentIds,
   onAssign,
+  onUnassign,
 }: {
   event: FamilyCalendarEvent;
   students: Student[];
@@ -1375,6 +1499,7 @@ function CalendarStripEventRow({
   // it's already assigned rather than just "tap to assign."
   assignedStudentIds: Set<string>;
   onAssign: (eventId: string, studentId: string) => void;
+  onUnassign: (eventId: string, studentId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: calendarEventDragId(event.id),
@@ -1420,7 +1545,6 @@ function CalendarStripEventRow({
       </div>
       <span style={{ color: COLORS.cobalt, fontWeight: 700 }}>{event.timeLabel ?? "All day"}</span>
       <div className="flex items-center gap-1">
-        <span style={{ color: COLORS.mutedFaint }}>drag to a kid, or</span>
         {students.map((student) => {
           const isAssigned = assignedStudentIds.has(student.id);
           return (
@@ -1429,11 +1553,12 @@ function CalendarStripEventRow({
               type="button"
               onClick={(domEvent) => {
                 domEvent.stopPropagation();
-                if (isAssigned) return;
-                onAssign(event.id, student.id);
+                if (isAssigned) onUnassign(event.id, student.id);
+                else onAssign(event.id, student.id);
               }}
-              title={isAssigned ? `Already on ${student.name}'s board` : `Assign to ${student.name}`}
-              aria-label={isAssigned ? `"${event.title}" is already on ${student.name}'s board` : `Assign "${event.title}" to ${student.name}`}
+              aria-pressed={isAssigned}
+              title={isAssigned ? `Remove from ${student.name}'s board` : `Assign to ${student.name}`}
+              aria-label={isAssigned ? `"${event.title}" is on ${student.name}'s board — tap to remove` : `Assign "${event.title}" to ${student.name}`}
               className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
               style={
                 isAssigned

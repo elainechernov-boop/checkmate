@@ -110,16 +110,12 @@ export default async function ParentPage({
   return (
     <AppShell>
       <BrandHeader>
-        <ParentNav
-          current="week"
-          extra={
-            <>
-              <UndoMenu entries={recentUndoLog} />
-              <ParentNavMenu />
-            </>
-          }
-        />
+        <ParentNav current="week" extra={<ParentNavMenu />} />
       </BrandHeader>
+
+      {/* Fixed-position toast (see UndoToast) — deliberately outside the
+          header row now; it no longer permanently occupies nav space. */}
+      <UndoMenu entries={recentUndoLog} />
 
       <ParentWeekBoard
         students={students}
