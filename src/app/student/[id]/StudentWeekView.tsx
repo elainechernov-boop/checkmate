@@ -334,9 +334,11 @@ export function StudentWeekView({
       style={{ background: COLORS.background, color: COLORS.text }}
       className="min-h-screen px-4 pb-6 pt-4 lg:px-[30px] lg:pb-[30px] lg:pt-[26px]"
     >
-      <div className="mb-[10px] flex items-center justify-between lg:mb-4">
+      <div className="relative mb-[10px] flex items-center justify-center lg:mb-4">
         <Image src="/homeroom-wordmark.svg" alt="homeroom" width={110} height={18} className="h-4 w-auto lg:h-[18px]" priority />
-        <StudentMenu muted={muted} onToggleMute={toggleMute} onOpenComingUp={() => setComingUpOpen(true)} />
+        <div className="absolute right-0">
+          <StudentMenu muted={muted} onToggleMute={toggleMute} onOpenComingUp={() => setComingUpOpen(true)} />
+        </div>
       </div>
 
       <header
