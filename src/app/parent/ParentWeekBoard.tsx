@@ -379,25 +379,26 @@ export function ParentWeekBoard({
           pages the day, and only that one student's board renders its
           mobile section (see StudentBoard's mobileActive). */}
       {students.length > 1 && (
-        <div className="mt-6 flex items-center gap-4 lg:hidden">
-          {students.map((student) => (
-            <button
-              key={student.id}
-              type="button"
-              onClick={() => setSelectedStudentId(student.id)}
-              aria-pressed={student.id === mobileStudentId}
-              className="uppercase"
-              style={{
-                fontFamily: "var(--font-syncopate)",
-                fontWeight: 700,
-                fontSize: 14,
-                letterSpacing: "0.03em",
-                color: student.id === mobileStudentId ? student.accentColor : COLORS.mutedFaint,
-              }}
-            >
-              {student.name}
-            </button>
-          ))}
+        <div className="mt-6 flex items-center gap-1.5 lg:hidden" style={{ fontSize: 12 }}>
+          {students.map((student, index) => {
+            const active = student.id === mobileStudentId;
+            return (
+              <span key={student.id} className="flex items-center gap-1.5">
+                {index > 0 && <span style={{ color: COLORS.mutedFaint }}>·</span>}
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentId(student.id)}
+                  aria-pressed={active}
+                  style={{
+                    color: active ? student.accentColor : COLORS.muted,
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {student.name}
+                </button>
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -407,7 +408,7 @@ export function ParentWeekBoard({
             activeIndex={mobileDayIndex}
             labels={DAY_SHORT_LABELS}
             currentLabel={`${formatDayWeekdayShort(days[mobileDayIndex])} · ${formatMonthDayLine(days[mobileDayIndex])}`}
-            accentColor={COLORS.text}
+            accentColor={students.find((s) => s.id === mobileStudentId)?.accentColor ?? COLORS.text}
             onSelect={goToDayIndex}
             onPrev={goToPrevDay}
             onNext={goToNextDay}
