@@ -353,15 +353,24 @@ export async function deleteAllInSeries(
 }
 
 /** Click-a-date quick-add (§4): title only, everything else refined later
- * via the full edit modal. */
+ * via the full edit modal. Lands at the bottom of the day's existing rows
+ * (instances and separators share one sortOrder numbering space per day —
+ * see reorderInstances.ts) rather than defaulting to sortOrder 0, which
+ * would put it at the top. */
 export async function quickCreateInstance(
-  prisma: Pick<PrismaClient, "assignmentInstance">,
+  prisma: Pick<PrismaClient, "assignmentInstance" | "daySeparator">,
   studentId: string,
   dueDate: Date,
   title: string
 ): Promise<void> {
   const trimmed = title.trim();
   if (!trimmed || !studentId) return;
+
+  const [instances, separators] = await Promise.all([
+    prisma.assignmentInstance.findMany({ where: { studentId, dueDate }, select: { sortOrder: true } }),
+    prisma.daySeparator.findMany({ where: { studentId, date: dueDate }, select: { sortOrder: true } }),
+  ]);
+  const maxSortOrder = Math.max(-1, ...instances.map((i) => i.sortOrder), ...separators.map((s) => s.sortOrder));
 
   await prisma.assignmentInstance.create({
     data: {
@@ -371,6 +380,7 @@ export async function quickCreateInstance(
       dueDate,
       originalDueDate: dueDate,
       status: "open",
+      sortOrder: maxSortOrder + 1,
     },
   });
 }

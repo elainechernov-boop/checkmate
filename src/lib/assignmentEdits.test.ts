@@ -205,6 +205,22 @@ describe("quickCreateInstance (Parent Mode click-a-date quick-add)", () => {
     const count = await prisma.assignmentInstance.count();
     expect(count).toBe(0);
   });
+
+  it("lands after every existing row on that day, not at sortOrder 0", async () => {
+    const student = await makeStudent(prisma);
+    const dueDate = parseISODate("2026-08-10");
+    await prisma.assignmentInstance.create({
+      data: { title: "Reading", studentId: student.id, createdBy: "parent", dueDate, originalDueDate: dueDate, status: "open", sortOrder: 3 },
+    });
+    await prisma.daySeparator.create({
+      data: { studentId: student.id, date: dueDate, label: "Afternoon", sortOrder: 4 },
+    });
+
+    await quickCreateInstance(prisma, student.id, dueDate, "Piano practice");
+
+    const created = await prisma.assignmentInstance.findFirstOrThrow({ where: { title: "Piano practice" } });
+    expect(created.sortOrder).toBe(5);
+  });
 });
 
 describe("rescheduleInstance (Parent Mode drag-to-reschedule)", () => {
