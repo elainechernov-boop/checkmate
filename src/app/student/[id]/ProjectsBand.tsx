@@ -29,13 +29,13 @@ export function ProjectsBand({
   if (inProgress.length === 0 && finished.length === 0) return null;
 
   return (
-    <section className="mt-10 pt-4" style={{ borderTop: `2px solid ${COLORS.text}` }}>
+    <section className="mt-[22px] pt-[18px]" style={{ borderTop: `2px solid ${COLORS.text}` }}>
       <h2 className="uppercase" style={{ color: COLORS.muted, fontSize: "0.6875rem", fontWeight: 700, letterSpacing: "0.1em" }}>
         Projects
       </h2>
 
       {inProgress.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-6">
+        <div className="mt-[10px] flex flex-wrap gap-6">
           {inProgress.map((project) => (
             <ProjectSummaryCard key={project.id} project={project} accentColor={accentColor} />
           ))}
@@ -52,7 +52,7 @@ function ProjectSummaryCard({ project, accentColor }: { project: StudentProject;
   const nextSteps = project.backlogTasks.slice(0, 3);
 
   return (
-    <div className="w-56 shrink-0 border-l pl-4" style={{ borderColor: COLORS.hairline }}>
+    <div className="w-[240px] shrink-0 border-l pl-4" style={{ borderColor: COLORS.hairline }}>
       <span
         className="block truncate uppercase"
         style={{ fontFamily: "var(--font-syncopate)", fontWeight: 700, letterSpacing: "0.03em", fontSize: 14, color: COLORS.text }}

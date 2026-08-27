@@ -44,9 +44,9 @@ export function bucketDayInstances<T extends DisplayInstance>(instances: T[]) {
   return { rolled, timeSensitive, open, pendingReview, completed };
 }
 
-/** §5: "·· for two days, ×4 beyond three". */
+/** BUILD_SPEC.md Screen 4-G: "Crimson » or »» appears immediately after the
+ * title" — a single day rolled gets one », two or more get »». */
 export function formatRollMark(rolledCount: number): string | null {
   if (rolledCount <= 0) return null;
-  if (rolledCount <= 3) return "·".repeat(rolledCount);
-  return `×${rolledCount}`;
+  return rolledCount === 1 ? "»" : "»»";
 }

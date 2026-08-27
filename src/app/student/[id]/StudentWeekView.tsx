@@ -330,9 +330,12 @@ export function StudentWeekView({
   }
 
   return (
-    <main style={{ background: COLORS.background, color: COLORS.text }} className="min-h-screen px-4 py-6 lg:px-10 lg:py-10">
+    <main
+      style={{ background: COLORS.background, color: COLORS.text }}
+      className="min-h-screen px-4 py-6 lg:px-[30px] lg:pb-[30px] lg:pt-[26px]"
+    >
       <div className="flex items-center justify-between">
-        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={110} height={20} className="h-5 w-auto" priority />
+        <Image src="/homeroom-wordmark.svg" alt="homeroom" width={110} height={18} className="h-[18px] w-auto" priority />
         <StudentMenu muted={muted} onToggleMute={toggleMute} onOpenComingUp={() => setComingUpOpen(true)} />
       </div>
 
@@ -379,7 +382,7 @@ export function StudentWeekView({
           </Link>
           {!isCurrentWeek && (
             <Link href={`/student/${student.id}`} className="hover:underline" style={{ color: COLORS.muted, fontSize: 12 }}>
-              📅 Today
+              Today
             </Link>
           )}
           <Link
@@ -403,7 +406,7 @@ export function StudentWeekView({
           {/* Desktop: the full six-column week (§6). Below `lg`, six
               columns of full assignment rows have no room to breathe, so
               a phone gets the swipeable single-day pager instead. */}
-          <div className="mt-8 hidden grid-cols-6 lg:grid">
+          <div className="mt-1.5 hidden grid-cols-6 lg:grid">
             {days.map((day) => {
               const dayISO = toISODate(day);
               const dayInstances = localInstances.filter((i) => i.dueDate && toISODate(i.dueDate) === dayISO);
@@ -433,7 +436,7 @@ export function StudentWeekView({
             })}
           </div>
 
-          <div className="mt-8 lg:hidden">
+          <div className="mt-1.5 lg:hidden">
             <DayPagerControls
               activeIndex={mobileDayIndex}
               labels={DAY_SHORT_LABELS}
@@ -577,7 +580,7 @@ function StudentMenu({
               setOpen(false);
               onOpenComingUp();
             }}
-            className="block w-full px-3 py-1.5 text-left text-sm hover:underline"
+            className="block w-full px-3 py-1.5 text-left text-[13px] hover:underline"
             style={{ color: COLORS.muted }}
           >
             Coming Up
@@ -588,21 +591,21 @@ function StudentMenu({
               setOpen(false);
               onToggleMute();
             }}
-            className="block w-full px-3 py-1.5 text-left text-sm hover:underline"
+            className="block w-full px-3 py-1.5 text-left text-[13px] hover:underline"
             style={{ color: COLORS.muted }}
           >
             {muted ? "🔈 Turn sound on" : "🔊 Turn sound off"}
           </button>
           <Link
             href="/"
-            className="block px-3 py-1.5 text-sm hover:underline"
+            className="block px-3 py-1.5 text-[13px] hover:underline"
             style={{ color: COLORS.muted }}
           >
             ← Switch student
           </Link>
           <Link
             href="/parent"
-            className="block px-3 py-1.5 text-sm hover:underline"
+            className="block px-3 py-1.5 text-[13px] hover:underline"
             style={{ color: COLORS.muted }}
           >
             Parent Mode

@@ -52,11 +52,11 @@ function CalendarEventChip({ event, now }: { event: FamilyCalendarEvent; now: Da
  * (see DayColumn's handleDragEnd). */
 function SeparatorDivider({ label }: { label: string }) {
   return (
-    <div className="my-1.5 flex items-center gap-2">
+    <div className="flex items-center gap-2" style={{ padding: "8px 0 4px" }}>
       <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
       <span
         className="shrink-0 font-medium uppercase"
-        style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.06em" }}
+        style={{ color: COLORS.muted, fontSize: "9.5px", letterSpacing: "0.06em" }}
       >
         {label}
       </span>
@@ -260,10 +260,10 @@ export function DayColumn({
   return (
     <div className="flex flex-col">
       <div
-        className="flex flex-1 flex-col p-3 pt-0 transition-colors"
-        style={{ borderLeft: `1px solid ${COLORS.hairline}` }}
+        className="flex flex-1 flex-col transition-colors"
+        style={{ borderLeft: `1px solid ${COLORS.hairline}`, padding: "10px 12px 0" }}
       >
-        <div className="relative flex items-start justify-between pt-3">
+        <div className="relative flex items-start justify-between">
           {/* The redesign's day header order (Canvas.dc.html): a short bold
               weekday first, almost all the visual weight there, then a tiny
               date + done-count line beneath it. Today's name picks up the
@@ -286,7 +286,7 @@ export function DayColumn({
             )}
             <span
               className="font-medium uppercase"
-              style={{ color: COLORS.muted, fontSize: "0.65rem", letterSpacing: "0.04em" }}
+              style={{ color: COLORS.muted, fontSize: "0.65625rem", letterSpacing: "0.04em", paddingTop: 2 }}
             >
               {compactHeader ? `${completed.length}/${totalRows} done` : `${formatMonthDayLine(day)} · ${completed.length}/${totalRows} done`}
             </span>
@@ -305,7 +305,7 @@ export function DayColumn({
             Hidden entirely when nothing on the day carries a real estimate
             (§5.4: never show a bar built from invented minutes). */}
         {progressTotalMinutes > 0 && (
-          <span aria-hidden className="mt-1.5 block h-[3px]" style={{ background: COLORS.hairline }}>
+          <span aria-hidden className="block h-[3px]" style={{ background: COLORS.hairline, margin: "5px 0 6px" }}>
             <span className="block h-full" style={{ width: `${progressPercent}%`, background: accentColor }} />
           </span>
         )}
@@ -319,8 +319,10 @@ export function DayColumn({
         )}
 
         <div className="mt-2 flex flex-col">
-          {totalRows === 0 && calendarEvents.length === 0 && (
-            <p className="py-1 text-center text-sm" style={{ color: COLORS.mutedFaint }}>
+          {/* Screen 4-N: past/future empty days show whitespace only; only
+              today may show the quiet "Nothing due." line. */}
+          {totalRows === 0 && calendarEvents.length === 0 && isToday && (
+            <p className="py-1 text-center" style={{ color: COLORS.mutedFaint, fontSize: 11.5 }}>
               Nothing due.
             </p>
           )}

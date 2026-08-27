@@ -170,6 +170,7 @@ export function AssignmentRow({
       className="relative flex flex-col gap-1 py-1.5"
       style={{
         fontSize: "0.8125rem",
+        lineHeight: 1.35,
         borderBottom: isLast && !expanded ? undefined : `1px solid ${COLORS.hairline}`,
         // Design tokens: "1.5px top+bottom rule (not a rounded card) for
         // time-sensitive callouts" — crimson while live, cobalt while
@@ -190,10 +191,10 @@ export function AssignmentRow({
           : undefined),
       }}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start" style={{ gap: 7 }}>
         {/* The row's 3px identity bar (design tokens) — subject color, or
             the student's own accent for a project task / self-typed item. */}
-        <span aria-hidden className="mt-0.5 shrink-0 self-stretch" style={{ width: 3, minHeight: "1.25rem", background: barColor(instance, accentColor) }} />
+        <span aria-hidden className="mt-0.5 shrink-0 self-stretch" style={{ width: 3, minHeight: 22, background: barColor(instance, accentColor) }} />
 
         <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
           {isCallout && (
@@ -282,7 +283,7 @@ export function AssignmentRow({
               {rollMark && (
                 <span
                   className="mt-0.5 shrink-0"
-                  style={{ color: COLORS.crimson, fontSize: "0.7rem", fontWeight: 700 }}
+                  style={{ color: COLORS.crimson, fontSize: "0.65625rem", fontWeight: 700 }}
                   title={`Rolled ${instance.rolledCount} day(s)`}
                 >
                   {rollMark}
