@@ -4,6 +4,7 @@ import { getScopedPrisma } from "@/lib/prisma";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
 import { computeStreak } from "@/lib/streak";
+import { shouldRunNow } from "@/lib/throttle";
 import {
   fetchFamilyCalendarEvents,
   getCalendarEventAssignments,
@@ -36,12 +37,20 @@ export default async function StudentPage({
   // Keeps every series' rolling 60-day materialization window actually
   // rolling as real days pass, not just when a series is edited (see
   // materialize.ts) — runs before the roll below so a freshly-materialized
-  // today's instance is never missed by it.
-  await extendAllMaterializationHorizons(prisma, today);
+  // today's instance is never missed by it. Throttled (throttle.ts) to
+  // match §1's own "light 60-second background refresh" cadence — without
+  // it, checking a single item off re-ran this across every series on
+  // every click, since revalidatePath() re-executes this whole function.
+  if (shouldRunNow("materialize-all", 60_000)) {
+    await extendAllMaterializationHorizons(prisma, today);
+  }
   // §5's daily auto-roll — runs on every load (not just "the first" one) so
   // it stays correct regardless of who opens the app first each day; it's a
-  // no-op once nothing is overdue, so re-running it is harmless.
-  await rollOverdueInstances(prisma, id, today);
+  // no-op once nothing is overdue, so re-running it is harmless. Throttled
+  // per student for the same reason as the materialization call above.
+  if (shouldRunNow(`roll-${id}`, 60_000)) {
+    await rollOverdueInstances(prisma, id, today);
+  }
 
   const monday = week ? parseISODate(week) : defaultWeekStart(today);
   const weekEnd = addDays(monday, 6); // Mon..Sat, six columns per §6

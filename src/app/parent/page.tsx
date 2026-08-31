@@ -6,6 +6,7 @@ import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
+import { shouldRunNow } from "@/lib/throttle";
 import {
   fetchFamilyCalendarEvents,
   getCalendarEventAssignments,
@@ -35,12 +36,18 @@ export default async function ParentPage({
   const today = getToday();
   // Same self-extending horizon as the student page (see materialize.ts) —
   // covering this entry point too so a long-running series keeps
-  // generating even on days only Parent Mode gets opened.
-  await extendAllMaterializationHorizons(prisma, today);
+  // generating even on days only Parent Mode gets opened. Throttled
+  // (throttle.ts) the same way and for the same reason as the student
+  // page — revalidatePath() re-runs this whole function on every mutation.
+  if (shouldRunNow("materialize-all", 60_000)) {
+    await extendAllMaterializationHorizons(prisma, today);
+  }
   // Keeps Parent Mode's board correct even if the parent looks before either
   // kid has opened their own page today (§5's roll is a shared-DB effect,
   // not something scoped to whoever happens to trigger it first).
-  await rollOverdueInstancesForAllStudents(prisma, today);
+  if (shouldRunNow("roll-all-students", 60_000)) {
+    await rollOverdueInstancesForAllStudents(prisma, today);
+  }
 
   const monday = week ? parseISODate(week) : defaultWeekStart(today);
   const weekEnd = addDays(monday, 6);

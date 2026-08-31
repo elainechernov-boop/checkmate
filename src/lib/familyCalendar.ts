@@ -154,7 +154,15 @@ export async function fetchFamilyCalendarEvents(
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let text: string;
   try {
-    const response = await fetch(settings.icsUrl, { signal: controller.signal });
+    // This is a live network fetch to an external calendar on every call —
+    // without caching, it ran (and reparsed the whole feed) on every single
+    // /parent and /student/[id] load, including the re-render a plain
+    // checkbox toggle triggers via revalidatePath(). A 5-minute-old Google
+    // Calendar view is indistinguishable from a fresh one for this app's
+    // purpose (§ Parent Mode "on top of the view" — showing what else is
+    // going on, not a real-time feed), so Next's Data Cache absorbs the
+    // repeat fetches for that window instead of hitting the network again.
+    const response = await fetch(settings.icsUrl, { signal: controller.signal, next: { revalidate: 300 } });
     if (!response.ok) return [];
     text = await response.text();
   } catch {
