@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav } from "@/components/ParentNav";
 import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
@@ -31,6 +31,7 @@ export default async function ParentPage({
   // smart "today, else Monday" default.
   const parsedDay = day !== undefined ? Number(day) : NaN;
   const requestedDayIndex = Number.isInteger(parsedDay) && parsedDay >= 0 && parsedDay <= 5 ? parsedDay : null;
+  const prisma = await getScopedPrisma();
   const today = getToday();
   // Same self-extending horizon as the student page (see materialize.ts) —
   // covering this entry point too so a long-running series keeps

@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { COLORS } from "@/lib/theme";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 
 export default async function Home() {
+  const prisma = await getScopedPrisma();
   const students = await prisma.student.findMany({ orderBy: { name: "asc" } });
 
   return (

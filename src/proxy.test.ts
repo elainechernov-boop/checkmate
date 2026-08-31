@@ -49,12 +49,12 @@ describe("proxy (auth gate)", () => {
   });
 
   it("lets a family-authenticated request through to a non-parent route", () => {
-    const response = proxy(request("/student/abc123", { [FAMILY_COOKIE]: signFamilySession() }));
+    const response = proxy(request("/student/abc123", { [FAMILY_COOKIE]: signFamilySession("test-family") }));
     expect(response.headers.get("location")).toBeNull();
   });
 
   it("redirects a family-authenticated-but-not-parent request for /parent to /parent/unlock", () => {
-    const response = proxy(request("/parent", { [FAMILY_COOKIE]: signFamilySession() }));
+    const response = proxy(request("/parent", { [FAMILY_COOKIE]: signFamilySession("test-family") }));
     expect(isRedirectTo(response, "/parent/unlock")).toBe(true);
   });
 
@@ -64,13 +64,13 @@ describe("proxy (auth gate)", () => {
   });
 
   it("lets a family-authenticated request through to /parent/unlock", () => {
-    const response = proxy(request("/parent/unlock", { [FAMILY_COOKIE]: signFamilySession() }));
+    const response = proxy(request("/parent/unlock", { [FAMILY_COOKIE]: signFamilySession("test-family") }));
     expect(response.headers.get("location")).toBeNull();
   });
 
   it("lets a fully-authenticated request through to /parent", () => {
     const response = proxy(
-      request("/parent", { [FAMILY_COOKIE]: signFamilySession(), [PARENT_COOKIE]: signParentSession() })
+      request("/parent", { [FAMILY_COOKIE]: signFamilySession("test-family"), [PARENT_COOKIE]: signParentSession() })
     );
     expect(response.headers.get("location")).toBeNull();
   });

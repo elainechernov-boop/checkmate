@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ProjectStatus } from "@/generated/prisma/enums";
 import { parseISODate, type WeekdayCode } from "@/lib/dates";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { addProjectIdea, deleteProjectIdea, promoteProjectIdea } from "@/lib/projectIdeas";
 import {
   addBacklogTask,
@@ -40,37 +40,42 @@ import { requireParentSession } from "@/lib/session";
  * owning student first and passes that through unchanged.
  */
 
-async function studentIdForProject(projectId: string): Promise<string> {
+type ScopedPrisma = Awaited<ReturnType<typeof getScopedPrisma>>;
+
+async function studentIdForProject(prisma: ScopedPrisma, projectId: string): Promise<string> {
   const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { studentId: true } });
   return project.studentId;
 }
 
-async function studentIdForTask(taskId: string): Promise<string> {
+async function studentIdForTask(prisma: ScopedPrisma, taskId: string): Promise<string> {
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: taskId }, select: { studentId: true } });
   return instance.studentId;
 }
 
-async function studentIdForIdea(ideaId: string): Promise<string> {
+async function studentIdForIdea(prisma: ScopedPrisma, ideaId: string): Promise<string> {
   const idea = await prisma.projectIdea.findUniqueOrThrow({ where: { id: ideaId }, select: { studentId: true } });
   return idea.studentId;
 }
 
 export async function createProjectAction(studentId: string, name: string) {
   await requireParentSession();
+  const prisma = await getScopedPrisma();
   await createProject(prisma, studentId, name, null);
   revalidatePath("/parent/projects");
 }
 
 export async function renameProjectAction(projectId: string, name: string) {
   await requireParentSession();
-  const studentId = await studentIdForProject(projectId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForProject(prisma, projectId);
   await editProjectName(prisma, studentId, projectId, name);
   revalidatePath("/parent/projects");
 }
 
 export async function setProjectTargetDateAction(projectId: string, targetDateISO: string | null) {
   await requireParentSession();
-  const studentId = await studentIdForProject(projectId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForProject(prisma, projectId);
   await editProjectTargetDate(prisma, studentId, projectId, targetDateISO ? parseISODate(targetDateISO) : null);
   revalidatePath("/parent/projects");
 }
@@ -80,6 +85,7 @@ export async function setProjectTargetDateAction(projectId: string, targetDateIS
  * untagged projects stay out of compliance reporting entirely. */
 export async function setProjectSubjectAction(projectId: string, subjectId: string | null) {
   await requireParentSession();
+  const prisma = await getScopedPrisma();
   await prisma.project.update({ where: { id: projectId }, data: { subjectId } });
   revalidatePath("/parent/projects");
 }
@@ -91,6 +97,7 @@ export async function setProjectSubjectAction(projectId: string, subjectId: stri
  * archived/active toggle on top of it. */
 export async function setProjectArchivedAction(projectId: string, archived: boolean) {
   await requireParentSession();
+  const prisma = await getScopedPrisma();
   await prisma.project.update({
     where: { id: projectId },
     data: { status: archived ? ProjectStatus.archived : ProjectStatus.active },
@@ -100,7 +107,8 @@ export async function setProjectArchivedAction(projectId: string, archived: bool
 
 export async function deleteProjectAction(projectId: string) {
   await requireParentSession();
-  const studentId = await studentIdForProject(projectId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForProject(prisma, projectId);
   await deleteProject(prisma, studentId, projectId);
   revalidatePath("/parent/projects");
   revalidatePath("/parent");
@@ -108,27 +116,31 @@ export async function deleteProjectAction(projectId: string) {
 
 export async function reorderProjectsAction(studentId: string, orderedIds: string[]) {
   await requireParentSession();
+  const prisma = await getScopedPrisma();
   await reorderProjects(prisma, studentId, orderedIds);
   revalidatePath("/parent/projects");
 }
 
 export async function addBacklogTaskAction(projectId: string, title: string) {
   await requireParentSession();
-  const studentId = await studentIdForProject(projectId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForProject(prisma, projectId);
   await addBacklogTask(prisma, studentId, projectId, title);
   revalidatePath("/parent/projects");
 }
 
 export async function editProjectTaskTitleAction(taskId: string, title: string) {
   await requireParentSession();
-  const studentId = await studentIdForTask(taskId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForTask(prisma, taskId);
   await editProjectTaskTitle(prisma, studentId, taskId, title);
   revalidatePath("/parent/projects");
 }
 
 export async function deleteProjectTaskAction(taskId: string) {
   await requireParentSession();
-  const studentId = await studentIdForTask(taskId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForTask(prisma, taskId);
   await deleteProjectTask(prisma, studentId, taskId);
   revalidatePath("/parent/projects");
 }
@@ -141,7 +153,8 @@ export async function planProjectTaskAction(
   untilDateISO: string | null
 ) {
   await requireParentSession();
-  const studentId = await studentIdForTask(taskId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForTask(prisma, taskId);
   await planProjectTask(prisma, studentId, taskId, {
     choice,
     startDate: parseISODate(startDateISO),
@@ -154,7 +167,8 @@ export async function planProjectTaskAction(
 
 export async function moveProjectTaskAction(taskId: string, newDueDateISO: string) {
   await requireParentSession();
-  const studentId = await studentIdForTask(taskId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForTask(prisma, taskId);
   await moveProjectTask(prisma, studentId, taskId, parseISODate(newDueDateISO));
   revalidatePath("/parent/projects");
   revalidatePath("/parent");
@@ -162,7 +176,8 @@ export async function moveProjectTaskAction(taskId: string, newDueDateISO: strin
 
 export async function unscheduleProjectTaskAction(taskId: string) {
   await requireParentSession();
-  const studentId = await studentIdForTask(taskId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForTask(prisma, taskId);
   await unscheduleProjectTask(prisma, studentId, taskId);
   revalidatePath("/parent/projects");
   revalidatePath("/parent");
@@ -170,20 +185,23 @@ export async function unscheduleProjectTaskAction(taskId: string) {
 
 export async function addProjectIdeaAction(studentId: string, text: string) {
   await requireParentSession();
+  const prisma = await getScopedPrisma();
   await addProjectIdea(prisma, studentId, text);
   revalidatePath("/parent/projects");
 }
 
 export async function deleteProjectIdeaAction(ideaId: string) {
   await requireParentSession();
-  const studentId = await studentIdForIdea(ideaId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForIdea(prisma, ideaId);
   await deleteProjectIdea(prisma, studentId, ideaId);
   revalidatePath("/parent/projects");
 }
 
 export async function promoteProjectIdeaAction(ideaId: string) {
   await requireParentSession();
-  const studentId = await studentIdForIdea(ideaId);
+  const prisma = await getScopedPrisma();
+  const studentId = await studentIdForIdea(prisma, ideaId);
   await promoteProjectIdea(prisma, studentId, ideaId);
   revalidatePath("/parent/projects");
 }

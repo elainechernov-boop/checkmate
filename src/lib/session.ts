@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 
 export const FAMILY_COOKIE = "checkmate_family";
@@ -18,36 +18,51 @@ function sign(payload: string): string {
   return `${payload}.${signature}`;
 }
 
-function verify(token: string, expectedPayload: string): boolean {
+// Verifies the signature covers exactly the payload embedded in the token
+// and returns that payload — callers decide separately whether the payload
+// they got back is the one they expected (a fixed "parent" constant, or a
+// "family:<id>" carrying which tenant this session belongs to).
+function verifySigned(token: string | undefined): string | null {
+  if (!token) return null;
   const separatorIndex = token.indexOf(".");
-  if (separatorIndex === -1) return false;
+  if (separatorIndex === -1) return null;
 
   const payload = token.slice(0, separatorIndex);
   const signature = token.slice(separatorIndex + 1);
-  if (payload !== expectedPayload) return false;
-
   const expectedSignature = createHmac("sha256", getSessionSecret()).update(payload).digest("base64url");
   const provided = Buffer.from(signature);
   const expected = Buffer.from(expectedSignature);
-  if (provided.length !== expected.length) return false;
+  if (provided.length !== expected.length) return null;
 
-  return timingSafeEqual(provided, expected);
+  return timingSafeEqual(provided, expected) ? payload : null;
 }
 
-export function signFamilySession(): string {
-  return sign("family");
+const FAMILY_PAYLOAD_PREFIX = "family:";
+
+// The session now carries *which* family, not just "a family gate was
+// passed" (MULTI_FAMILY_SPEC.md Phase 2) — getScopedPrisma() reads this to
+// know which tenant every query for this request should be scoped to.
+export function signFamilySession(familyId: string): string {
+  return sign(`${FAMILY_PAYLOAD_PREFIX}${familyId}`);
 }
 
 export function signParentSession(): string {
   return sign("parent");
 }
 
+/** The family this session belongs to, or null if the session is missing/invalid. */
+export function getFamilyIdFromSession(token: string | undefined): string | null {
+  const payload = verifySigned(token);
+  if (!payload || !payload.startsWith(FAMILY_PAYLOAD_PREFIX)) return null;
+  return payload.slice(FAMILY_PAYLOAD_PREFIX.length);
+}
+
 export function verifyFamilySession(token: string | undefined): boolean {
-  return !!token && verify(token, "family");
+  return getFamilyIdFromSession(token) !== null;
 }
 
 export function verifyParentSession(token: string | undefined): boolean {
-  return !!token && verify(token, "parent");
+  return verifySigned(token) === "parent";
 }
 
 /**
@@ -75,4 +90,28 @@ export function secretsMatch(a: string, b: string): boolean {
   const hashedA = createHash("sha256").update(a).digest();
   const hashedB = createHash("sha256").update(b).digest();
   return timingSafeEqual(hashedA, hashedB);
+}
+
+const SCRYPT_KEY_LENGTH = 64;
+
+/**
+ * Per-family access codes and parent passcodes (MULTI_FAMILY_SPEC.md Phase
+ * 2) are hashed at rest instead of living in a plain env var — a new
+ * random salt per secret, scrypt (built into Node, no new dependency).
+ */
+export function hashSecret(plain: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(plain, salt, SCRYPT_KEY_LENGTH).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function secretMatchesHash(plain: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+
+  const attempt = scryptSync(plain, salt, SCRYPT_KEY_LENGTH);
+  const expected = Buffer.from(hash, "hex");
+  if (attempt.length !== expected.length) return false;
+
+  return timingSafeEqual(attempt, expected);
 }

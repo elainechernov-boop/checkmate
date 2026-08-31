@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { nextAccentColor } from "@/lib/theme";
 
 export async function createStudentAction(name: string, gradeLevel: string) {
@@ -11,6 +11,7 @@ export async function createStudentAction(name: string, gradeLevel: string) {
     throw new Error("Name and grade level are required.");
   }
 
+  const prisma = await getScopedPrisma();
   await prisma.student.create({ data: { name: trimmedName, gradeLevel: trimmedGrade, accentColor: "#1657FF" } });
   revalidatePath("/parent/students");
   revalidatePath("/parent");
@@ -19,6 +20,7 @@ export async function createStudentAction(name: string, gradeLevel: string) {
 export async function updateStudentNameAction(id: string, name: string) {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Name is required.");
+  const prisma = await getScopedPrisma();
   await prisma.student.update({ where: { id }, data: { name: trimmed } });
   revalidatePath("/parent/students");
   revalidatePath("/parent");
@@ -27,6 +29,7 @@ export async function updateStudentNameAction(id: string, name: string) {
 export async function updateStudentGradeAction(id: string, gradeLevel: string) {
   const trimmed = gradeLevel.trim();
   if (!trimmed) throw new Error("Grade level is required.");
+  const prisma = await getScopedPrisma();
   await prisma.student.update({ where: { id }, data: { gradeLevel: trimmed } });
   revalidatePath("/parent/students");
   revalidatePath("/parent");
@@ -38,6 +41,7 @@ export async function updateStudentGradeAction(id: string, gradeLevel: string) {
  * accent-cycle button already uses (cycleAccentColorAction) — this is the
  * parent-side equivalent, on any student's row rather than just their own. */
 export async function cycleStudentAccentAction(id: string): Promise<{ accentColor: string }> {
+  const prisma = await getScopedPrisma();
   const student = await prisma.student.findUniqueOrThrow({ where: { id } });
   const accentColor = nextAccentColor(student.accentColor);
   await prisma.student.update({ where: { id }, data: { accentColor } });
@@ -47,6 +51,7 @@ export async function cycleStudentAccentAction(id: string): Promise<{ accentColo
 }
 
 export async function deleteStudentAction(id: string) {
+  const prisma = await getScopedPrisma();
   try {
     await prisma.student.delete({ where: { id } });
   } catch {

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { addDays, defaultWeekStart, getToday, isDebugToday, parseISODate } from "@/lib/dates";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
 import { computeStreak } from "@/lib/streak";
@@ -28,6 +28,7 @@ export default async function StudentPage({
   const parsedDay = day !== undefined ? Number(day) : NaN;
   const requestedDayIndex = Number.isInteger(parsedDay) && parsedDay >= 0 && parsedDay <= 5 ? parsedDay : null;
 
+  const prisma = await getScopedPrisma();
   const student = await prisma.student.findUnique({ where: { id } });
   if (!student) notFound();
 

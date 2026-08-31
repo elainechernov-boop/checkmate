@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays } from "@/lib/dates";
 import { fetchFamilyCalendarEvents, getDismissedEvents, getFamilyCalendarSettings } from "@/lib/familyCalendar";
@@ -19,6 +19,7 @@ const TYPE_OPTIONS: { value: SchoolDayType; label: string }[] = [
 ];
 
 export default async function CalendarPage() {
+  const prisma = await getScopedPrisma();
   const [learningPeriods, familyCalendar, dismissedEvents] = await Promise.all([
     prisma.learningPeriod.findMany({ orderBy: { startDate: "asc" } }),
     getFamilyCalendarSettings(prisma),

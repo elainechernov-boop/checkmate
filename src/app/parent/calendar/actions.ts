@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, parseISODate, toISODate } from "@/lib/dates";
 import {
@@ -17,11 +17,13 @@ import { applyRescheduleHelper, findReschedulableInstances } from "@/lib/resched
 import { setSchoolDayType } from "@/lib/schoolCalendar";
 import { describeDayType, recordUndo } from "@/lib/undoLog";
 
+type ScopedPrisma = Awaited<ReturnType<typeof getScopedPrisma>>;
+
 /** Re-materializing every series after a calendar change matches
  * planner-actions.ts's setDayType — a newly-blocked day needs to disappear
  * from series-generated occurrences (§3), and a newly-opened one needs to
  * pick them back up. */
-async function rematerializeAllSeries() {
+async function rematerializeAllSeries(prisma: ScopedPrisma) {
   const seriesList = await prisma.assignmentSeries.findMany({ select: { id: true } });
   for (const series of seriesList) await materializeSeries(prisma, series.id);
 }
@@ -42,6 +44,7 @@ export async function applyDayTypeRange(formData: FormData) {
   const end = parseISODate(endISO);
   if (end < start) return;
 
+  const prisma = await getScopedPrisma();
   const students = await prisma.student.findMany({ select: { id: true } });
 
   // Snapshot every (student, date) pair's prior type before any of them
@@ -63,7 +66,7 @@ export async function applyDayTypeRange(formData: FormData) {
       await setSchoolDayType(prisma, student.id, cursor, type);
     }
   }
-  await rematerializeAllSeries();
+  await rematerializeAllSeries(prisma);
 
   // Same catch-up as the single-day toggle (planner-actions.ts's
   // setDayType): recurring occurrences across the range are already gone
@@ -110,6 +113,7 @@ export async function createLearningPeriod(formData: FormData) {
     throw new Error("Name, start date, and end date are required.");
   }
 
+  const prisma = await getScopedPrisma();
   await prisma.learningPeriod.create({
     data: {
       name,
@@ -133,6 +137,7 @@ export async function updateLearningPeriod(formData: FormData) {
     throw new Error("Name, start date, and end date are required.");
   }
 
+  const prisma = await getScopedPrisma();
   await prisma.learningPeriod.update({
     where: { id },
     data: {
@@ -149,6 +154,7 @@ export async function updateLearningPeriod(formData: FormData) {
 export async function deleteLearningPeriod(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
+  const prisma = await getScopedPrisma();
   await prisma.learningPeriod.delete({ where: { id } });
   revalidatePath("/parent/calendar");
   revalidatePath("/parent");
@@ -162,12 +168,14 @@ export async function saveFamilyCalendarSettings(formData: FormData) {
   const timeZone = String(formData.get("timeZone") ?? "").trim();
   if (!icsUrl || !timeZone) return;
 
+  const prisma = await getScopedPrisma();
   await setFamilyCalendarSettings(prisma, icsUrl, timeZone);
   revalidatePath("/parent/calendar");
   revalidatePath("/parent");
 }
 
 export async function removeFamilyCalendarSettings() {
+  const prisma = await getScopedPrisma();
   await clearFamilyCalendarSettings(prisma);
   revalidatePath("/parent/calendar");
   revalidatePath("/parent");
@@ -181,6 +189,7 @@ export async function removeFamilyCalendarSettings() {
  * kid something else is going on, not to create checkable schoolwork). */
 export async function assignCalendarEventAction(eventKey: string, studentId: string) {
   if (!eventKey || !studentId) return;
+  const prisma = await getScopedPrisma();
   await assignCalendarEvent(prisma, eventKey, studentId);
   revalidatePath("/parent");
 }
@@ -190,6 +199,7 @@ export async function assignCalendarEventAction(eventKey: string, studentId: str
  * is read-only). */
 export async function unassignCalendarEventAction(eventKey: string, studentId: string) {
   if (!eventKey || !studentId) return;
+  const prisma = await getScopedPrisma();
   await unassignCalendarEvent(prisma, eventKey, studentId);
   revalidatePath("/parent");
 }
@@ -199,6 +209,7 @@ export async function unassignCalendarEventAction(eventKey: string, studentId: s
  * dismissCalendarEvent). `eventKey` is the event's own FamilyCalendarEvent.id. */
 export async function dismissCalendarEventAction(eventKey: string) {
   if (!eventKey) return;
+  const prisma = await getScopedPrisma();
   await dismissCalendarEvent(prisma, eventKey);
   revalidatePath("/parent");
 }
@@ -208,6 +219,7 @@ export async function dismissCalendarEventAction(eventKey: string) {
 export async function undismissCalendarEventAction(formData: FormData) {
   const eventKey = String(formData.get("eventKey") ?? "");
   if (!eventKey) return;
+  const prisma = await getScopedPrisma();
   await undismissCalendarEvent(prisma, eventKey);
   revalidatePath("/parent/calendar");
   revalidatePath("/parent");

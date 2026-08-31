@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { parseISODate, toISODate } from "@/lib/dates";
 import { EndCondition, Frequency, SchoolDayType } from "@/generated/prisma/enums";
 import {
@@ -31,12 +31,14 @@ const REPEAT_TO_FREQUENCY: Record<string, Frequency> = {
 };
 
 export async function quickCreateAssignment(studentId: string, dueDateISO: string, title: string) {
+  const prisma = await getScopedPrisma();
   const created = await quickCreateInstance(prisma, studentId, parseISODate(dueDateISO), title);
   revalidatePath("/parent");
   return created;
 }
 
 export async function rescheduleInstance(instanceId: string, newDueDateISO: string) {
+  const prisma = await getScopedPrisma();
   await rescheduleInstanceLib(prisma, instanceId, parseISODate(newDueDateISO));
   revalidatePath("/parent");
 }
@@ -54,6 +56,7 @@ export async function addDaySeparatorAction(
   index: number,
   existingOrderedIds: string[]
 ) {
+  const prisma = await getScopedPrisma();
   const created = await addDaySeparator(prisma, studentId, parseISODate(dateISO), label);
   const finalOrder = [...existingOrderedIds];
   finalOrder.splice(index, 0, created.id);
@@ -63,6 +66,7 @@ export async function addDaySeparatorAction(
 }
 
 export async function deleteDaySeparatorAction(separatorId: string) {
+  const prisma = await getScopedPrisma();
   await deleteDaySeparator(prisma, separatorId);
   revalidatePath("/parent");
 }
@@ -73,6 +77,7 @@ export async function deleteDaySeparatorAction(separatorId: string) {
  * instance across one, unlike a student). `orderedIds` mixes assignment
  * and separator ids. */
 export async function reorderDayInstances(studentId: string, dateISO: string, orderedIds: string[]) {
+  const prisma = await getScopedPrisma();
   await reorderDayRows(prisma, studentId, dateISO, orderedIds);
   revalidatePath("/parent");
 }
@@ -81,12 +86,14 @@ export async function reorderDayInstances(studentId: string, dateISO: string, or
  * completion sequence then plays on the student's own screen at their next
  * refresh (see StudentWeekView's external-approval detection). */
 export async function approveReviewAction(instanceId: string) {
+  const prisma = await getScopedPrisma();
   await approveReview(prisma, instanceId);
   revalidatePath("/parent");
 }
 
 /** §5 step 4: "not your best work" — sends the item back to open. */
 export async function returnReviewAction(instanceId: string, note: string) {
+  const prisma = await getScopedPrisma();
   await returnReview(prisma, instanceId, note);
   revalidatePath("/parent");
 }
@@ -104,6 +111,7 @@ export async function returnReviewAction(instanceId: string, note: string) {
  * outcome for a one-off that just lost its day.
  */
 export async function setDayType(studentId: string, dateISO: string, type: SchoolDayType) {
+  const prisma = await getScopedPrisma();
   const date = parseISODate(dateISO);
   const existing = await prisma.schoolDay.findUnique({ where: { date_studentId: { date, studentId } } });
   const previousType = existing?.type ?? null;
@@ -168,6 +176,7 @@ export async function updateAssignment(formData: FormData) {
     throw new Error("Title is required.");
   }
 
+  const prisma = await getScopedPrisma();
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
   const frequency = REPEAT_TO_FREQUENCY[repeat];
   const recurrence = frequency
@@ -262,6 +271,7 @@ export async function updateAssignment(formData: FormData) {
  * undoable yet.
  */
 export async function deleteAssignment(instanceId: string, scope: "only" | "following" | "all") {
+  const prisma = await getScopedPrisma();
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
 
   if (!instance.seriesId || scope === "only") {

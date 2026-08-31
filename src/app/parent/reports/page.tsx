@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { getToday } from "@/lib/dates";
 import { buildHSTReport, getCurrentLearningPeriod } from "@/lib/hstReport";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
@@ -28,6 +28,7 @@ export default async function ReportsPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
+  const prisma = await getScopedPrisma();
   const today = getToday();
 
   const [students, learningPeriods, currentLP] = await Promise.all([

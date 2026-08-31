@@ -1,6 +1,9 @@
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { cookies } from "next/headers";
 import { PrismaClient } from "@/generated/prisma/client";
+import { FAMILY_COOKIE, getFamilyIdFromSession } from "@/lib/session";
+import { tenantScopeExtension } from "@/lib/tenantScope";
 
 function createClient(): PrismaClient {
   // Trimmed for the same reason as prisma.config.ts — a stray space/tab in
@@ -46,3 +49,32 @@ export const prisma = new Proxy({} as PrismaClient, {
     return typeof value === "function" ? value.bind(client) : value;
   },
 });
+
+/**
+ * The client every family-scoped page/action should use instead of the
+ * bare `prisma` export above (MULTI_FAMILY_SPEC.md Phase 2) — every query
+ * it runs against a family-owned model is automatically filtered to the
+ * current request's family (tenantScope.ts), so a call site can't
+ * accidentally read or write another family's data by forgetting a filter.
+ * Only callable where the family gate has already run (every page under
+ * proxy.ts's matcher except /gate itself) — reads the same signed cookie
+ * the gate sets, so there's nothing new for a caller to plumb through.
+ * The bare `prisma` export stays correct for the handful of call sites
+ * that must run *before* a family is known (the gate/login actions
+ * themselves) or that touch the Family table directly, which has no
+ * familyId of its own to scope by.
+ */
+export async function getScopedPrisma(): Promise<PrismaClient> {
+  const cookieStore = await cookies();
+  const familyId = getFamilyIdFromSession(cookieStore.get(FAMILY_COOKIE)?.value);
+  if (!familyId) {
+    throw new Error("getScopedPrisma() called with no family session — the family gate must run first.");
+  }
+  // Cast back to the plain client type: every lib/*.ts function already
+  // types its `prisma` parameter as `PrismaClient` (or a `Pick` of it), and
+  // $extends()'s own generic-heavy result type doesn't structurally match
+  // those signatures despite behaving identically at runtime for every
+  // operation this app uses — the extension only intercepts query
+  // execution, it doesn't add, remove, or change any method.
+  return prisma.$extends(tenantScopeExtension(familyId)) as unknown as PrismaClient;
+}

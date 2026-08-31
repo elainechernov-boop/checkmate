@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { getToday } from "@/lib/dates";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav, PageHeading } from "@/components/ParentNav";
@@ -13,6 +13,7 @@ import { ParentProjectsBoard } from "./ParentProjectsBoard";
  * Student Mode (ProjectsBand) only ever reads this data back, read-only.
  */
 export default async function ParentProjectsPage() {
+  const prisma = await getScopedPrisma();
   const today = getToday();
 
   const [students, subjects, projects, projectIdeas] = await Promise.all([

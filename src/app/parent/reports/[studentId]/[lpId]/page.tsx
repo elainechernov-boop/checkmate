@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { WorkSampleCategory } from "@/generated/prisma/enums";
 import { buildHSTReport } from "@/lib/hstReport";
 import { formatComingUpDate } from "@/lib/dates";
@@ -24,6 +24,7 @@ export default async function HSTReportPage({
 }) {
   const { studentId, lpId } = await params;
 
+  const prisma = await getScopedPrisma();
   const [student, lp] = await Promise.all([
     prisma.student.findUnique({ where: { id: studentId } }),
     prisma.learningPeriod.findUnique({ where: { id: lpId } }),

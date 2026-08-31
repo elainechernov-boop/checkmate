@@ -1,13 +1,20 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { getToday, toISODate } from "@/lib/dates";
-import { prisma } from "@/lib/prisma";
+import { prisma as baseClient, getScopedPrisma } from "@/lib/prisma";
 import { recomputeProjectStatus } from "@/lib/projects";
 import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
 import { approveReview } from "@/lib/reviewActions";
-import { secretsMatch } from "@/lib/session";
+import {
+  FAMILY_COOKIE,
+  getFamilyIdFromSession,
+  hashSecret,
+  secretMatchesHash,
+  secretsMatch,
+} from "@/lib/session";
 import { nextAccentColor } from "@/lib/theme";
 
 /**
@@ -16,6 +23,7 @@ import { nextAccentColor } from "@/lib/theme";
  * enforced here server-side regardless of what the client believes.
  */
 export async function toggleInstance(instanceId: string): Promise<{ status: InstanceStatus }> {
+  const prisma = await getScopedPrisma();
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
 
   const today = toISODate(getToday());
@@ -52,6 +60,7 @@ export async function toggleInstance(instanceId: string): Promise<{ status: Inst
 }
 
 export async function reorderOpenItems(studentId: string, orderedIds: string[]): Promise<void> {
+  const prisma = await getScopedPrisma();
   await reorderOpenItemsLib(prisma, studentId, orderedIds);
   revalidatePath(`/student/${studentId}`);
 }
@@ -60,18 +69,39 @@ export async function reorderOpenItems(studentId: string, orderedIds: string[]):
  * §5 step 2's "directly on the kids' machine via a passcode popover on the
  * pending item (one tap, passcode, done)." The kids' machine never has
  * Parent Mode's cookie set, so this checks the passcode itself rather than
- * relying on session state — same constant-time comparison the Parent Mode
- * unlock screen uses.
+ * relying on session state — same hashed-at-rest passcode (scoped to
+ * whichever family this session belongs to) the Parent Mode unlock screen
+ * checks; see parent/unlock/actions.ts for the identical legacy-env-var
+ * bootstrap this shares.
  */
 export async function approveReviewViaPasscode(instanceId: string, passcode: string): Promise<void> {
-  const expected = process.env.PARENT_PASSCODE;
-  if (!expected) {
-    throw new Error("PARENT_PASSCODE environment variable is not set.");
+  const cookieStore = await cookies();
+  const familyId = getFamilyIdFromSession(cookieStore.get(FAMILY_COOKIE)?.value);
+  if (!familyId) {
+    throw new Error("No family session.");
   }
-  if (!secretsMatch(passcode, expected)) {
+
+  const family = await baseClient.family.findUniqueOrThrow({ where: { id: familyId } });
+
+  let matched = false;
+  if (family.parentPasscodeHash) {
+    matched = secretMatchesHash(passcode, family.parentPasscodeHash);
+  } else {
+    const legacy = process.env.PARENT_PASSCODE;
+    if (legacy && secretsMatch(passcode, legacy)) {
+      await baseClient.family.update({
+        where: { id: familyId },
+        data: { parentPasscodeHash: hashSecret(passcode) },
+      });
+      matched = true;
+    }
+  }
+
+  if (!matched) {
     throw new Error("Incorrect passcode.");
   }
 
+  const prisma = await getScopedPrisma();
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
   await approveReview(prisma, instanceId);
   revalidatePath(`/student/${instance.studentId}`);
@@ -84,6 +114,7 @@ export async function approveReviewViaPasscode(instanceId: string, passcode: str
  * §students/actions.ts); this is the first student-facing write path for it.
  */
 export async function cycleAccentColorAction(studentId: string): Promise<{ accentColor: string }> {
+  const prisma = await getScopedPrisma();
   const student = await prisma.student.findUniqueOrThrow({ where: { id: studentId } });
   const accentColor = nextAccentColor(student.accentColor);
   await prisma.student.update({ where: { id: studentId }, data: { accentColor } });

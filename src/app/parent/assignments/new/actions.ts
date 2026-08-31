@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { getToday, mondayOf, parseISODate, toISODate } from "@/lib/dates";
 import { EndCondition, Frequency } from "@/generated/prisma/enums";
 import { materializeSeries } from "@/lib/materialize";
@@ -37,6 +37,7 @@ export async function createAssignment(formData: FormData) {
     throw new Error("Title, at least one student, subject, and due date are required.");
   }
 
+  const prisma = await getScopedPrisma();
   const startDate = parseISODate(dueDateRaw);
   const frequency = REPEAT_TO_FREQUENCY[repeat];
 

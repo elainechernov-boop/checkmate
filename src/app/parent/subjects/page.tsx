@@ -1,9 +1,10 @@
-import { prisma } from "@/lib/prisma";
+import { getScopedPrisma } from "@/lib/prisma";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav, PageHeading } from "@/components/ParentNav";
 import { SubjectsBoard } from "./SubjectsBoard";
 
 export default async function SubjectsPage() {
+  const prisma = await getScopedPrisma();
   const subjects = await prisma.subject.findMany({ orderBy: { name: "asc" } });
 
   return (

@@ -74,6 +74,16 @@ model Family {
   createdAt DateTime @default(now())
   plan      String   @default("beta")
 
+  // Hashed at rest (session.ts's hashSecret/secretMatchesHash) — nullable
+  // because the seed family's row is created by migration before any code
+  // runs, so it starts empty and self-heals to a hash on that family's
+  // first post-migration login, falling back to the legacy FAMILY_PASSWORD/
+  // PARENT_PASSCODE env vars in the meantime (gate/actions.ts,
+  // parent/unlock/actions.ts). Every family created after Phase 2 (via the
+  // admin tool in Phase 4) gets both hashes set at creation time.
+  accessCodeHash     String?
+  parentPasscodeHash String?
+
   students                 Student[]
   subjects                 Subject[]
   projects                 Project[]
