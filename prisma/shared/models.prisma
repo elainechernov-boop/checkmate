@@ -59,9 +59,41 @@ enum SchoolDayType {
 
 // ---- Models (SPEC.md §3) ----
 
+// A tenant — one homeschooling family (see MULTI_FAMILY_SPEC.md). Every
+// family-owned model below carries a familyId so many families can share
+// one deployment and one database without seeing each other's data. Each
+// familyId field defaults to "seed-family" — the one row this migration
+// seeds for the existing production family — purely so every existing
+// create call across the app keeps compiling and working unchanged; that
+// default is removed once real per-family login and scoping lands, at
+// which point every write starts passing its own family's id explicitly.
+model Family {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  plan      String   @default("beta")
+
+  students                 Student[]
+  subjects                 Subject[]
+  projects                 Project[]
+  projectIdeas             ProjectIdea[]
+  assignmentSeries         AssignmentSeries[]
+  assignmentInstances      AssignmentInstance[]
+  schoolDays               SchoolDay[]
+  learningPeriods          LearningPeriod[]
+  daySeparators            DaySeparator[]
+  familyCalendarSettings   FamilyCalendarSettings[]
+  dismissedCalendarEvents  DismissedCalendarEvent[]
+  calendarEventAssignments CalendarEventAssignment[]
+  undoLogEntries           UndoLogEntry[]
+}
+
 model Student {
-  id          String @id @default(cuid())
-  name        String @unique
+  id          String  @id @default(cuid())
+  familyId    String  @default("seed-family")
+  family      Family  @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  name        String
   gradeLevel  String
   accentColor String
 
@@ -71,21 +103,29 @@ model Student {
   assignmentInstances AssignmentInstance[]
   schoolDays          SchoolDay[]
   daySeparators       DaySeparator[]
+
+  @@unique([familyId, name])
 }
 
 model Subject {
   id                 String             @id @default(cuid())
-  name               String             @unique
+  familyId           String             @default("seed-family")
+  family             Family             @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  name               String
   workSampleCategory WorkSampleCategory @default(none)
   isFaithIntegrated  Boolean            @default(false)
 
   projects            Project[]
   assignmentSeries    AssignmentSeries[]
   assignmentInstances AssignmentInstance[]
+
+  @@unique([familyId, name])
 }
 
 model Project {
   id         String        @id @default(cuid())
+  familyId   String        @default("seed-family")
+  family     Family        @relation(fields: [familyId], references: [id], onDelete: Restrict)
   studentId  String
   student    Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
   name       String
@@ -103,6 +143,7 @@ model Project {
   series    AssignmentSeries[]
   instances AssignmentInstance[]
 
+  @@index([familyId])
   @@index([studentId])
 }
 
@@ -113,17 +154,22 @@ model Project {
 // its name — see projects.ts's promoteProjectIdea).
 model ProjectIdea {
   id        String   @id @default(cuid())
+  familyId  String   @default("seed-family")
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Restrict)
   studentId String
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Restrict)
   text      String
   createdAt DateTime @default(now())
 
+  @@index([familyId])
   @@index([studentId])
 }
 
 // The template a day's instances are materialized from (§3 materialization rule).
 model AssignmentSeries {
   id        String  @id @default(cuid())
+  familyId  String  @default("seed-family")
+  family    Family  @relation(fields: [familyId], references: [id], onDelete: Restrict)
   title     String
   details   String?
   studentId String
@@ -162,6 +208,7 @@ model AssignmentSeries {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([familyId])
   @@index([studentId])
 }
 
@@ -201,6 +248,8 @@ model RecurrenceRule {
 // What actually appears on a day — materialized from a series, or standalone (§3).
 model AssignmentInstance {
   id        String            @id @default(cuid())
+  familyId  String            @default("seed-family")
+  family    Family            @relation(fields: [familyId], references: [id], onDelete: Restrict)
   seriesId  String?
   series    AssignmentSeries? @relation(fields: [seriesId], references: [id])
   title     String
@@ -247,6 +296,7 @@ model AssignmentInstance {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([familyId])
   @@index([studentId, dueDate])
   @@index([seriesId])
 }
@@ -259,6 +309,8 @@ model AssignmentInstance {
 // plain per-student lookup with no null-studentId fallback to special-case.
 model SchoolDay {
   id                String        @id @default(cuid())
+  familyId          String        @default("seed-family")
+  family            Family        @relation(fields: [familyId], references: [id], onDelete: Restrict)
   date              DateTime
   studentId         String
   student           Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
@@ -267,15 +319,20 @@ model SchoolDay {
   activityNote      String?
 
   @@unique([date, studentId])
+  @@index([familyId])
   @@index([studentId])
 }
 
 model LearningPeriod {
   id             String    @id @default(cuid())
+  familyId       String    @default("seed-family")
+  family         Family    @relation(fields: [familyId], references: [id], onDelete: Restrict)
   name           String
   startDate      DateTime
   endDate        DateTime
   hstMeetingDate DateTime?
+
+  @@index([familyId])
 }
 
 // A capped undo log for Parent Mode's most destructive actions — deleting a
@@ -287,12 +344,15 @@ model LearningPeriod {
 // if the rows it references are gone by the time someone tries to undo it.
 model UndoLogEntry {
   id         String    @id @default(cuid())
+  familyId   String    @default("seed-family")
+  family     Family    @relation(fields: [familyId], references: [id], onDelete: Restrict)
   actionType String
   summary    String
   payload    String
   createdAt  DateTime  @default(now())
   undoneAt   DateTime?
 
+  @@index([familyId])
   @@index([createdAt])
 }
 
@@ -305,12 +365,15 @@ model UndoLogEntry {
 // *within* the segment a separator bounds, never across one.
 model DaySeparator {
   id        String   @id @default(cuid())
+  familyId  String   @default("seed-family")
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Restrict)
   studentId String
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Restrict)
   date      DateTime
   label     String
   sortOrder Int      @default(0)
 
+  @@index([familyId])
   @@index([studentId, date])
 }
 
@@ -323,9 +386,13 @@ model DaySeparator {
 // shows up on" isn't, and this app models no other timezone anywhere).
 model FamilyCalendarSettings {
   id        String   @id @default(cuid())
+  familyId  String   @default("seed-family")
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Restrict)
   icsUrl    String
   timeZone  String   @default("America/Los_Angeles")
   updatedAt DateTime @updatedAt
+
+  @@unique([familyId])
 }
 
 // A calendar event the parent has dismissed from Parent Mode's overlay
@@ -338,8 +405,12 @@ model FamilyCalendarSettings {
 // today's standing meeting doesn't hide next week's.
 model DismissedCalendarEvent {
   id        String   @id @default(cuid())
+  familyId  String   @default("seed-family")
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Restrict)
   eventKey  String   @unique
   createdAt DateTime @default(now())
+
+  @@index([familyId])
 }
 
 // The redesign's durable "this calendar event belongs to this student"
@@ -354,10 +425,13 @@ model DismissedCalendarEvent {
 // key is the pair, not eventKey alone.
 model CalendarEventAssignment {
   id        String   @id @default(cuid())
+  familyId  String   @default("seed-family")
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Restrict)
   eventKey  String
   studentId String
   createdAt DateTime @default(now())
 
   @@unique([eventKey, studentId])
+  @@index([familyId])
   @@index([eventKey])
 }
