@@ -1,7 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { proxy } from "./proxy";
-import { FAMILY_COOKIE, PARENT_COOKIE, signFamilySession, signParentSession } from "@/lib/session";
+import {
+  ADMIN_COOKIE,
+  FAMILY_COOKIE,
+  PARENT_COOKIE,
+  signAdminSession,
+  signFamilySession,
+  signParentSession,
+} from "@/lib/session";
 
 // Hermetic regardless of whether the developer's own .env is loaded under
 // vitest — sign*Session() only reads process.env.SESSION_SECRET lazily,
@@ -78,5 +85,40 @@ describe("proxy (auth gate)", () => {
   it("rejects a forged/garbage cookie the same as a missing one", () => {
     const response = proxy(request("/parent", { [FAMILY_COOKIE]: "not-a-real-token" }));
     expect(isRedirectTo(response, "/gate")).toBe(true);
+  });
+
+  // Phase 4: the owner-only admin area isn't a family concept at all — it
+  // must never sit behind the family gate (a brand-new family can't have a
+  // session yet), and has its own separate, required session.
+  describe("admin area", () => {
+    it("never redirects /admin itself, even with no cookies at all — not even to /gate", () => {
+      const response = proxy(request("/admin"));
+      expect(response.headers.get("location")).toBeNull();
+    });
+
+    it("redirects /admin/dashboard without an admin session to /admin, not /gate", () => {
+      const response = proxy(request("/admin/dashboard"));
+      expect(isRedirectTo(response, "/admin")).toBe(true);
+    });
+
+    it("a family or parent session alone does not grant access to /admin/dashboard", () => {
+      const response = proxy(
+        request("/admin/dashboard", {
+          [FAMILY_COOKIE]: signFamilySession("test-family"),
+          [PARENT_COOKIE]: signParentSession(),
+        })
+      );
+      expect(isRedirectTo(response, "/admin")).toBe(true);
+    });
+
+    it("lets an admin-authenticated request through to /admin/dashboard, with no family session at all", () => {
+      const response = proxy(request("/admin/dashboard", { [ADMIN_COOKIE]: signAdminSession() }));
+      expect(response.headers.get("location")).toBeNull();
+    });
+
+    it("rejects a forged admin cookie the same as a missing one", () => {
+      const response = proxy(request("/admin/dashboard", { [ADMIN_COOKIE]: "not-a-real-token" }));
+      expect(isRedirectTo(response, "/admin")).toBe(true);
+    });
   });
 });

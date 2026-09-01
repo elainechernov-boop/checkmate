@@ -3,7 +3,12 @@ import { cookies } from "next/headers";
 
 export const FAMILY_COOKIE = "checkmate_family";
 export const PARENT_COOKIE = "checkmate_parent";
+export const ADMIN_COOKIE = "checkmate_admin";
 export const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
+// Deliberately short (MULTI_FAMILY_SPEC.md Phase 4) — this session can
+// create new families, so it doesn't get the family/parent sessions' long
+// remembered-per-browser lifetime.
+export const ADMIN_SESSION_SECONDS = 60 * 60 * 4;
 
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -66,6 +71,20 @@ export function verifyParentSession(token: string | undefined): boolean {
 }
 
 /**
+ * The owner-only admin session (MULTI_FAMILY_SPEC.md Phase 4) — gated by
+ * ADMIN_SECRET, a separate env var from any family's own credentials.
+ * Deliberately not tied to a family at all: this is how new families get
+ * created in the first place, so it has to work with none selected yet.
+ */
+export function signAdminSession(): string {
+  return sign("admin");
+}
+
+export function verifyAdminSession(token: string | undefined): boolean {
+  return verifySigned(token) === "admin";
+}
+
+/**
  * HOMEROOM_UX_MIGRATION.md §11 authorization: "Apply the check inside
  * parent-only server actions, especially project and idea mutation.
  * Middleware protects pages, but the actions themselves must not rely
@@ -82,6 +101,16 @@ export async function requireParentSession(): Promise<void> {
   const token = cookieStore.get(PARENT_COOKIE)?.value;
   if (!verifyParentSession(token)) {
     throw new Error("Parent Mode session required.");
+  }
+}
+
+/** Same defense-in-depth reasoning as requireParentSession() above, for the
+ * admin area's own mutations (creating a family). */
+export async function requireAdminSession(): Promise<void> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(ADMIN_COOKIE)?.value;
+  if (!verifyAdminSession(token)) {
+    throw new Error("Admin session required.");
   }
 }
 
