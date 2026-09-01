@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getScopedPrisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { getToday } from "@/lib/dates";
 import { buildHSTReport, getCurrentLearningPeriod } from "@/lib/hstReport";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
@@ -29,6 +30,8 @@ export default async function ReportsPage({
 }) {
   const params = await searchParams;
   const prisma = await getScopedPrisma();
+  const family = await getCurrentFamily();
+  if (!family.complianceModuleEnabled) redirect("/parent");
   const today = getToday();
 
   const [students, learningPeriods, currentLP] = await Promise.all([
@@ -102,7 +105,7 @@ export default async function ReportsPage({
   return (
     <AppShell>
       <BrandHeader>
-        <ParentNav current="reports" />
+        <ParentNav current="reports" showComplianceLinks />
       </BrandHeader>
       <PageHeading
         title="HST Meeting Prep report"

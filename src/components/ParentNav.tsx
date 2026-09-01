@@ -3,10 +3,10 @@ import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 
 const LINKS = [
-  { href: "/parent", label: "This Week", key: "week" },
-  { href: "/parent/students", label: "Students", key: "students" },
-  { href: "/parent/subjects", label: "Subjects", key: "subjects" },
-  { href: "/parent/reports", label: "Reports", key: "reports" },
+  { href: "/parent", label: "This Week", key: "week", requiresComplianceModule: false },
+  { href: "/parent/students", label: "Students", key: "students", requiresComplianceModule: false },
+  { href: "/parent/subjects", label: "Subjects", key: "subjects", requiresComplianceModule: false },
+  { href: "/parent/reports", label: "Reports", key: "reports", requiresComplianceModule: true },
 ] as const;
 
 type ParentNavKey = (typeof LINKS)[number]["key"];
@@ -17,11 +17,22 @@ type ParentNavKey = (typeof LINKS)[number]["key"];
  * route (§11 finding #11: settings routes don't currently share this).
  * `current` renders that section as plain (non-link) text; `extra` is the
  * trailing slot for route-specific controls (Undo toast, the `⋯` menu).
+ * `showComplianceLinks` (MULTI_FAMILY_SPEC.md Phase 3) hides Reports for a
+ * family that hasn't turned on the Blue Ridge-style attendance/work-sample
+ * module — every caller passes its own Family.complianceModuleEnabled read.
  */
-export function ParentNav({ current, extra }: { current?: ParentNavKey; extra?: ReactNode }) {
+export function ParentNav({
+  current,
+  extra,
+  showComplianceLinks,
+}: {
+  current?: ParentNavKey;
+  extra?: ReactNode;
+  showComplianceLinks: boolean;
+}) {
   return (
     <nav className="flex flex-wrap items-center gap-5" style={{ fontSize: "0.78125rem" }}>
-      {LINKS.map((link) =>
+      {LINKS.filter((link) => !link.requiresComplianceModule || showComplianceLinks).map((link) =>
         link.key === current ? (
           <span key={link.key} style={{ color: COLORS.text, fontWeight: 600 }}>
             {link.label}

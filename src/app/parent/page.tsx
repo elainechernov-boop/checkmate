@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getScopedPrisma } from "@/lib/prisma";
+import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav } from "@/components/ParentNav";
 import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
@@ -33,6 +33,7 @@ export default async function ParentPage({
   const parsedDay = day !== undefined ? Number(day) : NaN;
   const requestedDayIndex = Number.isInteger(parsedDay) && parsedDay >= 0 && parsedDay <= 5 ? parsedDay : null;
   const prisma = await getScopedPrisma();
+  const family = await getCurrentFamily();
   const today = getToday();
   // Same self-extending horizon as the student page (see materialize.ts) —
   // covering this entry point too so a long-running series keeps
@@ -92,8 +93,10 @@ export default async function ParentPage({
   // The current learning period, if any covers today — just enough to point
   // a parent at the HST report when it's coming up; attendance and work
   // samples are tracked in Blue Ridge's own portal and Google Drive, not
-  // here, so there's nothing else to surface on this card.
-  const currentLP = await getCurrentLearningPeriod(prisma, today);
+  // here, so there's nothing else to surface on this card. Nothing to show
+  // at all for a family that hasn't turned the compliance module on
+  // (MULTI_FAMILY_SPEC.md Phase 3) — Learning Periods don't exist for them.
+  const currentLP = family.complianceModuleEnabled ? await getCurrentLearningPeriod(prisma, today) : null;
   const daysUntilEnd = currentLP
     ? Math.round((currentLP.endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
     : null;
@@ -118,7 +121,7 @@ export default async function ParentPage({
   return (
     <AppShell>
       <BrandHeader>
-        <ParentNav current="week" extra={<ParentNavMenu />} />
+        <ParentNav current="week" extra={<ParentNavMenu />} showComplianceLinks={family.complianceModuleEnabled} />
       </BrandHeader>
 
       {/* Fixed-position toast (see UndoToast) — deliberately outside the
@@ -138,22 +141,23 @@ export default async function ParentPage({
         requestedDayIndex={requestedDayIndex}
       />
 
-      {currentLP ? (
-        <p className="mt-10 text-sm" style={{ color: COLORS.muted }}>
-          {currentLP.name} · {daysUntilEnd !== null && daysUntilEnd >= 0 ? `${daysUntilEnd} day(s) left` : "ended"} ·{" "}
-          <Link href="/parent/reports" className="underline">
-            build the HST report
-          </Link>
-        </p>
-      ) : (
-        <p className="mt-10 text-sm" style={{ color: COLORS.muted }}>
-          No learning period covers today —{" "}
-          <Link href="/parent/calendar" className="underline">
-            set one up
-          </Link>
-          .
-        </p>
-      )}
+      {family.complianceModuleEnabled &&
+        (currentLP ? (
+          <p className="mt-10 text-sm" style={{ color: COLORS.muted }}>
+            {currentLP.name} · {daysUntilEnd !== null && daysUntilEnd >= 0 ? `${daysUntilEnd} day(s) left` : "ended"} ·{" "}
+            <Link href="/parent/reports" className="underline">
+              build the HST report
+            </Link>
+          </p>
+        ) : (
+          <p className="mt-10 text-sm" style={{ color: COLORS.muted }}>
+            No learning period covers today —{" "}
+            <Link href="/parent/calendar" className="underline">
+              set one up
+            </Link>
+            .
+          </p>
+        ))}
     </AppShell>
   );
 }

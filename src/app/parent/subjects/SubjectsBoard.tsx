@@ -16,19 +16,22 @@ import {
 const CATEGORY_OPTIONS = Object.values(WorkSampleCategory);
 
 /** HOMEROOM_UX_MIGRATION.md §5.8 — a plain row per subject; the select/
- * checkbox only appear while that row is being edited, not permanently. */
-export function SubjectsBoard({ subjects }: { subjects: Subject[] }) {
+ * checkbox only appear while that row is being edited, not permanently.
+ * `showReportCategory` (MULTI_FAMILY_SPEC.md Phase 3) hides the Blue
+ * Ridge-style report-category selector for a family that hasn't turned on
+ * the compliance module — it exists purely to feed the HST report. */
+export function SubjectsBoard({ subjects, showReportCategory }: { subjects: Subject[]; showReportCategory: boolean }) {
   return (
     <div className="mt-6 max-w-xl">
       {subjects.map((subject) => (
-        <SubjectRow key={subject.id} subject={subject} />
+        <SubjectRow key={subject.id} subject={subject} showReportCategory={showReportCategory} />
       ))}
       <NewSubjectRow />
     </div>
   );
 }
 
-function SubjectRow({ subject }: { subject: Subject }) {
+function SubjectRow({ subject, showReportCategory }: { subject: Subject; showReportCategory: boolean }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(subject.name);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -70,34 +73,38 @@ function SubjectRow({ subject }: { subject: Subject }) {
         )}
 
         {editing ? (
-          <>
-            <select
-              defaultValue={subject.workSampleCategory}
-              onChange={(event) => void updateSubjectCategoryAction(subject.id, event.target.value)}
-              className="hr-flat-input"
-              style={{ width: "auto" }}
-              aria-label="Report category"
-            >
-              {CATEGORY_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-            <label className="flex items-center gap-1.5" style={{ color: COLORS.text }}>
-              <input
-                type="checkbox"
-                defaultChecked={subject.isFaithIntegrated}
-                onChange={(event) => void updateSubjectFaithIntegratedAction(subject.id, event.target.checked)}
-              />
-              Faith-integrated
-            </label>
-          </>
+          showReportCategory && (
+            <>
+              <select
+                defaultValue={subject.workSampleCategory}
+                onChange={(event) => void updateSubjectCategoryAction(subject.id, event.target.value)}
+                className="hr-flat-input"
+                style={{ width: "auto" }}
+                aria-label="Report category"
+              >
+                {CATEGORY_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1.5" style={{ color: COLORS.text }}>
+                <input
+                  type="checkbox"
+                  defaultChecked={subject.isFaithIntegrated}
+                  onChange={(event) => void updateSubjectFaithIntegratedAction(subject.id, event.target.checked)}
+                />
+                Faith-integrated
+              </label>
+            </>
+          )
         ) : (
-          <span style={{ color: COLORS.muted, fontSize: 12 }}>
-            {subject.workSampleCategory}
-            {subject.isFaithIntegrated ? " · faith-integrated" : ""}
-          </span>
+          showReportCategory && (
+            <span style={{ color: COLORS.muted, fontSize: 12 }}>
+              {subject.workSampleCategory}
+              {subject.isFaithIntegrated ? " · faith-integrated" : ""}
+            </span>
+          )
         )}
 
         {confirmingDelete ? (

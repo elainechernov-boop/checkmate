@@ -64,12 +64,17 @@ export const prisma = new Proxy({} as PrismaClient, {
  * themselves) or that touch the Family table directly, which has no
  * familyId of its own to scope by.
  */
-export async function getScopedPrisma(): Promise<PrismaClient> {
+async function currentFamilyId(): Promise<string> {
   const cookieStore = await cookies();
   const familyId = getFamilyIdFromSession(cookieStore.get(FAMILY_COOKIE)?.value);
   if (!familyId) {
-    throw new Error("getScopedPrisma() called with no family session — the family gate must run first.");
+    throw new Error("No family session — the family gate must run first.");
   }
+  return familyId;
+}
+
+export async function getScopedPrisma(): Promise<PrismaClient> {
+  const familyId = await currentFamilyId();
   // Cast back to the plain client type: every lib/*.ts function already
   // types its `prisma` parameter as `PrismaClient` (or a `Pick` of it), and
   // $extends()'s own generic-heavy result type doesn't structurally match
@@ -77,4 +82,16 @@ export async function getScopedPrisma(): Promise<PrismaClient> {
   // operation this app uses — the extension only intercepts query
   // execution, it doesn't add, remove, or change any method.
   return prisma.$extends(tenantScopeExtension(familyId)) as unknown as PrismaClient;
+}
+
+/**
+ * The current session's own Family row — for the handful of settings that
+ * live on the tenant itself rather than on a family-owned model (Phase 3's
+ * complianceModuleEnabled). Family isn't in tenantScope.ts's scoped-model
+ * set (it has no familyId of its own), so this looks it up directly by id
+ * rather than going through getScopedPrisma().
+ */
+export async function getCurrentFamily() {
+  const familyId = await currentFamilyId();
+  return prisma.family.findUniqueOrThrow({ where: { id: familyId } });
 }

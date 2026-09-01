@@ -1,4 +1,4 @@
-import { getScopedPrisma } from "@/lib/prisma";
+import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { COLORS } from "@/lib/theme";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav, PageHeading } from "@/components/ParentNav";
@@ -6,7 +6,8 @@ import { AssignmentForm } from "./AssignmentForm";
 
 export default async function NewAssignmentPage() {
   const prisma = await getScopedPrisma();
-  const [students, subjects] = await Promise.all([
+  const [family, students, subjects] = await Promise.all([
+    getCurrentFamily(),
     prisma.student.findMany({ orderBy: { name: "asc" } }),
     prisma.subject.findMany({ orderBy: { name: "asc" } }),
   ]);
@@ -14,7 +15,7 @@ export default async function NewAssignmentPage() {
   return (
     <AppShell>
       <BrandHeader>
-        <ParentNav />
+        <ParentNav showComplianceLinks={family.complianceModuleEnabled} />
       </BrandHeader>
       <PageHeading title="New assignment" />
 

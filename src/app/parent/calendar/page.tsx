@@ -1,4 +1,4 @@
-import { getScopedPrisma } from "@/lib/prisma";
+import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays } from "@/lib/dates";
 import { fetchFamilyCalendarEvents, getDismissedEvents, getFamilyCalendarSettings } from "@/lib/familyCalendar";
@@ -6,7 +6,7 @@ import { COLORS } from "@/lib/theme";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav, PageHeading } from "@/components/ParentNav";
 import { SettingsCard } from "@/components/SettingsCard";
-import { applyDayTypeRange, createLearningPeriod, undismissCalendarEventAction } from "./actions";
+import { applyDayTypeRange, createLearningPeriod, toggleComplianceModuleAction, undismissCalendarEventAction } from "./actions";
 import { FamilyCalendarCard } from "./FamilyCalendarCard";
 import { LearningPeriodRow } from "./LearningPeriodRow";
 
@@ -20,7 +20,8 @@ const TYPE_OPTIONS: { value: SchoolDayType; label: string }[] = [
 
 export default async function CalendarPage() {
   const prisma = await getScopedPrisma();
-  const [learningPeriods, familyCalendar, dismissedEvents] = await Promise.all([
+  const [family, learningPeriods, familyCalendar, dismissedEvents] = await Promise.all([
+    getCurrentFamily(),
     prisma.learningPeriod.findMany({ orderBy: { startDate: "asc" } }),
     getFamilyCalendarSettings(prisma),
     getDismissedEvents(prisma),
@@ -40,11 +41,15 @@ export default async function CalendarPage() {
   return (
     <AppShell>
       <BrandHeader>
-        <ParentNav />
+        <ParentNav showComplianceLinks={family.complianceModuleEnabled} />
       </BrandHeader>
       <PageHeading
         title="Calendar"
-        description="Mark a day or a whole range off for everyone at once — a trip, a school-wide holiday — and set up learning periods for the HST report. For a single kid's sick day or field trip, use the day header on their own week board instead."
+        description={
+          family.complianceModuleEnabled
+            ? "Mark a day or a whole range off for everyone at once — a trip, a school-wide holiday — and set up learning periods for the HST report. For a single kid's sick day or field trip, use the day header on their own week board instead."
+            : "Mark a day or a whole range off for everyone at once — a trip, a school-wide holiday. For a single kid's sick day or field trip, use the day header on their own week board instead."
+        }
       />
 
       <SettingsCard className="mt-6">
@@ -117,43 +122,69 @@ export default async function CalendarPage() {
       </SettingsCard>
 
       <SettingsCard className="mt-6">
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>Learning periods</h2>
-        <div className="mt-2">
-          {learningPeriods.map((lp) => (
-            <LearningPeriodRow key={lp.id} lp={lp} />
-          ))}
-        </div>
-
-        <form action={createLearningPeriod} className="mt-3 flex flex-wrap items-end gap-4 border-t border-dashed pt-3 text-sm" style={{ borderColor: COLORS.dashed }}>
-          <div>
-            <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
-              Name
-            </label>
-            <input type="text" name="name" placeholder="LP1" required className="hr-flat-input w-24" />
-          </div>
-          <div>
-            <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
-              Start
-            </label>
-            <input type="date" name="startDate" required className="hr-flat-input" />
-          </div>
-          <div>
-            <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
-              End
-            </label>
-            <input type="date" name="endDate" required className="hr-flat-input" />
-          </div>
-          <div>
-            <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
-              HST meeting (optional)
-            </label>
-            <input type="date" name="hstMeetingDate" className="hr-flat-input" />
-          </div>
-          <button type="submit" className="hr-text-action font-medium" style={{ color: COLORS.text }}>
-            Add learning period
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>Compliance reporting</h2>
+        <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
+          Turn this on if you report to a charter or umbrella school that wants attendance, work-sample report
+          categories, learning periods, and an HST-style meeting report — it adds those sections to Subjects and this
+          page, plus a Reports tab. Leave it off for a plain homeschool tracker.
+        </p>
+        <form action={toggleComplianceModuleAction} className="mt-3 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            id="complianceModuleEnabled"
+            name="enabled"
+            value="on"
+            defaultChecked={family.complianceModuleEnabled}
+          />
+          <label htmlFor="complianceModuleEnabled" style={{ color: COLORS.text }}>
+            Enable attendance &amp; HST reporting
+          </label>
+          <button type="submit" className="hr-text-action ml-2 font-medium" style={{ color: COLORS.text }}>
+            Save
           </button>
         </form>
       </SettingsCard>
+
+      {family.complianceModuleEnabled && (
+        <SettingsCard className="mt-6">
+          <h2 style={{ fontSize: 15, fontWeight: 700 }}>Learning periods</h2>
+          <div className="mt-2">
+            {learningPeriods.map((lp) => (
+              <LearningPeriodRow key={lp.id} lp={lp} />
+            ))}
+          </div>
+
+          <form action={createLearningPeriod} className="mt-3 flex flex-wrap items-end gap-4 border-t border-dashed pt-3 text-sm" style={{ borderColor: COLORS.dashed }}>
+            <div>
+              <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
+                Name
+              </label>
+              <input type="text" name="name" placeholder="LP1" required className="hr-flat-input w-24" />
+            </div>
+            <div>
+              <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
+                Start
+              </label>
+              <input type="date" name="startDate" required className="hr-flat-input" />
+            </div>
+            <div>
+              <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
+                End
+              </label>
+              <input type="date" name="endDate" required className="hr-flat-input" />
+            </div>
+            <div>
+              <label className="block font-medium uppercase" style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}>
+                HST meeting (optional)
+              </label>
+              <input type="date" name="hstMeetingDate" className="hr-flat-input" />
+            </div>
+            <button type="submit" className="hr-text-action font-medium" style={{ color: COLORS.text }}>
+              Add learning period
+            </button>
+          </form>
+        </SettingsCard>
+      )}
     </AppShell>
   );
 }

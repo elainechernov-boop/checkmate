@@ -84,6 +84,12 @@ model Family {
   accessCodeHash     String?
   parentPasscodeHash String?
 
+  // Attendance/work-sample-category/learning-periods/the HST report were
+  // all built for one specific charter-school program's requirements
+  // (MULTI_FAMILY_SPEC.md Phase 3) — off by default for a new family, since
+  // most homeschool co-ops don't report to Blue Ridge Academy specifically.
+  complianceModuleEnabled Boolean @default(false)
+
   students                 Student[]
   subjects                 Subject[]
   projects                 Project[]

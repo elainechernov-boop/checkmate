@@ -1,4 +1,4 @@
-import { getScopedPrisma } from "@/lib/prisma";
+import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { getToday } from "@/lib/dates";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav, PageHeading } from "@/components/ParentNav";
@@ -16,7 +16,8 @@ export default async function ParentProjectsPage() {
   const prisma = await getScopedPrisma();
   const today = getToday();
 
-  const [students, subjects, projects, projectIdeas] = await Promise.all([
+  const [family, students, subjects, projects, projectIdeas] = await Promise.all([
+    getCurrentFamily(),
     prisma.student.findMany({ orderBy: { name: "asc" } }),
     prisma.subject.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.project.findMany({
@@ -49,7 +50,7 @@ export default async function ParentProjectsPage() {
   return (
     <AppShell>
       <BrandHeader>
-        <ParentNav />
+        <ParentNav showComplianceLinks={family.complianceModuleEnabled} />
       </BrandHeader>
       <PageHeading
         title="Projects"

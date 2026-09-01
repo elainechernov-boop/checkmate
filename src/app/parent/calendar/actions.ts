@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getScopedPrisma } from "@/lib/prisma";
+import { prisma as baseClient, getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { SchoolDayType } from "@/generated/prisma/enums";
 import { addDays, parseISODate, toISODate } from "@/lib/dates";
 import {
@@ -26,6 +26,24 @@ type ScopedPrisma = Awaited<ReturnType<typeof getScopedPrisma>>;
 async function rematerializeAllSeries(prisma: ScopedPrisma) {
   const seriesList = await prisma.assignmentSeries.findMany({ select: { id: true } });
   for (const series of seriesList) await materializeSeries(prisma, series.id);
+}
+
+/**
+ * The Calendar page's own on/off switch for the whole attendance/work-
+ * sample-category/learning-periods/HST-report module (MULTI_FAMILY_SPEC.md
+ * Phase 3) — a family that doesn't report to a charter/umbrella school
+ * turns this off and those sections disappear everywhere in Parent Mode;
+ * a Blue Ridge family (or any family with a similar reporting need) turns
+ * it on. Family isn't a tenant-scoped model (getScopedPrisma() passes it
+ * straight through unscoped — see tenantScope.ts), so this updates it
+ * directly by the current session's own family id instead.
+ */
+export async function toggleComplianceModuleAction(formData: FormData) {
+  const enabled = formData.get("enabled") === "on";
+  const family = await getCurrentFamily();
+  await baseClient.family.update({ where: { id: family.id }, data: { complianceModuleEnabled: enabled } });
+  revalidatePath("/parent/calendar");
+  revalidatePath("/parent");
 }
 
 /** §8 "import/enter Blue Ridge's academic calendar once" — a single day is
