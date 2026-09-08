@@ -313,8 +313,10 @@ model AssignmentInstance {
   updatedAt DateTime @updatedAt
 
   @@index([familyId])
+  @@index([familyId, dueDate])
   @@index([studentId, dueDate])
   @@index([seriesId])
+  @@index([projectId])
 }
 
 // The school calendar (§3, §8)
