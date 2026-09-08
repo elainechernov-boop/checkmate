@@ -490,7 +490,7 @@ export function StudentWeekView({
         </>
       )}
 
-      <ProjectsBand accentColor={localAccentColor} projects={projects} />
+      <ProjectsBand studentId={student.id} accentColor={localAccentColor} projects={projects} />
 
       <ComingUpPanel
         open={comingUpOpen}

@@ -2,31 +2,34 @@
 
 import { useState } from "react";
 import { ProjectStatus } from "@/generated/prisma/enums";
+import { InlineEntry } from "@/components/FlatField";
 import { formatComingUpDate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
+import { createProjectAction } from "./projectActions";
 import type { StudentProject } from "./types";
 
 /**
  * HOMEROOM_UX_MIGRATION.md §5.4 "Student permissions and projects" — Elaine's
- * decision removed all student authoring of projects (no create/edit/delete/
- * reorder/schedule/Plan-it, no Someday). What's left is a quiet, read-only
- * motivational summary: title, target date, accent progress bar, and the
- * next few not-yet-scheduled steps as plain text — no controls of any kind.
- * A scheduled project step still shows up, and is still completable, as an
- * ordinary row in the week grid above (see AssignmentRow/DayColumn); this
- * band never duplicates that.
+ * original decision removed all student authoring of projects. Revised
+ * 2026-09-08: kids get project *creation* back ("Start a new project"), but
+ * everything under a project (add/edit/delete a step, Plan it, reorder,
+ * rename, target date) stays parent-only in /parent/projects — the
+ * summary below one project card, and the finished stack, are still
+ * read-only. A scheduled project step still shows up, and is still
+ * completable, as an ordinary row in the week grid above (see
+ * AssignmentRow/DayColumn); this band never duplicates that.
  */
 export function ProjectsBand({
+  studentId,
   accentColor,
   projects,
 }: {
+  studentId: string;
   accentColor: string;
   projects: StudentProject[];
 }) {
   const inProgress = projects.filter((p) => p.status === ProjectStatus.active);
   const finished = projects.filter((p) => p.status === ProjectStatus.completed);
-
-  if (inProgress.length === 0 && finished.length === 0) return null;
 
   return (
     <section className="mt-[22px] pt-[18px]" style={{ borderTop: `2px solid ${COLORS.text}` }}>
@@ -41,6 +44,12 @@ export function ProjectsBand({
           ))}
         </div>
       )}
+
+      <InlineEntry
+        placeholder="Start a new project, press Enter"
+        onSubmit={(name) => createProjectAction(studentId, name)}
+        className="mt-3 max-w-xs"
+      />
 
       {finished.length > 0 && <FinishedStack projects={finished} />}
     </section>
