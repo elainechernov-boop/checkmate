@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { COLORS } from "@/lib/theme";
-import { CRITTERS, SPARKLE, SPARKLE_COLORS } from "@/lib/critters";
+import { CRITTERS, SPARKLE_COLORS } from "@/lib/critters";
+import { Sparkle } from "./Sparkle";
 
 // A real "1000 critters" would be an easy way to make an old Mac chug for a
 // project celebration that should feel effortless — 70 already reads as a
@@ -124,14 +125,12 @@ export function ProjectFinishedTakeover({
               transition={{ duration: FLIGHT_DURATION, times: FLIGHT_TIMES, delay: c.delay, ease: "easeOut" }}
               style={{
                 position: "fixed",
-                fontSize: "1.1rem",
                 lineHeight: 1,
                 zIndex: 9998,
-                color: c.sparkleColor,
                 filter: `drop-shadow(0 0 6px ${c.sparkleColor}bf)`,
               }}
             >
-              {SPARKLE}
+              <Sparkle color={c.sparkleColor} sizeRem={1.1} />
             </motion.span>
             <motion.span
               initial={{ left: left[0], top: top[0], opacity: 0, rotate: 0, scale: 0.7 }}

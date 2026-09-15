@@ -13,8 +13,6 @@ export const CRITTERS = [
   "🎈", "🎪", "🚀", "🥾", "🎒", "🥸", "⚽️", "🎨", "🎸", "🚲", "🏀", "🎯", "🎁", "🚗", "✈️", "⛵️", "🏰", "🎲", "🇺🇸",
 ];
 
-export const SPARKLE = "✨";
-
 // The trailing sparkle stream's colors — homeroom's brand accents, shared by
 // every critter-flavored celebration (ItemCelebration, DayCompleteTakeover,
 // ProjectFinishedTakeover) so they read as one system instead of a generic

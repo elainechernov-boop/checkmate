@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { CRITTERS, SPARKLE, SPARKLE_COLORS } from "@/lib/critters";
+import { CRITTERS, SPARKLE_COLORS } from "@/lib/critters";
+import { Sparkle } from "./Sparkle";
 
 const GLYPH_HALF = 26; // half the ~52px (3.25rem) glyph box, to center it on `origin`
 const FLIGHT_DURATION = 1.7;
@@ -105,15 +106,13 @@ export function ItemCelebration({
             }}
             style={{
               position: "fixed",
-              fontSize: `${s.size}rem`,
               lineHeight: 1,
               pointerEvents: "none",
               zIndex: 9998,
-              color: s.color,
               filter: `drop-shadow(0 0 6px ${s.color}bf)`,
             }}
           >
-            {SPARKLE}
+            <Sparkle color={s.color} sizeRem={s.size} />
           </motion.div>
         );
       })}
