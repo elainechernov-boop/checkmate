@@ -7,7 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { formatDayWeekdayShort, formatMonthDayLine, toISODate } from "@/lib/dates";
 import { splitBySeparators } from "@/lib/daySeparators";
-import { minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
+import { formatTotalMinutes, minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
@@ -173,7 +173,26 @@ export function DayColumn({
   compactHeader?: boolean;
 }) {
   const [showTakeover, setShowTakeover] = useState(false);
-  const wasAllDone = useRef<boolean | null>(null);
+  // True once every real item is done but the completion wasn't the
+  // student's own doing (e.g. a parent approved the last pendingReview item
+  // from Parent Mode while this student wasn't looking) — the takeover
+  // waits for them to tap the "Finish the day" row below instead of playing
+  // off-screen the moment the next poll notices.
+  const [awaitingFinish, setAwaitingFinish] = useState(false);
+  // Have we already fired-or-prompted for the current streak of "all done"?
+  // Only ever set inside that success path below — never merely because
+  // `celebrated` read as true, since StudentWeekView's own `celebratedToday`
+  // starts as a placeholder `true` (avoiding an SSR flash) before its
+  // effect corrects it to the real localStorage value a moment later; if
+  // this ref latched onto that placeholder pass, the correction to `false`
+  // right after would arrive too late to ever be acted on.
+  const hasHandledRef = useRef(false);
+  // Set synchronously by this student's own tap (toggleFromRow/approveFromRow
+  // below), just before the toggle/approve call that might complete the day
+  // — read by the effect below in the very next render it causes, then
+  // cleared every render so a later, unrelated change (a poll picking up an
+  // external approval) always defaults to "not me."
+  const justActedRef = useRef(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const { rolled, timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
@@ -207,14 +226,61 @@ export function DayColumn({
 
   useEffect(() => {
     if (!isToday) return;
-    // Fire the day-complete moment exactly on the transition into "all done",
-    // not on every render where it's already true (§6 step 5).
-    if (allDone && wasAllDone.current === false && !celebrated) {
-      setShowTakeover(true);
-      onCelebrate();
+    if (!allDone) {
+      // Undoing the item that completed the day is a real external event
+      // (Parent Mode, or the student's own undo) this effect is the right
+      // place to react to, same reasoning as the rest of this effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (awaitingFinish) setAwaitingFinish(false);
+      hasHandledRef.current = false;
+      justActedRef.current = false;
+      return;
     }
-    wasAllDone.current = allDone;
-  }, [allDone, isToday, celebrated, onCelebrate]);
+    // Handle "all done" exactly once per genuine completion (mount already
+    // finding it done counts the same as just transitioning into it) — not
+    // on every later render where it's still true (§6 step 5). `celebrated`
+    // still reading as its placeholder `true` just holds this off rather
+    // than consuming the one attempt — see hasHandledRef's own comment.
+    if (!celebrated && !hasHandledRef.current) {
+      hasHandledRef.current = true;
+      if (justActedRef.current) {
+        // The student's own tap just now completed the last real item —
+        // play the reward immediately, same as always.
+        setShowTakeover(true);
+        onCelebrate();
+      } else {
+        // Everything's done, but not through anything the student just did
+        // here — most often a parent approving the last pendingReview item
+        // from Parent Mode. Wait for them to claim it themselves instead of
+        // firing a full-screen takeover they aren't even looking at.
+        setAwaitingFinish(true);
+      }
+    }
+    justActedRef.current = false;
+  }, [allDone, isToday, celebrated, onCelebrate, awaitingFinish]);
+
+  function handleFinishDay() {
+    setAwaitingFinish(false);
+    setShowTakeover(true);
+    onCelebrate();
+  }
+
+  // Wrap onToggle/onApproveViaPasscode so the effect above can tell "the
+  // student just did this, right here" apart from a status change that
+  // arrived through props (a poll refresh noticing an external approval).
+  function toggleFromRow(instance: StudentInstance) {
+    return (origin: { x: number; y: number }) => {
+      justActedRef.current = true;
+      onToggle(instance, origin);
+    };
+  }
+
+  function approveFromRow(instance: StudentInstance) {
+    return (passcode: string, origin: { x: number; y: number }) => {
+      justActedRef.current = true;
+      return onApproveViaPasscode(instance, passcode, origin);
+    };
+  }
 
   // §6 "Morning/Afternoon/Evening" — a student can drag freely within the
   // segment a separator bounds, never across one. `over` landing outside
@@ -246,13 +312,11 @@ export function DayColumn({
         isLast={instance.id === lastRowId}
         accentColor={accentColor}
         now={now}
-        onToggle={(origin: { x: number; y: number }) => onToggle(instance, origin)}
+        onToggle={toggleFromRow(instance)}
         // Available even on a non-today column — a pendingReview item holds
         // its original day rather than rolling (§5), but parent approval
         // isn't gated by the student-only "today only" interactivity rule.
-        onApproveViaPasscode={(passcode: string, origin: { x: number; y: number }) =>
-          onApproveViaPasscode(instance, passcode, origin)
-        }
+        onApproveViaPasscode={approveFromRow(instance)}
       />
     );
   }
@@ -365,7 +429,7 @@ export function DayColumn({
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
                           now={now}
-                          onToggle={(origin) => onToggle(instance, origin)}
+                          onToggle={toggleFromRow(instance)}
                         />
                       ) : (
                         <SortableRow
@@ -375,7 +439,7 @@ export function DayColumn({
                           isLast={instance.id === lastRowId}
                           accentColor={accentColor}
                           now={now}
-                          onToggle={(origin) => onToggle(instance, origin)}
+                          onToggle={toggleFromRow(instance)}
                         />
                       )
                     )}
@@ -395,17 +459,31 @@ export function DayColumn({
 
           {pendingReview.map(plainRow)}
           {completed.map(plainRow)}
+
+          {/* The manual "I'm ready to celebrate" beat for a day that
+              finished without the student's own tap (mirrors
+              ProjectFinishedTakeover's own button) — click the row's text,
+              same as completing any other row, no checkbox. */}
+          {awaitingFinish && (
+            <button
+              type="button"
+              onClick={handleFinishDay}
+              className="flex items-start py-1.5 text-left"
+              style={{ gap: 7 }}
+            >
+              <span aria-hidden className="mt-0.5 shrink-0 self-stretch" style={{ width: 3, minHeight: 22, background: accentColor }} />
+              <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: accentColor }}>Finish the day</span>
+            </button>
+          )}
         </div>
 
         {/* Pinned to the bottom of the column via the outer flex-1 column
             (design tokens: "N min total", plain and left-aligned, never
-            centered below the card) — raw minutes, not hour-converted
-            (formatTotalMinutes' "2h" form is for longer, aggregate totals
-            like Reports, not a single day's). Hidden when no real estimate
-            exists on the day (§5.4). */}
+            centered below the card). Hidden when no real estimate exists
+            on the day (§5.4). */}
         {totalMinutes > 0 && (
           <p className="mt-auto pt-2.5 text-left" style={{ color: COLORS.mutedFaint, fontSize: "0.65rem" }}>
-            {totalMinutes} min total
+            {formatTotalMinutes(totalMinutes)} total
           </p>
         )}
       </div>
