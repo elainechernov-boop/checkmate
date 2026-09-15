@@ -43,8 +43,8 @@ const SCOPE_OPTIONS = [
   { value: "all", label: "All in series" },
 ] as const;
 
-const fieldLabel = "block text-[0.65rem] font-medium uppercase tracking-wide";
-const fieldInput = "mt-0.5 w-full border-b bg-transparent py-1 text-xs outline-none";
+const fieldLabel = "block text-[0.65rem] font-bold uppercase tracking-[0.08em]";
+const fieldInput = "mt-0.5 w-full border-b border-dashed bg-transparent py-1 text-xs outline-none";
 
 /**
  * HOMEROOM_UX_MIGRATION.md §5.6 "Parent row editor" — this is the one
@@ -121,7 +121,7 @@ export function EditPanel({
         <label className={fieldLabel} style={{ color: COLORS.muted }}>
           Title
         </label>
-        <input type="text" name="title" required defaultValue={instance.title} className={fieldInput} style={{ borderColor: COLORS.hairline, color: COLORS.text }} />
+        <input type="text" name="title" required defaultValue={instance.title} className={fieldInput} style={{ borderColor: COLORS.dashed, color: COLORS.text }} />
       </div>
 
       <div className="flex gap-3">
@@ -129,7 +129,7 @@ export function EditPanel({
           <label className={fieldLabel} style={{ color: COLORS.muted }}>
             Subject
           </label>
-          <select name="subjectId" defaultValue={instance.subjectId ?? ""} className={fieldInput} style={{ borderColor: COLORS.hairline, color: COLORS.text }}>
+          <select name="subjectId" defaultValue={instance.subjectId ?? ""} className={fieldInput} style={{ borderColor: COLORS.dashed, color: COLORS.text }}>
             <option value="">No subject</option>
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>
@@ -148,7 +148,7 @@ export function EditPanel({
             min={0}
             defaultValue={instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? ""}
             className={fieldInput}
-            style={{ borderColor: COLORS.hairline, color: COLORS.text }}
+            style={{ borderColor: COLORS.dashed, color: COLORS.text }}
           />
         </div>
       </div>
@@ -162,7 +162,7 @@ export function EditPanel({
           rows={2}
           defaultValue={instance.details ?? ""}
           className={fieldInput}
-          style={{ borderColor: COLORS.hairline, color: COLORS.text }}
+          style={{ borderColor: COLORS.dashed, color: COLORS.text }}
         />
       </div>
 
@@ -177,13 +177,13 @@ export function EditPanel({
             required
             defaultValue={instance.dueDate ? toISODate(instance.dueDate) : ""}
             className={fieldInput}
-            style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+            style={{ borderColor: COLORS.dashed, color: COLORS.text, width: "auto" }}
           />
         </div>
       )}
 
       <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
-        <input type="checkbox" name="requiresReview" defaultChecked={instance.requiresReview} />
+        <input type="checkbox" name="requiresReview" defaultChecked={instance.requiresReview} style={{ accentColor: COLORS.cobalt }} />
         &ldquo;Show me the work&rdquo; — require sign-off before this counts as done
       </label>
 
@@ -223,7 +223,12 @@ export function EditPanel({
 
           <div>
             <label className="flex items-center gap-2" style={{ color: COLORS.text }}>
-              <input type="checkbox" checked={timeSensitive} onChange={(event) => setTimeSensitive(event.target.checked)} />
+              <input
+                type="checkbox"
+                checked={timeSensitive}
+                onChange={(event) => setTimeSensitive(event.target.checked)}
+                style={{ accentColor: COLORS.cobalt }}
+              />
               Happens at a set time — highlight it and remind me
             </label>
 
@@ -239,7 +244,7 @@ export function EditPanel({
                     required
                     defaultValue={instance.scheduledTime ?? ""}
                     className={fieldInput}
-                    style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                    style={{ borderColor: COLORS.dashed, color: COLORS.text, width: "auto" }}
                   />
                 </div>
                 <div>
@@ -250,7 +255,7 @@ export function EditPanel({
                     name="reminderMinutesBefore"
                     defaultValue={String(instance.reminderMinutesBefore ?? 10)}
                     className={fieldInput}
-                    style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                    style={{ borderColor: COLORS.dashed, color: COLORS.text, width: "auto" }}
                   >
                     {REMINDER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -273,7 +278,7 @@ export function EditPanel({
                 value={repeat}
                 onChange={(event) => setRepeat(event.target.value)}
                 className={fieldInput}
-                style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                style={{ borderColor: COLORS.dashed, color: COLORS.text, width: "auto" }}
               >
                 {REPEAT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -292,7 +297,13 @@ export function EditPanel({
               <div className="mt-1 flex gap-3">
                 {WEEKDAYS.map((day) => (
                   <label key={day.code} className="flex items-center gap-1 capitalize" style={{ color: COLORS.text }}>
-                    <input type="checkbox" name="daysOfWeek" value={day.code} defaultChecked={initialDaysOfWeek.has(day.code)} />
+                    <input
+                      type="checkbox"
+                      name="daysOfWeek"
+                      value={day.code}
+                      defaultChecked={initialDaysOfWeek.has(day.code)}
+                      style={{ accentColor: COLORS.cobalt }}
+                    />
                     {day.code}
                   </label>
                 ))}
@@ -310,7 +321,7 @@ export function EditPanel({
                 value={endCondition}
                 onChange={(event) => setEndCondition(event.target.value)}
                 className={fieldInput}
-                style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                style={{ borderColor: COLORS.dashed, color: COLORS.text, width: "auto" }}
               >
                 {END_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -326,7 +337,7 @@ export function EditPanel({
                   required
                   defaultValue={instance.series?.endDate ? toISODate(instance.series.endDate) : ""}
                   className={fieldInput}
-                  style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                  style={{ borderColor: COLORS.dashed, color: COLORS.text, width: "auto" }}
                 />
               )}
               {endCondition === "afterNCount" && (
@@ -338,7 +349,7 @@ export function EditPanel({
                   placeholder="Number of times"
                   defaultValue={instance.series?.endCount ?? ""}
                   className={fieldInput}
-                  style={{ borderColor: COLORS.hairline, color: COLORS.text, width: "auto" }}
+                  style={{ borderColor: COLORS.dashed, color: COLORS.text, width: "auto" }}
                 />
               )}
             </div>
@@ -347,7 +358,7 @@ export function EditPanel({
       )}
 
       <div className="flex items-center gap-4">
-        <button type="submit" disabled={deleting} className="font-medium" style={{ color: COLORS.text }}>
+        <button type="submit" disabled={deleting} className="font-bold" style={{ color: COLORS.cobalt }}>
           Save
         </button>
         <button type="button" onClick={onCancel} style={{ color: COLORS.mutedFaint }}>
