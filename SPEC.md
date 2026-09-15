@@ -218,3 +218,25 @@ Most assignments are due sometime that day — missing the day is what §5's rol
 **The reminder popup.** While the student's tab is open, a lightweight background check (separate from the 60-second data refresh) watches today's still-open time-sensitive items. When the wall clock enters the reminder window — opening `reminderMinutesBefore` minutes ahead of `scheduledTime` and staying open until 15 minutes after, so a student who opens the app a little late still gets nudged rather than silently missing it — a full-screen takeover interrupts whatever they're doing ("🕐 Latin starts in 10 minutes — go get ready!"), requiring a single tap to acknowledge and dismiss rather than auto-fading like the completion/day-complete moments. It fires at most once per item per day (tracked client-side) and never for an item that's already done, pending review, or excused.
 
 This is in-app only, per the tradeoff in §10's note: it requires Checkmate to be open on the student's machine at the time, not a true OS-level push notification delivered while the app is closed.
+
+## 13. Photo/text import — turning an agenda into assignments (post-v1)
+
+Teacher agendas and weekly checklists arrive as a photo of a printed page, not something Checkmate can plan from directly. This adds a Parent Mode-only path that turns a photo or a pasted block of text, plus a short instruction, into draft assignments — always reviewed and edited before anything is added to the plan, never auto-committed.
+
+**Entry point.** A new Parent Mode screen (e.g. `/parent/assignments/photo-import`), linked from wherever "+ New Assignment" already lives.
+
+**Input.** The parent picks exactly one:
+- Upload photo(s) — one or several at once, e.g. a whole week's checklists in one batch.
+- Paste text directly.
+
+**Transcription step (photo only).** Each uploaded photo is sent to Claude's vision API for transcription — not parsing — into plain text, shown back in an editable textarea per photo so the parent can fix any misread text before anything is turned into assignments. Pasted text skips this step and goes straight to the box.
+
+**Instruction + parse.** The parent adds a short free-text instruction ("science work for week of 9/13, split into Tues/Thurs assignments"). The transcribed/pasted text plus instruction go to Claude along with the family's actual Subject and Student names as context, and come back as structured draft assignments: title, subject, student, and either a due date or a recurrence pattern (a day-of-week set, matching §4's "Weekly on…" model).
+
+**Draft review.** Every parsed row appears in an editable list, using the same fields as the New Assignment form (§4), before anything is created. The parent can edit, delete, or add rows here — nothing reaches a student's day unparsed or unreviewed.
+
+**Commit.** Confirmed rows are created through the exact same path as manual entry (§4) — one AssignmentSeries (or standalone AssignmentInstance) per row, materialized per §3's rule. No new data model: a confirmed draft is indistinguishable from a hand-typed assignment, so it inherits rolling, review, attendance, and reporting for free.
+
+**Data model additions:** none. The draft parse is ephemeral request/response state, never persisted unless and until the parent confirms it.
+
+**Out of scope:** auto-committing without review, remembering or re-using past photos, OCR beyond what Claude's vision model already handles, and any marker in the UI distinguishing a photo-imported assignment from a hand-typed one once confirmed — it's just an assignment.
