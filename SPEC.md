@@ -100,7 +100,7 @@ New Assignment sheet, one screen:
 
 ## 6. Student experience — the TeuxDeux view
 
-**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line, flush with the day label above it — no checkbox, no color dot: **the title itself is the completion control.** Clicking it completes or undoes the item; a small subject name + estimated time sits in muted text underneath (more legible to a kid than a color they'd have to memorize), and a small arrow after the title opens a read-only details popup (subject, notes, estimated time, due date, status) — parent-assigned work stays uneditable by students (§2). Today's open items can be dragged to reorder within the day — grab the row itself, no separate handle; other days are display-only, matching the existing today-only interactivity rule.
+**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line, flush with the day label above it — no checkbox, no color dot: **the title itself is the completion control.** Clicking it completes or undoes the item; a small subject name + estimated time sits in muted text underneath (more legible to a kid than a color they'd have to memorize), and a small arrow after the title opens a read-only details popup (subject, notes, estimated time, due date, status) — parent-assigned work stays uneditable by students (§2). Row order within a day is parent-set and locked (§14) — the student's whole week, every day, is display-only; there is no drag handle anywhere in Student Mode.
 
 **The completion moment (the signature — build this with care):**
 1. Clicking the title draws a strikethrough line left-to-right across it over ~280ms with an ease-out curve
@@ -112,7 +112,7 @@ New Assignment sheet, one screen:
 7. Undo: clicking a completed item today reverses the animation; clicking a pendingReview item withdraws it back to open. Yesterday and earlier are locked for students.
 8. Respect the `prefers-reduced-motion` setting: replace the strike/critter/confetti with a simple crossfade (a soft full-screen flash + static text for the day-complete moment; the per-item critter is skipped outright).
 
-**Item states in the column, top to bottom:** rolled items (with their day-count marks, oldest first) → today's open items (parent-assigned and project tasks interleaved, in the student's own drag-order) → pendingReview items ("Show Mom," half-struck, holding, an amber raised-hand mark under the title) → completed items (muted, struck). The column reads as a work queue: debts, then today, then waiting-on-Mom, then done.
+**Item states in the column, top to bottom:** rolled items (with their day-count marks, oldest first) → today's open items (parent-assigned and project tasks interleaved, in parent-set order, §14) → pendingReview items ("Show Mom," half-struck, holding, an amber raised-hand mark under the title) → completed items (muted, struck). The column reads as a work queue: debts, then today, then waiting-on-Mom, then done.
 
 ## 7. Self-initiated projects (student-created)
 
@@ -240,3 +240,15 @@ Teacher agendas and weekly checklists arrive as a photo of a printed page, not s
 **Data model additions:** none. The draft parse is ephemeral request/response state, never persisted unless and until the parent confirms it.
 
 **Out of scope:** auto-committing without review, remembering or re-using past photos, OCR beyond what Claude's vision model already handles, and any marker in the UI distinguishing a photo-imported assignment from a hand-typed one once confirmed — it's just an assignment.
+
+## 14. Manual ordering, locked from the student's side (post-v1)
+
+Row order within a day used to be split: the parent could drag to reorder her own planning view, and separately a student could drag today's own open items into whatever order suited them. That second half goes away — order is entirely the parent's call, and it stays put wherever she leaves it.
+
+**Parent Mode.** Unchanged from §5/§9: drag any row — instance or separator — within a day's cell to set its position, any day, any status. That order is the one and only order; it's what the student sees too.
+
+**Student Mode.** No drag anywhere in the week view, on any day, for any row — parent-assigned instances and the student's own project tasks alike (§7's project-task ownership is otherwise unchanged: still create, edit, move between days, unschedule, delete — just not reorder in place). The row order the parent set (or, absent that, plain creation order) is what renders, full stop.
+
+**Repeating items reorder forward.** Dragging one occurrence of a repeating series to a new position within its day doesn't just move that one day — it re-applies the same position to that series' other future occurrences too (skipping anything already completed or individually detached via "this assignment only," the same carve-outs §4/§5 already respect), and remembers the position on the series itself so instances materialized later land there from the start instead of always at the bottom of their day. Moving a one-off (non-series) item, or moving an item that's been detached from its series, only ever affects that single day, same as today.
+
+**Data model additions (§3).** `AssignmentSeries` gains `sortOrder` (Int, nullable — the row index its instances should land at within their day; null means no preference yet, i.e. keep appending new instances at the bottom, unchanged from today).
