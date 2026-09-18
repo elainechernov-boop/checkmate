@@ -233,10 +233,9 @@ export function AssignmentRow({
               they sit on the same visual line whenever there's room, same
               as Canvas.dc.html's rows. */}
           <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-            {/* No checkbox, no dot, no drag handle — the word itself is the
-                completion control (TeuxDeux's model, §6 north star), and the
-                whole row is now the drag target (dnd-kit listeners live on
-                DayColumn's SortableRow wrapper). */}
+            {/* No checkbox, no dot — the word itself is the completion
+                control (TeuxDeux's model, §6 north star). Order is parent-set
+                and locked (§14): no drag handle here at all. */}
             <button
               type="button"
               onClick={handleTitleClick}

@@ -1,11 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { formatDayWeekdayShort, formatMonthDayLine, toISODate } from "@/lib/dates";
+import { formatDayWeekdayShort, formatMonthDayLine } from "@/lib/dates";
 import { splitBySeparators } from "@/lib/daySeparators";
 import { formatTotalMinutes, minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
@@ -48,8 +45,7 @@ function CalendarEventChip({ event, now }: { event: FamilyCalendarEvent; now: Da
 }
 
 /** §6 — a parent-placed, read-only-to-the-student divider (free text, e.g.
- * "Before breakfast"). Bounds where a student's own drag-reorder can reach
- * (see DayColumn's handleDragEnd). */
+ * "Before breakfast"). */
 function SeparatorDivider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2" style={{ padding: "8px 0 4px" }}>
@@ -61,62 +57,6 @@ function SeparatorDivider({ label }: { label: string }) {
         {label}
       </span>
       <span className="h-px flex-1" style={{ background: COLORS.hairline }} />
-    </div>
-  );
-}
-
-function SortableRow({
-  instance,
-  prefersReducedMotion,
-  isLast,
-  accentColor,
-  now,
-  onToggle,
-}: {
-  instance: StudentInstance;
-  prefersReducedMotion: boolean;
-  isLast: boolean;
-  accentColor: string;
-  now: Date;
-  onToggle: (origin: { x: number; y: number }) => void;
-  // Open-bucket rows are never pendingReview (§6's ordering), so this
-  // variant has no need for the approve-via-passcode prop at all.
-}) {
-  // dnd-kit owns this wrapper's transform (drag position + reorder FLIP);
-  // Framer Motion's animations inside AssignmentRow stay on a separate node
-  // so the two never fight over the same element's transform. The whole row
-  // is the drag target now (no separate handle glyph) — a small activation
-  // distance (set on the DndContext's sensor below) lets a plain click still
-  // reach the title/arrow buttons; only a real drag past that threshold
-  // starts a reorder, same trick ParentWeekBoard's rows use.
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: instance.id,
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition: transition ?? undefined,
-        opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 10 : undefined,
-        position: "relative",
-        cursor: isDragging ? "grabbing" : "grab",
-        touchAction: "none",
-      }}
-    >
-      <AssignmentRow
-        instance={instance}
-        interactive
-        prefersReducedMotion={prefersReducedMotion}
-        isLast={isLast}
-        accentColor={accentColor}
-        now={now}
-        onToggle={onToggle}
-      />
     </div>
   );
 }
@@ -135,9 +75,7 @@ export function DayColumn({
   now,
   onCelebrate,
   onToggle,
-  onReorderOpen,
   onApproveViaPasscode,
-  enableDrag = true,
   compactHeader = false,
 }: {
   day: Date;
@@ -145,8 +83,7 @@ export function DayColumn({
   interactive: boolean;
   instances: StudentInstance[];
   // §6 "Morning/Afternoon/Evening" — parent-placed, shown every day they're
-  // set on, not just today; only today's own SortableContext (below) treats
-  // them as reorder boundaries.
+  // set on, not just today.
   separators: DaySeparator[];
   // This day's own parent-assigned family-calendar events (CalendarEventChip
   // above) — read-only context, not part of the day's sortOrder sequence.
@@ -160,13 +97,7 @@ export function DayColumn({
   now: Date;
   onCelebrate: () => void;
   onToggle: (instance: StudentInstance, origin: { x: number; y: number }) => void;
-  onReorderOpen: (orderedIds: string[]) => void;
   onApproveViaPasscode: (instance: StudentInstance, passcode: string, origin: { x: number; y: number }) => Promise<void>;
-  // The mobile single-day pager owns this touch surface for horizontal
-  // paging (SwipeDayPager) — a row-level touch-drag listener underneath it
-  // would fight the page-swipe gesture for the same pointer, so the pager
-  // passes false here and every row renders plain (tap-only) instead.
-  enableDrag?: boolean;
   // §5.5: the mobile pager's own centered "Wed · Sep 10" heading already
   // names this day — a second weekday/date line inside the column would be
   // a duplicate. Mobile passes true and gets only the done-count line.
@@ -193,7 +124,6 @@ export function DayColumn({
   // cleared every render so a later, unrelated change (a poll picking up an
   // external approval) always defaults to "not me."
   const justActedRef = useRef(false);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const { rolled, timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
   // §6/§12: time-sensitive items share the same sortOrder numbering space as
@@ -280,25 +210,6 @@ export function DayColumn({
       justActedRef.current = true;
       return onApproveViaPasscode(instance, passcode, origin);
     };
-  }
-
-  // §6 "Morning/Afternoon/Evening" — a student can drag freely within the
-  // segment a separator bounds, never across one. `over` landing outside
-  // `active`'s own segment (newIndex === -1) is simply a no-op: dnd-kit
-  // snaps the row back to where it started, exactly like dropping nowhere.
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const activeSegment = segments.find((segment) => segment.some((i) => i.id === active.id));
-    if (!activeSegment) return;
-    const oldIndex = activeSegment.findIndex((i) => i.id === active.id);
-    const newIndex = activeSegment.findIndex((i) => i.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reorderedSegment = arrayMove(activeSegment, oldIndex, newIndex);
-    const fullOrder = segments
-      .flatMap((segment) => (segment === activeSegment ? reorderedSegment : segment))
-      .map((i) => i.id);
-    onReorderOpen(fullOrder);
   }
 
   function plainRow(instance: StudentInstance) {
@@ -393,69 +304,14 @@ export function DayColumn({
 
           {rolled.map(plainRow)}
 
-          {enableDrag && interactive && (open.length > 0 || timeSensitive.length > 0) ? (
-            // Explicit `id` makes dnd-kit's internal aria-describedby id
-            // deterministic — without it, dnd-kit derives it from a
-            // module-level counter that isn't SSR-safe, causing a harmless
-            // but real hydration-attribute mismatch (same fix already used
-            // in ParentWeekBoard.tsx).
-            <DndContext
-              id={`day-${toISODate(day)}`}
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              {segments.map((segment, index) => (
-                // One SortableContext per segment (§6) — dnd-kit's own
-                // reorder math only ever sees this segment's own draggable
-                // items, and handleDragEnd's own segment check is the actual
-                // boundary enforcement (this just keeps the FLIP animation
-                // sane). A time-sensitive item in the segment renders as a
-                // plain, non-sortable row instead (§12: still not
-                // draggable), positioned right where the parent put it
-                // relative to whatever else is in this segment.
-                <Fragment key={index}>
-                  <SortableContext
-                    items={segment.filter((i) => !i.isTimeSensitive).map((i) => i.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {segment.map((instance) =>
-                      instance.isTimeSensitive ? (
-                        <AssignmentRow
-                          key={instance.id}
-                          instance={instance}
-                          interactive={interactive && instance.status !== InstanceStatus.excused}
-                          prefersReducedMotion={prefersReducedMotion}
-                          isLast={instance.id === lastRowId}
-                          accentColor={accentColor}
-                          now={now}
-                          onToggle={toggleFromRow(instance)}
-                        />
-                      ) : (
-                        <SortableRow
-                          key={instance.id}
-                          instance={instance}
-                          prefersReducedMotion={prefersReducedMotion}
-                          isLast={instance.id === lastRowId}
-                          accentColor={accentColor}
-                          now={now}
-                          onToggle={toggleFromRow(instance)}
-                        />
-                      )
-                    )}
-                  </SortableContext>
-                  {separatorsInOrder[index] && <SeparatorDivider label={separatorsInOrder[index].label} />}
-                </Fragment>
-              ))}
-            </DndContext>
-          ) : (
-            segments.map((segment, index) => (
-              <Fragment key={index}>
-                {segment.map(plainRow)}
-                {separatorsInOrder[index] && <SeparatorDivider label={separatorsInOrder[index].label} />}
-              </Fragment>
-            ))
-          )}
+          {/* §14: order is parent-set and locked — the student's own view
+              is display-only, same treatment for every bucket. */}
+          {segments.map((segment, index) => (
+            <Fragment key={index}>
+              {segment.map(plainRow)}
+              {separatorsInOrder[index] && <SeparatorDivider label={separatorsInOrder[index].label} />}
+            </Fragment>
+          ))}
 
           {pendingReview.map(plainRow)}
           {completed.map(plainRow)}

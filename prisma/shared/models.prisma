@@ -218,6 +218,12 @@ model AssignmentSeries {
   scheduledTime         String?
   reminderMinutesBefore Int?
 
+  // §14: the row index this series' instances should land at within their
+  // day, set whenever the parent drags one of them in Parent Mode — null
+  // means "no preference yet," i.e. keep appending new instances at the
+  // bottom of their day (materialize.ts's existing default).
+  sortOrder Int?
+
   instances          AssignmentInstance[]
   removedOccurrences RemovedOccurrence[]
 
@@ -305,8 +311,8 @@ model AssignmentInstance {
   returnNote      String?
   // a per-instance edit detaches it from the series for this occurrence only
   isOverride      Boolean        @default(false)
-  // manual same-day ordering within the "open" bucket (student drag-reorder,
-  // today only); ties break on createdAt
+  // manual same-day ordering (§14: parent's own drag-reorder, any day,
+  // locked from the student's side); ties break on createdAt
   sortOrder       Int            @default(0)
 
   createdAt DateTime @default(now())

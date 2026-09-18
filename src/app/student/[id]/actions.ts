@@ -6,7 +6,6 @@ import { InstanceStatus } from "@/generated/prisma/enums";
 import { getToday, toISODate } from "@/lib/dates";
 import { prisma as baseClient, getScopedPrisma } from "@/lib/prisma";
 import { recomputeProjectStatus } from "@/lib/projects";
-import { reorderOpenItems as reorderOpenItemsLib } from "@/lib/reorderInstances";
 import { approveReview } from "@/lib/reviewActions";
 import {
   FAMILY_COOKIE,
@@ -57,12 +56,6 @@ export async function toggleInstance(instanceId: string): Promise<{ status: Inst
 
   revalidatePath(`/student/${instance.studentId}`);
   return { status: updated.status };
-}
-
-export async function reorderOpenItems(studentId: string, orderedIds: string[]): Promise<void> {
-  const prisma = await getScopedPrisma();
-  await reorderOpenItemsLib(prisma, studentId, orderedIds);
-  revalidatePath(`/student/${studentId}`);
 }
 
 /**

@@ -12,7 +12,7 @@ import { addDays, defaultWeekStart, formatDayWeekdayShort, formatMonthDayLine, f
 import { COLORS, nextAccentColor } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
-import { approveReviewViaPasscode, cycleAccentColorAction, reorderOpenItems, toggleInstance } from "./actions";
+import { approveReviewViaPasscode, cycleAccentColorAction, toggleInstance } from "./actions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
 import { ItemCelebration } from "./ItemCelebration";
@@ -282,19 +282,6 @@ export function StudentWeekView({
     }
   }
 
-  async function handleReorderOpen(orderedIds: string[]) {
-    const previous = localInstances;
-    const order = new Map(orderedIds.map((id, index) => [id, index]));
-    setLocalInstances((current) =>
-      current.map((i) => (order.has(i.id) ? { ...i, sortOrder: order.get(i.id)! } : i))
-    );
-    try {
-      await reorderOpenItems(student.id, orderedIds);
-    } catch {
-      setLocalInstances(previous);
-    }
-  }
-
   // §5 step 2's passcode popover — approval happens right here on the
   // student's own screen, so (unlike the refresh-detected approval path
   // below) the full completion sequence fires immediately rather than
@@ -431,7 +418,6 @@ export function StudentWeekView({
                   celebrated={celebratedToday}
                   onCelebrate={handleCelebrate}
                   onToggle={handleToggle}
-                  onReorderOpen={handleReorderOpen}
                   onApproveViaPasscode={handleApproveViaPasscode}
                 />
               );
@@ -477,9 +463,7 @@ export function StudentWeekView({
                       now={now}
                       onCelebrate={handleCelebrate}
                       onToggle={handleToggle}
-                      onReorderOpen={handleReorderOpen}
                       onApproveViaPasscode={handleApproveViaPasscode}
-                      enableDrag={false}
                       compactHeader
                     />
                   </div>

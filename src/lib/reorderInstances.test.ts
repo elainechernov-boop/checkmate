@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { parseISODate } from "./dates";
-import { reorderDayRows, reorderOpenItems } from "./reorderInstances";
+import { addDays, parseISODate } from "./dates";
+import { reorderDayRows } from "./reorderInstances";
 import { makeStudent, makeSubject } from "./test/fixtures";
 import { createTestClient, resetDb } from "./test/testDb";
 
@@ -40,116 +40,43 @@ async function makeSeparator(studentId: string, label: "morning" | "afternoon" |
   return prisma.daySeparator.create({ data: { studentId, date: TODAY, label, sortOrder } });
 }
 
-describe("reorderOpenItems", () => {
-  it("assigns sortOrder matching the requested order", async () => {
-    const student = await makeStudent(prisma);
-    const subject = await makeSubject(prisma);
-    const a = await makeOpenInstance(student.id, subject.id, "A");
-    const b = await makeOpenInstance(student.id, subject.id, "B");
-    const c = await makeOpenInstance(student.id, subject.id, "C");
-
-    await reorderOpenItems(prisma, student.id, [c.id, a.id, b.id], TODAY);
-
-    const rows = await prisma.assignmentInstance.findMany({
-      where: { studentId: student.id },
-      orderBy: { sortOrder: "asc" },
-    });
-    expect(rows.map((r) => r.title)).toEqual(["C", "A", "B"]);
+async function makeSeriesInstance(
+  studentId: string,
+  subjectId: string,
+  seriesId: string,
+  title: string,
+  dueDate: Date,
+  overrides: Partial<{ isOverride: boolean; status: "open" | "done" }> = {}
+) {
+  return prisma.assignmentInstance.create({
+    data: {
+      title,
+      studentId,
+      subjectId,
+      seriesId,
+      createdBy: "parent",
+      dueDate,
+      originalDueDate: dueDate,
+      status: overrides.status ?? "open",
+      isOverride: overrides.isOverride ?? false,
+    },
   });
+}
 
-  it("ignores ids belonging to a different student", async () => {
-    const student = await makeStudent(prisma, { name: "Miles" });
-    const other = await makeStudent(prisma, { name: "Violet" });
-    const subject = await makeSubject(prisma);
-    const mine = await makeOpenInstance(student.id, subject.id, "Mine");
-    const theirs = await makeOpenInstance(other.id, subject.id, "Theirs");
-
-    await reorderOpenItems(prisma, student.id, [mine.id, theirs.id], TODAY);
-
-    const theirsAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: theirs.id } });
-    expect(theirsAfter.sortOrder).toBe(0); // untouched default, not reassigned to index 1
+async function makeSeries(studentId: string, subjectId: string, title: string) {
+  return prisma.assignmentSeries.create({
+    data: {
+      title,
+      studentId,
+      subjectId,
+      createdBy: "parent",
+      startDate: TODAY,
+    },
   });
-
-  it("ignores ids that aren't due today", async () => {
-    const student = await makeStudent(prisma);
-    const subject = await makeSubject(prisma);
-    const tomorrow = await makeOpenInstance(student.id, subject.id, "Tomorrow", {
-      dueDate: parseISODate("2026-08-11"),
-    });
-
-    await reorderOpenItems(prisma, student.id, [tomorrow.id], TODAY);
-
-    const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: tomorrow.id } });
-    expect(after.sortOrder).toBe(0);
-  });
-
-  it("ignores ids that aren't status open", async () => {
-    const student = await makeStudent(prisma);
-    const subject = await makeSubject(prisma);
-    const done = await makeOpenInstance(student.id, subject.id, "Done", { status: "done" });
-
-    await reorderOpenItems(prisma, student.id, [done.id], TODAY);
-
-    const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: done.id } });
-    expect(after.sortOrder).toBe(0);
-  });
-
-  describe("with a separator", () => {
-    it("reorders freely within one segment, ignoring the rest of the list", async () => {
-      const student = await makeStudent(prisma);
-      const subject = await makeSubject(prisma);
-      // Current order: A, B, [morning], C, D
-      const a = await makeOpenInstance(student.id, subject.id, "A");
-      const b = await makeOpenInstance(student.id, subject.id, "B");
-      await prisma.assignmentInstance.update({ where: { id: a.id }, data: { sortOrder: 0 } });
-      await prisma.assignmentInstance.update({ where: { id: b.id }, data: { sortOrder: 1 } });
-      await makeSeparator(student.id, "morning", 2);
-      const c = await makeOpenInstance(student.id, subject.id, "C");
-      const d = await makeOpenInstance(student.id, subject.id, "D");
-      await prisma.assignmentInstance.update({ where: { id: c.id }, data: { sortOrder: 3 } });
-      await prisma.assignmentInstance.update({ where: { id: d.id }, data: { sortOrder: 4 } });
-
-      // Ask to reorder as if B could jump past the separator to the front
-      // of the second segment — the segment boundary should win regardless.
-      await reorderOpenItems(prisma, student.id, [d.id, c.id, b.id, a.id], TODAY);
-
-      const rows = await prisma.assignmentInstance.findMany({
-        where: { studentId: student.id },
-        orderBy: { sortOrder: "asc" },
-      });
-      // B, A still both come before the separator (segment 1's own order
-      // flipped to B, A); D, C still both come after it (segment 2 flipped
-      // to D, C) — nothing crossed.
-      expect(rows.map((r) => r.title)).toEqual(["B", "A", "D", "C"]);
-
-      const separator = await prisma.daySeparator.findFirstOrThrow({ where: { studentId: student.id } });
-      const [firstTwo, lastTwo] = [rows.slice(0, 2), rows.slice(2, 4)];
-      expect(Math.max(...firstTwo.map((r) => r.sortOrder))).toBeLessThan(separator.sortOrder);
-      expect(Math.min(...lastTwo.map((r) => r.sortOrder))).toBeGreaterThan(separator.sortOrder);
-    });
-
-    it("never lets an instance's final position cross the separator, however the request is shaped", async () => {
-      const student = await makeStudent(prisma);
-      const subject = await makeSubject(prisma);
-      const a = await makeOpenInstance(student.id, subject.id, "A");
-      await prisma.assignmentInstance.update({ where: { id: a.id }, data: { sortOrder: 0 } });
-      await makeSeparator(student.id, "afternoon", 1);
-      const b = await makeOpenInstance(student.id, subject.id, "B");
-      await prisma.assignmentInstance.update({ where: { id: b.id }, data: { sortOrder: 2 } });
-
-      await reorderOpenItems(prisma, student.id, [b.id, a.id], TODAY); // tries to put B before A
-
-      const separator = await prisma.daySeparator.findFirstOrThrow({ where: { studentId: student.id } });
-      const aAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: a.id } });
-      const bAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: b.id } });
-      expect(aAfter.sortOrder).toBeLessThan(separator.sortOrder);
-      expect(bAfter.sortOrder).toBeGreaterThan(separator.sortOrder);
-    });
-  });
-});
+}
 
 describe("reorderDayRows (Parent Mode's own within-day reorder)", () => {
-  it("reorders regardless of status, unlike reorderOpenItems", async () => {
+  it("reorders regardless of status", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma);
     const open = await makeOpenInstance(student.id, subject.id, "Open");
@@ -182,19 +109,88 @@ describe("reorderDayRows (Parent Mode's own within-day reorder)", () => {
     expect(wrongDayAfter.sortOrder).toBe(0);
   });
 
-  it("freely reorders a separator alongside instances, unlike the student's own reorder", async () => {
+  it("freely reorders a separator alongside instances", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma);
     const a = await makeOpenInstance(student.id, subject.id, "A");
     const separator = await makeSeparator(student.id, "evening", 1);
     const b = await makeOpenInstance(student.id, subject.id, "B");
 
-    // Move the separator to the very front — a parent can do this, a
-    // student never could.
+    // Move the separator to the very front.
     await reorderDayRows(prisma, student.id, "2026-08-10", [separator.id, a.id, b.id]);
 
     const separatorAfter = await prisma.daySeparator.findUniqueOrThrow({ where: { id: separator.id } });
     const aAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: a.id } });
     expect(separatorAfter.sortOrder).toBeLessThan(aAfter.sortOrder);
+  });
+
+  describe("§14: reordering a series instance propagates forward", () => {
+    it("moves the series' other future occurrences to the same index and remembers it on the series", async () => {
+      const student = await makeStudent(prisma);
+      const subject = await makeSubject(prisma);
+      const series = await makeSeries(student.id, subject.id, "Math");
+      const tomorrow = addDays(TODAY, 1);
+
+      const a = await makeOpenInstance(student.id, subject.id, "A"); // today, sortOrder 0
+      const mathToday = await makeSeriesInstance(student.id, subject.id, series.id, "Math", TODAY); // today, sortOrder 1
+
+      const mathTomorrow = await makeSeriesInstance(student.id, subject.id, series.id, "Math", tomorrow);
+      const b = await makeOpenInstance(student.id, subject.id, "B", { dueDate: tomorrow });
+      await prisma.assignmentInstance.update({ where: { id: mathTomorrow.id }, data: { sortOrder: 0 } });
+      await prisma.assignmentInstance.update({ where: { id: b.id }, data: { sortOrder: 1 } });
+
+      // Drag Math to the top of today's list.
+      await reorderDayRows(prisma, student.id, "2026-08-10", [mathToday.id, a.id]);
+
+      const seriesAfter = await prisma.assignmentSeries.findUniqueOrThrow({ where: { id: series.id } });
+      expect(seriesAfter.sortOrder).toBe(0);
+
+      const tomorrowRows = await prisma.assignmentInstance.findMany({
+        where: { studentId: student.id, dueDate: tomorrow },
+        orderBy: { sortOrder: "asc" },
+      });
+      // Math also moved to index 0 tomorrow, pushing B down to index 1.
+      expect(tomorrowRows.map((r) => r.title)).toEqual(["Math", "B"]);
+    });
+
+    it("skips a future occurrence that's been individually detached from the series", async () => {
+      const student = await makeStudent(prisma);
+      const subject = await makeSubject(prisma);
+      const series = await makeSeries(student.id, subject.id, "Math");
+      const tomorrow = addDays(TODAY, 1);
+
+      const mathToday = await makeSeriesInstance(student.id, subject.id, series.id, "Math", TODAY);
+      const a = await makeOpenInstance(student.id, subject.id, "A");
+
+      const detached = await makeSeriesInstance(student.id, subject.id, series.id, "Detached", tomorrow, {
+        isOverride: true,
+      });
+      await prisma.assignmentInstance.update({ where: { id: detached.id }, data: { sortOrder: 3 } });
+
+      await reorderDayRows(prisma, student.id, "2026-08-10", [mathToday.id, a.id]);
+
+      const detachedAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: detached.id } });
+      expect(detachedAfter.sortOrder).toBe(3); // untouched
+    });
+
+    it("skips a future occurrence that's already done", async () => {
+      const student = await makeStudent(prisma);
+      const subject = await makeSubject(prisma);
+      const series = await makeSeries(student.id, subject.id, "Math");
+      const tomorrow = addDays(TODAY, 1);
+
+      const mathToday = await makeSeriesInstance(student.id, subject.id, series.id, "Math", TODAY);
+      const a = await makeOpenInstance(student.id, subject.id, "A");
+
+      const doneTomorrow = await makeSeriesInstance(student.id, subject.id, series.id, "Done Math", tomorrow, {
+        status: "done",
+      });
+      await prisma.assignmentInstance.update({ where: { id: doneTomorrow.id }, data: { sortOrder: 3 } });
+
+      await reorderDayRows(prisma, student.id, "2026-08-10", [mathToday.id, a.id]);
+
+      const doneAfter = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: doneTomorrow.id } });
+      expect(doneAfter.sortOrder).toBe(3); // untouched
+    });
   });
 });

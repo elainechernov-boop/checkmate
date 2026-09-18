@@ -19,9 +19,9 @@ export interface DisplayInstance {
 /**
  * §6's column ordering, top to bottom: rolled items (oldest first) →
  * time-sensitive items (§12, earliest scheduledTime first — pinned above the
- * student's own drag-order, not draggable) → open items (student's own
- * drag-order, today only — see reorderOpenItems) → pendingReview ("Show
- * Mom") → completed (done/excused, muted).
+ * parent-set order, not draggable) → open items (parent-set order, §14 —
+ * locked from the student's side) → pendingReview ("Show Mom") → completed
+ * (done/excused, muted).
  */
 export function bucketDayInstances<T extends DisplayInstance>(instances: T[]) {
   const rolled = instances

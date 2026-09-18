@@ -222,30 +222,39 @@ export async function materializeSeries(
   );
 
   // A freshly-materialized occurrence lands at the bottom of its day's
-  // existing rows (matching quickCreateInstance's own fix), not at
-  // sortOrder 0 — scanned once across the whole horizon, for every one of
-  // this student's instances/separators (not just this series'), and kept
-  // up to date in-memory as new rows below get their sortOrder assigned.
+  // existing rows (matching quickCreateInstance's own fix) — unless the
+  // series itself carries a §14 sortOrder preference (set by a parent
+  // dragging one of its instances), in which case it's inserted at that
+  // slot instead, shifting whatever was already there down. Scanned once
+  // across the whole horizon, for every one of this student's instances/
+  // separators (not just this series'), and kept up to date in-memory as
+  // rows get created or shifted below.
   const [horizonInstances, horizonSeparators] = await Promise.all([
     prisma.assignmentInstance.findMany({
       where: { studentId: series.studentId, dueDate: { gte: asOf, lte: horizonEnd } },
-      select: { dueDate: true, sortOrder: true },
+      select: { id: true, dueDate: true, sortOrder: true },
     }),
     prisma.daySeparator.findMany({
       where: { studentId: series.studentId, date: { gte: asOf, lte: horizonEnd } },
-      select: { date: true, sortOrder: true },
+      select: { id: true, date: true, sortOrder: true },
     }),
   ]);
-  const maxSortOrderByDate = new Map<string, number>();
+  type Row = { id: string; kind: "instance" | "separator"; sortOrder: number };
+  const rowsByDate = new Map<string, Row[]>();
   for (const instance of horizonInstances) {
     if (!instance.dueDate) continue;
     const key = toISODate(instance.dueDate);
-    maxSortOrderByDate.set(key, Math.max(maxSortOrderByDate.get(key) ?? -1, instance.sortOrder));
+    const rows = rowsByDate.get(key) ?? [];
+    rows.push({ id: instance.id, kind: "instance", sortOrder: instance.sortOrder });
+    rowsByDate.set(key, rows);
   }
   for (const separator of horizonSeparators) {
     const key = toISODate(separator.date);
-    maxSortOrderByDate.set(key, Math.max(maxSortOrderByDate.get(key) ?? -1, separator.sortOrder));
+    const rows = rowsByDate.get(key) ?? [];
+    rows.push({ id: separator.id, kind: "separator", sortOrder: separator.sortOrder });
+    rowsByDate.set(key, rows);
   }
+  for (const rows of rowsByDate.values()) rows.sort((a, b) => a.sortOrder - b.sortOrder);
 
   const staleIds = existingFutureInstances
     .filter(
@@ -312,8 +321,27 @@ export async function materializeSeries(
       );
     } else {
       const dateKey = toISODate(date);
-      const nextSortOrder = (maxSortOrderByDate.get(dateKey) ?? -1) + 1;
-      maxSortOrderByDate.set(dateKey, nextSortOrder);
+      const rows = rowsByDate.get(dateKey) ?? [];
+      let newSortOrder: number;
+      if (series.sortOrder != null) {
+        newSortOrder = Math.min(series.sortOrder, rows.length);
+        for (let i = newSortOrder; i < rows.length; i++) {
+          rows[i].sortOrder += 1;
+          operations.push(
+            rows[i].kind === "instance"
+              ? prisma.assignmentInstance.update({ where: { id: rows[i].id }, data: { sortOrder: rows[i].sortOrder } })
+              : prisma.daySeparator.update({ where: { id: rows[i].id }, data: { sortOrder: rows[i].sortOrder } })
+          );
+        }
+      } else {
+        newSortOrder = (rows.length > 0 ? Math.max(...rows.map((r) => r.sortOrder)) : -1) + 1;
+      }
+      // A placeholder id: nothing else reads this row back before the next
+      // date is processed, and each date's rows are independent, so an
+      // empty id here (the real one is assigned server-side by create()
+      // below) never gets used.
+      rows.splice(newSortOrder, 0, { id: "", kind: "instance", sortOrder: newSortOrder });
+      rowsByDate.set(dateKey, rows);
       operations.push(
         prisma.assignmentInstance.create({
           data: {
@@ -331,7 +359,7 @@ export async function materializeSeries(
             scheduledTime: series.scheduledTime,
             reminderMinutesBefore: series.reminderMinutesBefore,
             estimatedMinutes: series.estimatedMinutes,
-            sortOrder: nextSortOrder,
+            sortOrder: newSortOrder,
           },
         })
       );
