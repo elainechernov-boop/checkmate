@@ -83,7 +83,11 @@ export function EditPanel({
   // §4 "Deleting and undo" — a series-wide delete needs a small inline
   // confirmation (never a centered browser dialog); a single occurrence
   // deletes immediately with no prompt at all, recoverable via Undo.
-  const [confirmingSeriesDelete, setConfirmingSeriesDelete] = useState(false);
+  // The scope choice lives right here, not behind "More options → Applies
+  // to" — that toggle is for edits, and burying the only way to delete a
+  // whole series behind it is what made "delete this and all its repeats"
+  // hard to find.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const showRepeatSection = !isSeries || scope !== "only";
   const showDueDate = !isSeries || scope === "only";
@@ -95,20 +99,22 @@ export function EditPanel({
     onSaved();
   }
 
-  async function handleDelete() {
-    const seriesWide = isSeries && scope !== "only";
-    if (seriesWide && !confirmingSeriesDelete) {
-      setConfirmingSeriesDelete(true);
+  function handleDeleteClick() {
+    if (isSeries) {
+      setConfirmingDelete(true);
       return;
     }
+    void performDelete("only");
+  }
 
+  async function performDelete(deleteScope: "only" | "following" | "all") {
     setDeleting(true);
     try {
-      await deleteAssignment(instance.id, isSeries ? scope : "only");
+      await deleteAssignment(instance.id, deleteScope);
       onSaved();
     } finally {
       setDeleting(false);
-      setConfirmingSeriesDelete(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -364,20 +370,26 @@ export function EditPanel({
         <button type="button" onClick={onCancel} style={{ color: COLORS.mutedFaint }}>
           Cancel
         </button>
-        {confirmingSeriesDelete ? (
-          <span className="ml-auto flex items-center gap-2" style={{ fontSize: 11 }}>
-            <span style={{ color: COLORS.muted }}>Delete series?</span>
-            <button type="button" onClick={handleDelete} disabled={deleting} className="font-medium" style={{ color: COLORS.crimson }}>
-              Delete
+        {confirmingDelete ? (
+          <span className="ml-auto flex flex-wrap items-center gap-2" style={{ fontSize: 11 }}>
+            <span style={{ color: COLORS.muted }}>Delete:</span>
+            <button type="button" onClick={() => performDelete("only")} disabled={deleting} className="font-medium" style={{ color: COLORS.crimson }}>
+              This one
             </button>
-            <button type="button" onClick={() => setConfirmingSeriesDelete(false)} disabled={deleting} style={{ color: COLORS.muted }}>
+            <button type="button" onClick={() => performDelete("following")} disabled={deleting} className="font-medium" style={{ color: COLORS.crimson }}>
+              This and following
+            </button>
+            <button type="button" onClick={() => performDelete("all")} disabled={deleting} className="font-medium" style={{ color: COLORS.crimson }}>
+              All in series
+            </button>
+            <button type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting} style={{ color: COLORS.muted }}>
               Cancel
             </button>
           </span>
         ) : (
           <button
             type="button"
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             disabled={deleting}
             className="ml-auto font-medium"
             style={{ color: COLORS.crimson, fontSize: 11 }}
