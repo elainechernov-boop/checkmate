@@ -2,17 +2,17 @@
 
 import { useState } from "react";
 import { ProjectStatus } from "@/generated/prisma/enums";
-import { InlineEntry } from "@/components/FlatField";
+import { InlineEntry, TextAction } from "@/components/FlatField";
 import { formatComingUpDate } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
-import { createProjectAction } from "./projectActions";
+import { createProjectAction, deleteProjectAction } from "./projectActions";
 import type { StudentProject } from "./types";
 
 /**
  * HOMEROOM_UX_MIGRATION.md §5.4 "Student permissions and projects" — Elaine's
  * original decision removed all student authoring of projects. Revised
- * 2026-09-08: kids get project *creation* back ("Start a new project"), but
- * everything under a project (add/edit/delete a step, Plan it, reorder,
+ * 2026-09-08: kids get project *creation* back ("Start a new project"), and
+ * 2026-09-24: deleting a whole project too, but everything under a project (add/edit/delete a step, Plan it, reorder,
  * rename, target date) stays parent-only in /parent/projects — the
  * summary below one project card, and the finished stack, are still
  * read-only. A scheduled project step still shows up, and is still
@@ -40,7 +40,7 @@ export function ProjectsBand({
       {inProgress.length > 0 && (
         <div className="mt-[10px] flex flex-wrap gap-6">
           {inProgress.map((project) => (
-            <ProjectSummaryCard key={project.id} project={project} accentColor={accentColor} />
+            <ProjectSummaryCard key={project.id} studentId={studentId} project={project} accentColor={accentColor} />
           ))}
         </div>
       )}
@@ -56,7 +56,16 @@ export function ProjectsBand({
   );
 }
 
-function ProjectSummaryCard({ project, accentColor }: { project: StudentProject; accentColor: string }) {
+function ProjectSummaryCard({
+  studentId,
+  project,
+  accentColor,
+}: {
+  studentId: string;
+  project: StudentProject;
+  accentColor: string;
+}) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const percent = project.progress.total > 0 ? Math.min(100, Math.round((project.progress.done / project.progress.total) * 100)) : 0;
   const nextSteps = project.backlogTasks.slice(0, 3);
 
@@ -87,6 +96,24 @@ function ProjectSummaryCard({ project, accentColor }: { project: StudentProject;
           ))}
         </ul>
       )}
+
+      <div className="mt-2 text-xs">
+        {confirmingDelete ? (
+          <span className="flex items-center gap-2">
+            <span style={{ color: COLORS.muted }}>Delete project?</span>
+            <TextAction onClick={() => deleteProjectAction(studentId, project.id)} style={{ color: COLORS.crimson, fontWeight: 600 }}>
+              Delete
+            </TextAction>
+            <TextAction onClick={() => setConfirmingDelete(false)} style={{ color: COLORS.muted }}>
+              Cancel
+            </TextAction>
+          </span>
+        ) : (
+          <TextAction onClick={() => setConfirmingDelete(true)} style={{ color: COLORS.mutedFaint }}>
+            Delete
+          </TextAction>
+        )}
+      </div>
     </div>
   );
 }
