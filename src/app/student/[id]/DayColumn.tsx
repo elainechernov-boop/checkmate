@@ -125,7 +125,7 @@ export function DayColumn({
   // external approval) always defaults to "not me."
   const justActedRef = useRef(false);
 
-  const { rolled, timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
+  const { timeSensitive, open, pendingReview, completed } = bucketDayInstances(instances);
   // §6/§12: time-sensitive items share the same sortOrder numbering space as
   // ordinary open items (Parent Mode's own drag-reorder never treats them
   // specially — see ParentWeekBoard.tsx), so they're segmented by the day's
@@ -138,20 +138,19 @@ export function DayColumn({
     instances.length > 0 &&
     open.length === 0 &&
     timeSensitive.length === 0 &&
-    pendingReview.length === 0 &&
-    rolled.length === 0;
-  const totalRows = rolled.length + timeSensitive.length + open.length + pendingReview.length + completed.length;
+    pendingReview.length === 0;
+  const totalRows = timeSensitive.length + open.length + pendingReview.length + completed.length;
   // §5.4: real estimates only — an untimed task contributes nothing to
   // either total, and both totals/the bar below hide themselves (via the
   // `> 0` guards) rather than ever showing a fabricated number.
   const totalMinutes = sumEstimatedMinutes(instances);
   const { done: doneMinutes, total: progressTotalMinutes } = minutesProgress(instances);
   const progressPercent = progressTotalMinutes > 0 ? Math.min(100, Math.round((doneMinutes / progressTotalMinutes) * 100)) : 0;
-  // The column's true bottom-to-top order (rolled -> segments [time-sensitive
+  // The column's true top-to-bottom order (segments [rolled, time-sensitive
   // and open, interleaved by separator placement] -> pendingReview ->
   // completed, §6/§12) regardless of which bucket a row is rendered from —
   // only this one row skips its trailing divider.
-  const orderedRows = [...rolled, ...segments.flat(), ...pendingReview, ...completed];
+  const orderedRows = [...segments.flat(), ...pendingReview, ...completed];
   const lastRowId = orderedRows.length > 0 ? orderedRows[orderedRows.length - 1].id : null;
 
   useEffect(() => {
@@ -301,8 +300,6 @@ export function DayColumn({
               Nothing due.
             </p>
           )}
-
-          {rolled.map(plainRow)}
 
           {/* §14: order is parent-set and locked — the student's own view
               is display-only, same treatment for every bucket. */}

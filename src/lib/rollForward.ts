@@ -3,7 +3,7 @@ import { InstanceStatus } from "@/generated/prisma/enums";
 import { addDays, getToday, startOfUTCDay } from "./dates";
 import { isBlockedDay, loadSchoolDayMap } from "./schoolCalendar";
 
-type RollablePrisma = Pick<PrismaClient, "assignmentInstance" | "schoolDay" | "$transaction">;
+type RollablePrisma = Pick<PrismaClient, "assignmentInstance" | "daySeparator" | "schoolDay" | "$transaction">;
 
 const ROLL_LOOKAHEAD_DAYS = 14;
 
@@ -35,6 +35,11 @@ async function nextSchoolDayOnOrAfter(prisma: RollablePrisma, studentId: string,
  * on a day with no column. `pendingReview` items are excluded by
  * construction (only `open` is touched) — they hold their day until
  * approved or returned.
+ *
+ * Rolled items land at the top of their new day, oldest first ("debts
+ * before new work"), with that day's existing rows shifted down beneath
+ * them. That's only a starting position: it's written as ordinary
+ * sortOrder, so a parent dragging one somewhere else (§14) sticks.
  */
 export async function rollOverdueInstances(
   prisma: RollablePrisma,
@@ -48,14 +53,31 @@ export async function rollOverdueInstances(
   });
   if (overdue.length === 0) return { rolledCount: 0 };
 
-  await prisma.$transaction(
-    overdue.map((instance) =>
+  const [existingInstances, separators] = await Promise.all([
+    prisma.assignmentInstance.findMany({ where: { studentId, dueDate: target }, select: { id: true, sortOrder: true } }),
+    prisma.daySeparator.findMany({ where: { studentId, date: target }, select: { id: true, sortOrder: true } }),
+  ]);
+  const existingRows = [
+    ...existingInstances.map((i) => ({ ...i, kind: "instance" as const })),
+    ...separators.map((s) => ({ ...s, kind: "separator" as const })),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  const rolledInOrder = [...overdue].sort(
+    (a, b) => (a.originalDueDate?.getTime() ?? 0) - (b.originalDueDate?.getTime() ?? 0) || a.sortOrder - b.sortOrder
+  );
+
+  await prisma.$transaction([
+    ...rolledInOrder.map((instance, index) =>
       prisma.assignmentInstance.update({
         where: { id: instance.id },
-        data: { dueDate: target, rolledCount: instance.rolledCount + 1 },
+        data: { dueDate: target, rolledCount: instance.rolledCount + 1, sortOrder: index },
       })
-    )
-  );
+    ),
+    ...existingRows.map((row, index) =>
+      row.kind === "instance"
+        ? prisma.assignmentInstance.update({ where: { id: row.id }, data: { sortOrder: rolledInOrder.length + index } })
+        : prisma.daySeparator.update({ where: { id: row.id }, data: { sortOrder: rolledInOrder.length + index } })
+    ),
+  ]);
 
   return { rolledCount: overdue.length };
 }

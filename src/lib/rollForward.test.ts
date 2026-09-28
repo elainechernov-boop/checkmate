@@ -118,4 +118,29 @@ describe("rollOverdueInstances (§5 daily auto-roll)", () => {
     expect(after.dueDate).toBeNull();
     expect(after.rolledCount).toBe(0);
   });
+
+  it("lands rolled items at the top of the new day, oldest first, above the day's existing rows", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    const thursday = parseISODate("2026-08-06");
+    const friday = parseISODate("2026-08-07");
+    const monday = parseISODate("2026-08-10");
+    const reading = await prisma.assignmentInstance.create({
+      data: { title: "Reading", studentId: student.id, subjectId: subject.id, createdBy: "parent", dueDate: monday, originalDueDate: monday, sortOrder: 0 },
+    });
+    const morning = await prisma.daySeparator.create({ data: { studentId: student.id, date: monday, label: "morning", sortOrder: 1 } });
+    const fridayMath = await makeOpenInstance(student.id, subject.id, "Friday math", friday);
+    const thursdayLatin = await makeOpenInstance(student.id, subject.id, "Thursday latin", thursday);
+
+    await rollOverdueInstances(prisma, student.id, monday);
+
+    const order = async (id: string, kind: "instance" | "separator") =>
+      kind === "instance"
+        ? (await prisma.assignmentInstance.findUniqueOrThrow({ where: { id } })).sortOrder
+        : (await prisma.daySeparator.findUniqueOrThrow({ where: { id } })).sortOrder;
+    expect(await order(thursdayLatin.id, "instance")).toBe(0);
+    expect(await order(fridayMath.id, "instance")).toBe(1);
+    expect(await order(reading.id, "instance")).toBe(2);
+    expect(await order(morning.id, "separator")).toBe(3);
+  });
 });

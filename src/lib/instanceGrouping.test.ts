@@ -31,17 +31,17 @@ describe("bucketDayInstances — §12 time-sensitive pinning", () => {
     expect(open.map((i) => i.id)).toEqual(["homework"]);
   });
 
-  it("still ranks rolled-forward debts above time-sensitive items", () => {
-    const rolledMath = item({ id: "math", rolledCount: 2, originalDueDate: new Date(2026, 7, 1) });
-    const latin = item({ id: "latin", isTimeSensitive: true, scheduledTime: "15:00" });
+  it("keeps rolled-forward debts in parent-set order alongside today's items (§14)", () => {
+    const rolledMath = item({ id: "math", rolledCount: 2, originalDueDate: new Date(2026, 7, 1), sortOrder: 2 });
+    const reading = item({ id: "reading", sortOrder: 0 });
+    const spelling = item({ id: "spelling", sortOrder: 1 });
 
-    const { rolled, timeSensitive } = bucketDayInstances([latin, rolledMath]);
+    const { open } = bucketDayInstances([rolledMath, spelling, reading]);
 
-    expect(rolled.map((i) => i.id)).toEqual(["math"]);
-    expect(timeSensitive.map((i) => i.id)).toEqual(["latin"]);
+    expect(open.map((i) => i.id)).toEqual(["reading", "spelling", "math"]);
   });
 
-  it("keeps a rolled time-sensitive item a debt (rolled), not pinned", () => {
+  it("treats a rolled time-sensitive item as time-sensitive", () => {
     const rolledLatin = item({
       id: "latin",
       isTimeSensitive: true,
@@ -50,10 +50,10 @@ describe("bucketDayInstances — §12 time-sensitive pinning", () => {
       originalDueDate: new Date(2026, 7, 1),
     });
 
-    const { rolled, timeSensitive } = bucketDayInstances([rolledLatin]);
+    const { open, timeSensitive } = bucketDayInstances([rolledLatin]);
 
-    expect(rolled.map((i) => i.id)).toEqual(["latin"]);
-    expect(timeSensitive).toEqual([]);
+    expect(timeSensitive.map((i) => i.id)).toEqual(["latin"]);
+    expect(open).toEqual([]);
   });
 
   it("never puts a pendingReview or completed item in the time-sensitive bucket", () => {

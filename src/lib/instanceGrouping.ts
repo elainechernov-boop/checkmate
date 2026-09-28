@@ -17,24 +17,23 @@ export interface DisplayInstance {
 }
 
 /**
- * §6's column ordering, top to bottom: rolled items (oldest first) →
- * time-sensitive items (§12, earliest scheduledTime first — pinned above the
- * parent-set order, not draggable) → open items (parent-set order, §14 —
- * locked from the student's side) → pendingReview ("Show Mom") → completed
- * (done/excused, muted).
+ * §6's column ordering, top to bottom: open items in parent-set order (§14 —
+ * locked from the student's side), rolled-forward debts and time-sensitive
+ * items (§12) included, wherever the parent placed them → pendingReview
+ * ("Show Mom") → completed (done/excused, muted). Rolled items land at the
+ * top of their new day when they roll (rollForward.ts), but that's only a
+ * starting position — once the parent moves one, her order wins here too.
  */
 export function bucketDayInstances<T extends DisplayInstance>(instances: T[]) {
-  const rolled = instances
-    .filter((i) => i.status === InstanceStatus.open && i.rolledCount > 0)
-    .sort((a, b) => (a.originalDueDate?.getTime() ?? 0) - (b.originalDueDate?.getTime() ?? 0));
+  const byParentOrder = (a: T, b: T) => a.sortOrder - b.sortOrder || a.createdAt.getTime() - b.createdAt.getTime();
 
   const timeSensitive = instances
-    .filter((i) => i.status === InstanceStatus.open && i.rolledCount === 0 && i.isTimeSensitive)
+    .filter((i) => i.status === InstanceStatus.open && i.isTimeSensitive)
     .sort((a, b) => (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? ""));
 
   const open = instances
-    .filter((i) => i.status === InstanceStatus.open && i.rolledCount === 0 && !i.isTimeSensitive)
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.getTime() - b.createdAt.getTime());
+    .filter((i) => i.status === InstanceStatus.open && !i.isTimeSensitive)
+    .sort(byParentOrder);
 
   // Neither bucket used to sort at all — they just inherited whatever order
   // the base query happened to return, which could silently drift from
@@ -49,7 +48,7 @@ export function bucketDayInstances<T extends DisplayInstance>(instances: T[]) {
     .filter((i) => i.status === InstanceStatus.done || i.status === InstanceStatus.excused)
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  return { rolled, timeSensitive, open, pendingReview, completed };
+  return { timeSensitive, open, pendingReview, completed };
 }
 
 /** BUILD_SPEC.md Screen 4-G: "Crimson » or »» appears immediately after the
