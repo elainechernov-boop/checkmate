@@ -19,6 +19,7 @@ const TENANT_SCOPED_MODELS = new Set([
   "DismissedCalendarEvent",
   "CalendarEventAssignment",
   "UndoLogEntry",
+  "TimeEntry",
 ]);
 
 // Every read/write-by-filter operation whose `args.where` should be ANDed

@@ -26,7 +26,7 @@ export function startOfUTCDay(date: Date): Date {
 // midnight — the server's clock is UTC, and UTC midnight is 5pm (PDT) or
 // 4pm (PST) in Los Angeles, which used to flip the whole app to "tomorrow"
 // mid-afternoon.
-const APP_TIME_ZONE = "America/Los_Angeles";
+export const APP_TIME_ZONE = "America/Los_Angeles";
 
 // "Today," but overridable outside production so the Mon-Sat student view
 // (and the server-side same-day check on check/uncheck) can be exercised on

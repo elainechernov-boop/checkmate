@@ -49,6 +49,14 @@ enum InstanceStatus {
   excused
 }
 
+// §15: why a TimeEntry's run ended. null while it's still running.
+enum TimeEntryEndReason {
+  paused
+  finished
+  switched
+  lapsed
+}
+
 enum SchoolDayType {
   schoolDay
   offDay
@@ -90,6 +98,14 @@ model Family {
   // most homeschool co-ops don't report to Blue Ridge Academy specifically.
   complianceModuleEnabled Boolean @default(false)
 
+  // §15: the per-task timer and Parent Mode's Time dashboard. Off by default —
+  // for a family that doesn't turn it on, §5/§6 behave exactly as before.
+  // schoolDayStartTime is a plain "HH:MM" wall-clock (like scheduledTime in
+  // §12), in the app's own timezone; when set, the dashboard counts the gap
+  // between it and a late first start as "waiting to start."
+  timeTrackingEnabled Boolean @default(false)
+  schoolDayStartTime  String?
+
   students                 Student[]
   subjects                 Subject[]
   projects                 Project[]
@@ -103,6 +119,7 @@ model Family {
   dismissedCalendarEvents  DismissedCalendarEvent[]
   calendarEventAssignments CalendarEventAssignment[]
   undoLogEntries           UndoLogEntry[]
+  timeEntries              TimeEntry[]
 }
 
 model Student {
@@ -119,6 +136,7 @@ model Student {
   assignmentInstances AssignmentInstance[]
   schoolDays          SchoolDay[]
   daySeparators       DaySeparator[]
+  timeEntries         TimeEntry[]
 
   @@unique([familyId, name])
 }
@@ -134,6 +152,7 @@ model Subject {
   projects            Project[]
   assignmentSeries    AssignmentSeries[]
   assignmentInstances AssignmentInstance[]
+  timeEntries         TimeEntry[]
 
   @@unique([familyId, name])
 }
@@ -315,6 +334,10 @@ model AssignmentInstance {
   // locked from the student's side); ties break on createdAt
   sortOrder       Int            @default(0)
 
+  // §15: the runs of time logged against this task. A task's time is always
+  // the sum of these, never a stored total.
+  timeEntries TimeEntry[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -323,6 +346,40 @@ model AssignmentInstance {
   @@index([studentId, dueDate])
   @@index([seriesId])
   @@index([projectId])
+}
+
+// §15: one continuous run of working on a task — the timer's Pause closes
+// the current run and Resume opens a new one, so the gap between two runs is
+// data too. title and subjectId are snapshots taken at the start of the run:
+// instanceId is SetNull on delete, so removing an assignment never rewrites
+// the history the Time dashboard is built from. `date` is the calendar day
+// (getToday() at start, so it honors DEBUG_TODAY) the run is attributed to.
+// A run with endedAt = null is still running; lastPingAt is the timer
+// screen's most recent heartbeat — a run that goes quiet for too long is
+// closed at its last ping (`lapsed`, see lib/timeTracking.ts).
+model TimeEntry {
+  id             String              @id @default(cuid())
+  familyId       String              @default("seed-family")
+  family         Family              @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  studentId      String
+  student        Student             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  instanceId     String?
+  instance       AssignmentInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  title          String
+  subjectId      String?
+  subject        Subject?            @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  date           DateTime
+  startedAt      DateTime
+  endedAt        DateTime?
+  lastPingAt     DateTime
+  endReason      TimeEntryEndReason?
+  // Set when the parent corrects a run's start/end, so the dashboard can
+  // mark numbers that were hand-edited.
+  editedByParent Boolean             @default(false)
+
+  @@index([familyId, date])
+  @@index([studentId, date])
+  @@index([instanceId])
 }
 
 // The school calendar (§3, §8)

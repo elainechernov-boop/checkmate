@@ -15,6 +15,7 @@ export function createTestClient(): PrismaClient {
 // Wipe every app table so each test starts from a clean slate. Order matters
 // for the FK-constrained tables (children before parents).
 export async function resetDb(prisma: PrismaClient) {
+  await prisma.timeEntry.deleteMany();
   await prisma.undoLogEntry.deleteMany();
   await prisma.calendarEventAssignment.deleteMany();
   await prisma.assignmentInstance.deleteMany();
