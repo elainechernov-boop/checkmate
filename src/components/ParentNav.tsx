@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { getCurrentFamily } from "@/lib/prisma";
 import { COLORS } from "@/lib/theme";
 
 const LINKS = [
-  { href: "/parent", label: "This Week", key: "week", requiresComplianceModule: false },
-  { href: "/parent/students", label: "Students", key: "students", requiresComplianceModule: false },
-  { href: "/parent/subjects", label: "Subjects", key: "subjects", requiresComplianceModule: false },
-  { href: "/parent/reports", label: "Reports", key: "reports", requiresComplianceModule: true },
+  { href: "/parent", label: "This Week", key: "week", requiresComplianceModule: false, requiresTimeTracking: false },
+  { href: "/parent/students", label: "Students", key: "students", requiresComplianceModule: false, requiresTimeTracking: false },
+  { href: "/parent/subjects", label: "Subjects", key: "subjects", requiresComplianceModule: false, requiresTimeTracking: false },
+  { href: "/parent/time", label: "Time", key: "time", requiresComplianceModule: false, requiresTimeTracking: true },
+  { href: "/parent/reports", label: "Reports", key: "reports", requiresComplianceModule: true, requiresTimeTracking: false },
 ] as const;
 
 type ParentNavKey = (typeof LINKS)[number]["key"];
@@ -20,8 +22,10 @@ type ParentNavKey = (typeof LINKS)[number]["key"];
  * `showComplianceLinks` (MULTI_FAMILY_SPEC.md Phase 3) hides Reports for a
  * family that hasn't turned on the Blue Ridge-style attendance/work-sample
  * module — every caller passes its own Family.complianceModuleEnabled read.
+ * The Time link (§15) is hidden unless the family has time tracking on; rather
+ * than make every caller pass a second flag, the nav reads that one itself.
  */
-export function ParentNav({
+export async function ParentNav({
   current,
   extra,
   showComplianceLinks,
@@ -30,9 +34,12 @@ export function ParentNav({
   extra?: ReactNode;
   showComplianceLinks: boolean;
 }) {
+  const { timeTrackingEnabled } = await getCurrentFamily();
   return (
     <nav className="flex flex-wrap items-center gap-5" style={{ fontSize: "0.78125rem" }}>
-      {LINKS.filter((link) => !link.requiresComplianceModule || showComplianceLinks).map((link) =>
+      {LINKS.filter(
+        (link) => (!link.requiresComplianceModule || showComplianceLinks) && (!link.requiresTimeTracking || timeTrackingEnabled)
+      ).map((link) =>
         link.key === current ? (
           <span key={link.key} style={{ color: COLORS.text, fontWeight: 600 }}>
             {link.label}

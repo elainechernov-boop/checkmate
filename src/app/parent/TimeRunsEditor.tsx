@@ -13,7 +13,17 @@ import { deleteRunAction, updateRunTimesAction } from "./time-actions";
  * A run that's still going is shown but not editable. There's deliberately no
  * "add time": untimed work stays untimed.
  */
-export function TimeRunRow({ run, showTitle = false }: { run: TimeRunView; showTitle?: boolean }) {
+export function TimeRunRow({
+  run,
+  showTitle = false,
+  note,
+}: {
+  run: TimeRunView;
+  showTitle?: boolean;
+  // Quiet text after the duration — the dashboard's ledger puts a task's
+  // estimate and the difference here ("est 30 · +5").
+  note?: string | null;
+}) {
   const isOpen = run.endedAtMs === null;
   const originalStart = formatClockInput(new Date(run.startedAtMs));
   const originalEnd = isOpen ? "" : formatClockInput(new Date(run.endedAtMs!));
@@ -96,6 +106,7 @@ export function TimeRunRow({ run, showTitle = false }: { run: TimeRunView; showT
               style={timeInputStyle}
             />
             <span style={{ color: COLORS.muted }}>{formatDurationMs(durationMs)}</span>
+            {note && <span style={{ color: COLORS.muted, fontSize: 11 }}>{note}</span>}
           </>
         )}
 

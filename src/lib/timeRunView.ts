@@ -19,7 +19,23 @@ export interface TimeRunView {
   editedByParent: boolean;
 }
 
-export function toRunView(run: TimeEntry): TimeRunView {
+/** The slice of a TimeEntry a run view reads — so the dashboard's own run type
+ * (which is exactly this) converts without a cast. */
+export type TimeRunRecord = Pick<
+  TimeEntry,
+  | "id"
+  | "instanceId"
+  | "title"
+  | "subjectId"
+  | "date"
+  | "startedAt"
+  | "endedAt"
+  | "lastPingAt"
+  | "endReason"
+  | "editedByParent"
+>;
+
+export function toRunView(run: TimeRunRecord): TimeRunView {
   return {
     id: run.id,
     instanceId: run.instanceId,

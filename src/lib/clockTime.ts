@@ -68,6 +68,13 @@ export function formatClockTime(date: Date): string {
   return `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
+/** Minutes since local midnight (fractional) — where an instant sits on a
+ * day's clock axis, for the Time dashboard's strips. */
+export function minuteOfDay(date: Date): number {
+  const { hour, minute, second } = zonedParts(date);
+  return hour * 60 + minute + second / 60;
+}
+
 /** "09:42" — the same instant as an `<input type="time">` value, in the app's
  * timezone. The parent's run editor round-trips through this and
  * wallClockInstant. */
@@ -92,4 +99,19 @@ export function formatDurationMs(ms: number): string {
   if (ms <= 0) return "0 min";
   const minutes = Math.round(ms / 60_000);
   return minutes === 0 ? "<1 min" : formatTotalMinutes(minutes);
+}
+
+/** "+5 min" / "−5 min" / "0 min" — a signed difference to the minute, with a
+ * real minus sign. For estimate-versus-actual on the dashboard. */
+export function formatSignedDurationMs(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes === 0) return "0 min";
+  return `${minutes > 0 ? "+" : "−"}${formatTotalMinutes(Math.abs(minutes))}`;
+}
+
+/** An hour tick on the strips' axis: 9, 10, 11, 12, 1, 2 — no suffix, since the
+ * day reads left to right and the context is a school morning. */
+export function formatAxisHour(minuteOfDay: number): string {
+  const hour = Math.floor(minuteOfDay / 60) % 24;
+  return String(hour % 12 === 0 ? 12 : hour % 12);
 }

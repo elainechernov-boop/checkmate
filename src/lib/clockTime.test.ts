@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { formatClockInput, formatClockTime, formatDurationMs, formatElapsed, wallClockInstant, zonedDateISO } from "./clockTime";
+import {
+  formatAxisHour,
+  formatClockInput,
+  formatClockTime,
+  formatDurationMs,
+  formatElapsed,
+  formatSignedDurationMs,
+  minuteOfDay,
+  wallClockInstant,
+  zonedDateISO,
+} from "./clockTime";
 
 describe("clockTime (§15's one timezone)", () => {
   it("reads a clock time in the app's timezone, not the machine's", () => {
@@ -35,6 +45,19 @@ describe("clockTime (§15's one timezone)", () => {
     expect(formatClockInput(new Date("2026-09-08T16:42:00Z"))).toBe("09:42");
     expect(formatClockInput(new Date("2026-09-08T07:05:00Z"))).toBe("00:05");
     expect(formatClockInput(wallClockInstant("2026-09-08", "13:45"))).toBe("13:45");
+  });
+
+  it("places an instant on the day's clock axis", () => {
+    expect(minuteOfDay(wallClockInstant("2026-09-08", "09:00"))).toBe(540);
+    expect(minuteOfDay(new Date(wallClockInstant("2026-09-08", "13:30").getTime() + 30_000))).toBe(13 * 60 + 30.5);
+  });
+
+  it("formats a signed difference and an axis hour", () => {
+    expect(formatSignedDurationMs(5 * 60_000)).toBe("+5 min");
+    expect(formatSignedDurationMs(-5 * 60_000)).toBe("−5 min");
+    expect(formatSignedDurationMs(70 * 60_000)).toBe("+1h 10m");
+    expect(formatSignedDurationMs(10_000)).toBe("0 min");
+    expect([9 * 60, 12 * 60, 13 * 60, 14 * 60, 0].map(formatAxisHour)).toEqual(["9", "12", "1", "2", "12"]);
   });
 
   it("formats elapsed time as the big timer digits", () => {
