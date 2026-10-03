@@ -1,5 +1,6 @@
 import type { PrismaClient, TimeEntry } from "@/generated/prisma/client";
 import { InstanceStatus, TimeEntryEndReason } from "@/generated/prisma/enums";
+import { formatClockInput, wallClockInstant, zonedDateISO } from "./clockTime";
 import { getToday, toISODate } from "./dates";
 import { LAPSE_AFTER_MS, MIN_RUN_MS, runDurationMs } from "./timeSummary";
 
@@ -295,6 +296,32 @@ export async function updateRunTimes(
 
     await tx.timeEntry.update({ where: { id: runId }, data: { startedAt, endedAt, editedByParent: true } });
   });
+}
+
+/**
+ * The parent's editor works in clock times ("09:42"), not instants: this turns
+ * an edited start and/or end into real instants on the run's own calendar day
+ * and hands them to updateRunTimes (which owns the validation). A field left
+ * out — or left equal to what's already shown — keeps its exact stored value,
+ * seconds and all, so nudging only the end never perturbs the start.
+ */
+export async function editRunClockTimes(
+  prisma: TimePrisma,
+  runId: string,
+  edit: { start?: string | null; end?: string | null },
+  now: Date = new Date()
+): Promise<void> {
+  const run = await prisma.timeEntry.findUniqueOrThrow({ where: { id: runId } });
+  if (!run.endedAt) throw new TimeTrackingError("A running timer can't be edited.");
+
+  const dateISO = zonedDateISO(run.startedAt);
+  const resolve = (value: string | null | undefined, current: Date): Date => {
+    if (!value || value === formatClockInput(current)) return current;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) throw new TimeTrackingError("That isn't a time.");
+    return wallClockInstant(dateISO, value);
+  };
+
+  await updateRunTimes(prisma, runId, resolve(edit.start, run.startedAt), resolve(edit.end, run.endedAt), now);
 }
 
 export async function deleteRun(prisma: TimeDb, runId: string): Promise<void> {

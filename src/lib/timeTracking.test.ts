@@ -6,6 +6,7 @@ import { tenantScopeExtension } from "./tenantScope";
 import { LAPSE_AFTER_MS, MIN_RUN_MS, summarizeDay } from "./timeSummary";
 import {
   deleteRun,
+  editRunClockTimes,
   findOpenRun,
   finishTimer,
   getTimerState,
@@ -604,6 +605,59 @@ describe("parent corrections", () => {
     await expect(updateRunTimes(prisma, first.id, at(0), at(50), at(120))).rejects.toThrow(/overlaps/);
     // Butting up against the neighbour is fine.
     await updateRunTimes(prisma, first.id, at(0), at(40), at(120));
+  });
+
+  describe("editRunClockTimes (the editor's clock-time inputs)", () => {
+    // A run at 9:00:07 - 9:35:42 AM PDT, so a stray seconds value is visible if it's lost.
+    async function runWithSeconds(studentId: string, instanceId: string) {
+      return prisma.timeEntry.create({
+        data: {
+          studentId,
+          instanceId,
+          title: "Task",
+          date: TODAY,
+          startedAt: new Date(T0 + 7_000),
+          endedAt: new Date(T0 + 35 * 60_000 + 42_000),
+          lastPingAt: new Date(T0 + 35 * 60_000 + 42_000),
+          endReason: "paused",
+        },
+      });
+    }
+
+    it("changes only the end and leaves the start's exact value alone", async () => {
+      const student = await makeStudent(prisma);
+      const instance = await makeInstance(student.id, null);
+      const run = await runWithSeconds(student.id, instance.id);
+
+      await editRunClockTimes(prisma, run.id, { start: "09:00", end: "09:20" }, at(120));
+
+      const after = await prisma.timeEntry.findUniqueOrThrow({ where: { id: run.id } });
+      expect(after.startedAt.getTime()).toBe(T0 + 7_000); // "09:00" is what's shown, so it's untouched
+      expect(after.endedAt).toEqual(at(20));
+      expect(after.editedByParent).toBe(true);
+    });
+
+    it("changes the start", async () => {
+      const student = await makeStudent(prisma);
+      const instance = await makeInstance(student.id, null);
+      const run = await runWithSeconds(student.id, instance.id);
+
+      await editRunClockTimes(prisma, run.id, { start: "09:10" }, at(120));
+
+      expect((await prisma.timeEntry.findUniqueOrThrow({ where: { id: run.id } })).startedAt).toEqual(at(10));
+    });
+
+    it("rejects a malformed time, an end before the start, and a time that would overlap", async () => {
+      const student = await makeStudent(prisma);
+      const a = await makeInstance(student.id, null);
+      const b = await makeInstance(student.id, null);
+      const run = await runWithSeconds(student.id, a.id);
+      await closedRun(student.id, b.id, 60, 90);
+
+      await expect(editRunClockTimes(prisma, run.id, { end: "9:20" }, at(200))).rejects.toThrow(/isn't a time/);
+      await expect(editRunClockTimes(prisma, run.id, { end: "08:30" }, at(200))).rejects.toThrow(/end after it starts/);
+      await expect(editRunClockTimes(prisma, run.id, { end: "10:15" }, at(200))).rejects.toThrow(/overlaps/);
+    });
   });
 
   it("deletes a run", async () => {

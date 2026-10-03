@@ -16,7 +16,10 @@ import {
 import { getCurrentLearningPeriod } from "@/lib/hstReport";
 import { listRecentUndoLog } from "@/lib/undoLog";
 import { COLORS } from "@/lib/theme";
+import { sweepLapsedRuns } from "@/lib/timeTracking";
+import { toRunView, type TimeRunView } from "@/lib/timeRunView";
 import { ParentNavMenu } from "./ParentNavMenu";
+import { TimeRunsProvider } from "./TimeRunsContext";
 import { ParentWeekBoard } from "./ParentWeekBoard";
 import { UndoMenu } from "./UndoMenu";
 
@@ -103,6 +106,25 @@ export default async function ParentPage({
 
   const recentUndoLog = await listRecentUndoLog(prisma);
 
+  // §15: every run logged against this week's tasks, for the "took 42 min" on
+  // each row and the Time section in its edit panel. Only a family with time
+  // tracking on reads any of it. Lapsed runs are swept first, per student, so
+  // nothing quiet is counted up to "now."
+  let timeRuns: { byInstance: Record<string, TimeRunView[]>; nowMs: number } | null = null;
+  if (family.timeTrackingEnabled) {
+    const now = new Date();
+    for (const student of students) await sweepLapsedRuns(prisma, student.id, now);
+    const runs = await prisma.timeEntry.findMany({
+      where: { instanceId: { in: instances.map((instance) => instance.id) } },
+      orderBy: { startedAt: "asc" },
+    });
+    const byInstance: Record<string, TimeRunView[]> = {};
+    for (const run of runs) {
+      if (run.instanceId) (byInstance[run.instanceId] ??= []).push(toRunView(run));
+    }
+    timeRuns = { byInstance, nowMs: now.getTime() };
+  }
+
   // The family's imported Google Calendar (§ Parent Mode "on top of the
   // view") — overlaid the same for every student, so fetched once here
   // rather than per student board. A flaky or unconfigured feed just means
@@ -128,6 +150,7 @@ export default async function ParentPage({
           header row now; it no longer permanently occupies nav space. */}
       <UndoMenu entries={recentUndoLog} />
 
+      <TimeRunsProvider data={timeRuns}>
       <ParentWeekBoard
         students={students}
         subjects={subjects}
@@ -140,6 +163,7 @@ export default async function ParentPage({
         schoolDayTypesByStudent={schoolDayTypesByStudent}
         requestedDayIndex={requestedDayIndex}
       />
+      </TimeRunsProvider>
 
       {family.complianceModuleEnabled &&
         (currentLP ? (

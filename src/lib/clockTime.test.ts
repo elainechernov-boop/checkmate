@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClockTime, formatDurationMs, formatElapsed, wallClockInstant, zonedDateISO } from "./clockTime";
+import { formatClockInput, formatClockTime, formatDurationMs, formatElapsed, wallClockInstant, zonedDateISO } from "./clockTime";
 
 describe("clockTime (§15's one timezone)", () => {
   it("reads a clock time in the app's timezone, not the machine's", () => {
@@ -29,6 +29,12 @@ describe("clockTime (§15's one timezone)", () => {
   it("round-trips a wall-clock time through formatClockTime", () => {
     expect(formatClockTime(wallClockInstant("2026-09-08", "13:45"))).toBe("1:45 PM");
     expect(formatClockTime(wallClockInstant("2026-03-08", "09:00"))).toBe("9:00 AM"); // the spring-forward day
+  });
+
+  it("formats a time-input value that round-trips through wallClockInstant", () => {
+    expect(formatClockInput(new Date("2026-09-08T16:42:00Z"))).toBe("09:42");
+    expect(formatClockInput(new Date("2026-09-08T07:05:00Z"))).toBe("00:05");
+    expect(formatClockInput(wallClockInstant("2026-09-08", "13:45"))).toBe("13:45");
   });
 
   it("formats elapsed time as the big timer digits", () => {

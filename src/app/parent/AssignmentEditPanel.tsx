@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import type { AssignmentInstance, AssignmentSeries, RecurrenceRule } from "@/generated/prisma/client";
+import { formatDurationMs } from "@/lib/clockTime";
 import { toISODate, WEEKDAYS } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { deleteAssignment, updateAssignment } from "./planner-actions";
+import { useInstanceTime } from "./TimeRunsContext";
+import { TimeRunsEditor } from "./TimeRunsEditor";
 
 export type EditableInstance = AssignmentInstance & {
   subject: { id: string; name: string } | null;
@@ -71,6 +74,10 @@ export function EditPanel({
   onCancel: () => void;
 }) {
   const isSeries = !!instance.seriesId;
+  // §15: the runs logged against this task, when the family tracks time and
+  // anyone has actually timed it. Lives beside the form, not inside it — its
+  // time inputs would otherwise submit the whole assignment on Enter.
+  const time = useInstanceTime(instance.id);
   const [scope, setScope] = useState<(typeof SCOPE_OPTIONS)[number]["value"]>("only");
   const [repeat, setRepeat] = useState<string>(instance.series?.recurrence?.frequency ?? "none");
   const [endCondition, setEndCondition] = useState<string>(instance.series?.endCondition ?? "never");
@@ -119,6 +126,7 @@ export function EditPanel({
   }
 
   return (
+    <>
     <form action={handleSubmit} onClick={(event) => event.stopPropagation()} className="flex flex-col gap-1.5 text-xs">
       <input type="hidden" name="instanceId" value={instance.id} />
       {isSeries && <input type="hidden" name="scope" value={scope} />}
@@ -399,5 +407,18 @@ export function EditPanel({
         )}
       </div>
     </form>
+
+    {time && time.runs.length > 0 && (
+      <div className="mt-3 border-t pt-2" style={{ borderColor: COLORS.hairline }} onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-baseline justify-between">
+          <span className={fieldLabel} style={{ color: COLORS.muted }}>
+            Time
+          </span>
+          <span style={{ color: COLORS.muted, fontSize: 11 }}>took {formatDurationMs(time.tookMs)}</span>
+        </div>
+        <TimeRunsEditor runs={time.runs} />
+      </div>
+    )}
+    </>
   );
 }

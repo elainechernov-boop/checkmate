@@ -27,6 +27,7 @@ import {
   parseISODate,
   toISODate,
 } from "@/lib/dates";
+import { formatDurationMs } from "@/lib/clockTime";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { formatRollMark } from "@/lib/instanceGrouping";
@@ -45,6 +46,7 @@ import {
 } from "./planner-actions";
 import { assignCalendarEventAction, dismissCalendarEventAction, unassignCalendarEventAction } from "./calendar/actions";
 import { EditPanel, type EditableInstance } from "./AssignmentEditPanel";
+import { useInstanceTime } from "./TimeRunsContext";
 import { Modal } from "@/components/Modal";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
@@ -1071,9 +1073,21 @@ function RowContents({
   // Subject + estimated time underneath the title, matching the student
   // view's meta line (§9) so a parent gets the same at-a-glance context.
   const estMinutes = instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null;
-  const metaText = [instance.subject?.name, estMinutes != null ? `${estMinutes} min` : null]
+  // §15: once anyone has timed this task, the meta line says how long it
+  // actually took beside what was planned ("Math · est 30 min · took 42 min").
+  // A task nobody timed reads exactly as it always has.
+  const time = useInstanceTime(instance.id);
+  const tookLabel = time && time.tookMs > 0 ? `took ${formatDurationMs(time.tookMs)}` : null;
+  const metaText = [
+    instance.subject?.name,
+    estMinutes != null ? (tookLabel ? `est ${estMinutes} min` : `${estMinutes} min`) : null,
+    tookLabel,
+  ]
     .filter(Boolean)
     .join(" · ");
+  // A finished row is just its struck title — except for how long it took,
+  // which is the thing a parent comes to this board to see (§15).
+  const doneMetaText = tookLabel ? [estMinutes != null ? `est ${estMinutes} min` : null, tookLabel].filter(Boolean).join(" · ") : null;
 
   // BUILD_SPEC.md Part I §1 exact identity-tick algorithm: done/excused ->
   // hairline gray, project task -> student accent, everything else -> ink.
@@ -1119,6 +1133,19 @@ function RowContents({
             style={{ color: COLORS.mutedFaint, fontSize: "0.7rem", textDecoration: "underline dotted", textUnderlineOffset: "2px" }}
           >
             {metaText || "···"}
+          </button>
+        )}
+        {isDone && doneMetaText && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleExpand();
+            }}
+            className="block text-left"
+            style={{ color: COLORS.mutedFaint, fontSize: "0.7rem", textDecoration: "underline dotted", textUnderlineOffset: "2px" }}
+          >
+            {doneMetaText}
           </button>
         )}
         {/* §12: parent's own quiet confirmation that a time/reminder is set. */}

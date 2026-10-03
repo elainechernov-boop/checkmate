@@ -68,6 +68,14 @@ export function formatClockTime(date: Date): string {
   return `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
+/** "09:42" — the same instant as an `<input type="time">` value, in the app's
+ * timezone. The parent's run editor round-trips through this and
+ * wallClockInstant. */
+export function formatClockInput(date: Date): string {
+  const { hour, minute } = zonedParts(date);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 /** The timer screen's big digits: "12:34", becoming "1:02:34" past an hour. */
 export function formatElapsed(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
