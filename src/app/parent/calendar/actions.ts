@@ -46,6 +46,25 @@ export async function toggleComplianceModuleAction(formData: FormData) {
   revalidatePath("/parent");
 }
 
+/**
+ * §15: the on/off switch for the per-task timer and the Time dashboard, plus
+ * the optional school-day start the dashboard measures "waiting to start"
+ * from. Off by default; Family isn't tenant-scoped, so (like the compliance
+ * toggle above) this updates the session's own family directly.
+ */
+export async function saveTimeTrackingSettingsAction(formData: FormData) {
+  const enabled = formData.get("enabled") === "on";
+  const rawStart = String(formData.get("schoolDayStartTime") ?? "").trim();
+  // A plain "HH:MM" wall-clock, or nothing at all.
+  const schoolDayStartTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(rawStart) ? rawStart : null;
+  const family = await getCurrentFamily();
+  await baseClient.family.update({ where: { id: family.id }, data: { timeTrackingEnabled: enabled, schoolDayStartTime } });
+  revalidatePath("/parent/calendar");
+  revalidatePath("/parent");
+  revalidatePath("/parent/time");
+  revalidatePath("/student/[id]", "page");
+}
+
 /** §8 "import/enter Blue Ridge's academic calendar once" — a single day is
  * just a range where start equals end, so this is the one tool for both.
  * SchoolDay is per-student (§5's ad-hoc field trips/sick days need to be

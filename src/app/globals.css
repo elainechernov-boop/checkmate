@@ -122,3 +122,43 @@ button:focus-visible,
     opacity: 1;
   }
 }
+
+/* §15 time tracking: a hover-capable pointer over an open row in today's
+ * column washes the whole row (the play triangle appears via
+ * .hr-hover-action). Touch has no hover, so no wash — the tap does the work. */
+@media (hover: hover) and (pointer: fine) {
+  .hr-timer-row:hover {
+    background: rgba(26, 26, 26, 0.05);
+  }
+}
+/* The triangle's own reveal. Not Tailwind's group-hover:opacity-100 — this
+ * file's unlayered .hr-hover-action { opacity: 0 } outranks any utility in
+ * Tailwind's layer, so the utility can never win. Also shown while anything
+ * in the row has keyboard focus. */
+@media (hover: hover) and (pointer: fine) {
+  .hr-timer-row:hover .hr-hover-action {
+    opacity: 1;
+  }
+}
+.hr-timer-row:focus-within .hr-hover-action {
+  opacity: 1;
+}
+
+/* The running-timer dot. Held still under prefers-reduced-motion. */
+@keyframes hr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.hr-pulse {
+  animation: hr-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hr-pulse {
+    animation: none;
+  }
+}

@@ -12,12 +12,22 @@ import { addDays, defaultWeekStart, formatDayWeekdayShort, formatMonthDayLine, f
 import { COLORS, nextAccentColor } from "@/lib/theme";
 import { isSoundMuted, playCompletionTick, playReminderChime, setSoundMuted } from "@/lib/completionSound";
 import { hasBeenReminded, isReminderDue, markReminded } from "@/lib/reminders";
-import { approveReviewViaPasscode, cycleAccentColorAction, toggleInstance } from "./actions";
+import { dayBarTasksFor, type TimeLog } from "@/lib/dayBar";
+import type { TimerState } from "@/lib/timeTracking";
+import {
+  approveReviewViaPasscode,
+  cycleAccentColorAction,
+  finishTimerAction,
+  getTimerStateAction,
+  startTimerAction,
+  toggleInstance,
+} from "./actions";
 import { DayColumn } from "./DayColumn";
 import { ComingUpPanel } from "./ComingUpPanel";
 import { ItemCelebration } from "./ItemCelebration";
 import { ProjectsBand } from "./ProjectsBand";
 import { ReminderTakeover } from "./ReminderTakeover";
+import { TimerScreen } from "./TimerScreen";
 import { SwipeDayPager } from "@/components/SwipeDayPager";
 import { DayPagerControls } from "@/components/DayPagerControls";
 import type { DaySeparator, StudentInstance, StudentProject } from "./types";
@@ -50,6 +60,7 @@ export function StudentWeekView({
   daySeparators,
   calendarEvents,
   streak,
+  timeTracking,
   skipCelebratedGuard,
   requestedDayIndex,
 }: {
@@ -69,6 +80,10 @@ export function StudentWeekView({
   // Consecutive fully-done school days leading up to today (lib/streak.ts) —
   // a pure header stat, computed server-side once per load.
   streak: number;
+  // §15 — null unless this family has time tracking on. `timeLog` is time
+  // logged per task per day (feeds the day bar and the "In progress" mark);
+  // `resumeInstanceId` is a timer still running from before a reload.
+  timeTracking: { timeLog: TimeLog; resumeInstanceId: string | null } | null;
   skipCelebratedGuard: boolean;
   // Set only when a mobile swipe/arrow carried the student across a week
   // edge (see page.tsx) — otherwise null, and the default below applies.
@@ -88,6 +103,16 @@ export function StudentWeekView({
     null
   );
   const [reminderInstance, setReminderInstance] = useState<StudentInstance | null>(null);
+  // §15: the open timer screen (null = none). `state` is null only for the
+  // instant between the tap and the server's first answer; `offsetMs` is the
+  // server's clock minus this machine's, taken when that answer arrived.
+  const [timer, setTimer] = useState<{ instance: StudentInstance; state: TimerState | null; offsetMs: number } | null>(null);
+  // Set when Finish is pressed on a timer, to tell that row to play the §6
+  // completion sequence now that the timer screen has dismissed.
+  const [finishSignal, setFinishSignal] = useState<{ instanceId: string; token: number } | null>(null);
+  // Instances the timer's Finish already completed server-side — their row's
+  // animation still ends in handleToggle, which must not toggle them back.
+  const finishedViaTimerRef = useRef(new Set<string>());
   // Purely to force the live/soon/later/past time badges (lib/reminders.ts's
   // timeBadge) to recompute against the real wall clock — those are derived
   // at render, not stored, so something has to actually re-render every so
@@ -214,6 +239,31 @@ export function StudentWeekView({
     return () => window.clearInterval(interval);
   }, []);
 
+  // §15: a reload or crash lands straight back on a still-running timer. Asks
+  // the server (not local state), and only opens the screen if the run really
+  // is still open — a lapsed one stays closed, its task just "In progress."
+  const resumeInstanceId = timeTracking?.resumeInstanceId ?? null;
+  useEffect(() => {
+    if (!resumeInstanceId) return;
+    const instance = instances.find((candidate) => candidate.id === resumeInstanceId);
+    if (!instance) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const state = await getTimerStateAction(resumeInstanceId);
+        if (cancelled || state.openStartedAtMs === null) return;
+        setTimer({ instance, state, offsetMs: state.serverNowMs - Date.now() });
+      } catch {
+        // Tracking turned off, or the item moved on — just show the week.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Once, on arrival: later prop refreshes must not re-open a closed timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const weekHasAnyItems = localInstances.length > 0 || calendarEvents.length > 0;
   // The week view is Mon-Sat (§6) — on a Sunday there's no column that
   // equals "today" at all, so nothing is interactive. Say so plainly
@@ -253,6 +303,43 @@ export function StudentWeekView({
     }
   }
 
+  // §15: tapping the triangle (or title) opens the timer and starts the clock.
+  // The screen appears at once; the server's first answer fills in the digits.
+  async function handleStartTimer(instance: StudentInstance) {
+    if (!timeTracking || timer) return;
+    setTimer({ instance, state: null, offsetMs: 0 });
+    try {
+      const state = await startTimerAction(instance.id);
+      const offsetMs = state.serverNowMs - Date.now();
+      setTimer((current) => (current && current.instance.id === instance.id ? { instance, state, offsetMs } : current));
+    } catch {
+      setTimer((current) => (current && current.instance.id === instance.id ? null : current));
+    }
+  }
+
+  function handleTimerState(state: TimerState) {
+    const offsetMs = state.serverNowMs - Date.now();
+    setTimer((current) => (current ? { ...current, state, offsetMs } : current));
+  }
+
+  // Finish: the clock stops and the server completes the item right away, but
+  // the visible completion (strike, critter, day-complete) plays on the week
+  // view once the timer screen has gone — the row's own sequence, signalled
+  // by a fresh token.
+  function handleTimerFinish() {
+    if (!timer) return;
+    const instance = timer.instance;
+    finishedViaTimerRef.current.add(instance.id);
+    setTimer(null);
+    setFinishSignal({ instanceId: instance.id, token: Date.now() });
+    finishTimerAction(instance.id).catch(() => {
+      // The server refused: fall back to the ordinary check-off at the end of
+      // the animation, and re-read the truth.
+      finishedViaTimerRef.current.delete(instance.id);
+      router.refresh();
+    });
+  }
+
   async function handleToggle(instance: StudentInstance, origin: { x: number; y: number }) {
     const goingToOpen = instance.status !== InstanceStatus.open;
     const nextStatus = goingToOpen
@@ -273,7 +360,13 @@ export function StudentWeekView({
     );
 
     try {
-      await toggleInstance(instance.id);
+      // A timer's Finish already completed it on the server; the sequence has
+      // now played, so it's safe to pull the fresh server state in.
+      if (finishedViaTimerRef.current.delete(instance.id)) {
+        router.refresh();
+      } else {
+        await toggleInstance(instance.id);
+      }
     } catch {
       // Server rejected it (e.g. no longer "today") — revert.
       setLocalInstances((current) =>
@@ -315,6 +408,21 @@ export function StudentWeekView({
       setLocalAccentColor(previous);
     }
   }
+
+  const dayColumnTimeTracking = timeTracking
+    ? { timeLog: timeTracking.timeLog, onStart: handleStartTimer, finish: finishSignal }
+    : undefined;
+
+  // The rest of today's tasks, for the timer screen's top-edge day bar — the
+  // timed task is added live by the screen itself.
+  const otherTodayTasks =
+    timeTracking && timer
+      ? dayBarTasksFor(
+          todayInstances.filter((candidate) => candidate.id !== timer.instance.id),
+          timeTracking.timeLog,
+          todayISO
+        )
+      : [];
 
   return (
     <main
@@ -412,6 +520,7 @@ export function StudentWeekView({
                   separators={daySeparatorsForDay}
                   calendarEvents={dayCalendarEvents}
                   now={now}
+                  timeTracking={dayColumnTimeTracking}
                   studentName={student.name}
                   accentColor={localAccentColor}
                   prefersReducedMotion={prefersReducedMotion}
@@ -461,6 +570,7 @@ export function StudentWeekView({
                       prefersReducedMotion={prefersReducedMotion}
                       celebrated={celebratedToday}
                       now={now}
+                      timeTracking={dayColumnTimeTracking}
                       onCelebrate={handleCelebrate}
                       onToggle={handleToggle}
                       onApproveViaPasscode={handleApproveViaPasscode}
@@ -489,6 +599,21 @@ export function StudentWeekView({
           key={itemCelebration.key}
           origin={itemCelebration.origin}
           onDone={() => setItemCelebration(null)}
+        />
+      )}
+
+      {timeTracking && timer && (
+        <TimerScreen
+          key={timer.instance.id}
+          instance={timer.instance}
+          accentColor={localAccentColor}
+          state={timer.state}
+          offsetMs={timer.offsetMs}
+          otherTasks={otherTodayTasks}
+          prefersReducedMotion={prefersReducedMotion}
+          onState={handleTimerState}
+          onBack={() => setTimer(null)}
+          onFinish={handleTimerFinish}
         />
       )}
 

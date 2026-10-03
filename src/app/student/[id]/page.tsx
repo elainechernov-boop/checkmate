@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { addDays, defaultWeekStart, getToday, isDebugToday, parseISODate } from "@/lib/dates";
-import { getScopedPrisma } from "@/lib/prisma";
+import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
 import { computeStreak } from "@/lib/streak";
 import { shouldRunNow } from "@/lib/throttle";
+import { findOpenRun, timeLoggedByInstance } from "@/lib/timeTracking";
 import {
   fetchFamilyCalendarEvents,
   getCalendarEventAssignments,
@@ -133,6 +134,20 @@ export default async function StudentPage({
     .map((a) => eventById.get(a.eventKey))
     .filter((event) => event !== undefined);
 
+  // §15: only a family that's turned time tracking on gets any of it. The two
+  // reads run one after the other on purpose — both sweep lapsed runs first.
+  const family = await getCurrentFamily();
+  let timeTracking: { timeLog: Record<string, Record<string, number>>; resumeInstanceId: string | null } | null = null;
+  if (family.timeTrackingEnabled) {
+    const openRun = await findOpenRun(prisma, id);
+    const timeLog = await timeLoggedByInstance(
+      prisma,
+      id,
+      weekInstances.map((instance) => instance.id)
+    );
+    timeTracking = { timeLog, resumeInstanceId: openRun?.instanceId ?? null };
+  }
+
   return (
     <StudentWeekView
       student={student}
@@ -148,6 +163,7 @@ export default async function StudentPage({
       daySeparators={daySeparators}
       calendarEvents={assignedCalendarEvents}
       streak={streak}
+      timeTracking={timeTracking}
       skipCelebratedGuard={isDebugToday()}
       requestedDayIndex={requestedDayIndex}
     />

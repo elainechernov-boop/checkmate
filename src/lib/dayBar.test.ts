@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { dayBarFill, DAY_BAR_HELD_SHORT, type DayBarTask } from "./dayBar";
+import { dayBarFill, dayBarTasksFor, DAY_BAR_HELD_SHORT, type DayBarTask } from "./dayBar";
 
 const MIN = 60_000;
 
@@ -77,5 +77,54 @@ describe("dayBarFill (§15's day bar)", () => {
   it("leaves tasks without an estimate out of the bar entirely", () => {
     // The unestimated open task neither adds remaining time nor blocks completion.
     expect(dayBarFill([task(done, 30, 30), task(open, null, 45)])).toBe(1);
+  });
+});
+
+describe("dayBarTasksFor", () => {
+  const timeLog = {
+    rolled: { "2026-09-07": 20 * MIN, "2026-09-08": 5 * MIN, "2026-09-09": 99 * MIN },
+    plain: { "2026-09-08": 12 * MIN },
+  };
+
+  it("splits each task's log into today's time and everything earlier — and ignores later days", () => {
+    const [rolled, plain, untimed] = dayBarTasksFor(
+      [
+        { id: "rolled", status: open, estimatedMinutes: 30 },
+        { id: "plain", status: done, estimatedMinutes: 20 },
+        { id: "untimed", status: open, estimatedMinutes: 10 },
+      ],
+      timeLog,
+      "2026-09-08"
+    );
+
+    expect(rolled).toMatchObject({ loggedTodayMs: 5 * MIN, loggedEarlierMs: 20 * MIN, estimatedMinutes: 30 });
+    expect(plain).toMatchObject({ loggedTodayMs: 12 * MIN, loggedEarlierMs: 0 });
+    expect(untimed).toMatchObject({ loggedTodayMs: 0, loggedEarlierMs: 0 });
+  });
+
+  it("falls back to the series' estimate, and leaves it null when neither has one", () => {
+    const [fromSeries, none] = dayBarTasksFor(
+      [
+        { id: "a", status: open, estimatedMinutes: null, series: { estimatedMinutes: 45 } },
+        { id: "b", status: open, estimatedMinutes: null, series: null },
+      ],
+      {},
+      "2026-09-08"
+    );
+    expect(fromSeries.estimatedMinutes).toBe(45);
+    expect(none.estimatedMinutes).toBeNull();
+  });
+
+  it("feeds dayBarFill end to end", () => {
+    const tasks = dayBarTasksFor(
+      [
+        { id: "plain", status: done, estimatedMinutes: 30 },
+        { id: "rolled", status: open, estimatedMinutes: 30 },
+      ],
+      { plain: { "2026-09-08": 30 * MIN } },
+      "2026-09-08"
+    );
+    // 30 worked, 30 remaining.
+    expect(dayBarFill(tasks)).toBeCloseTo(0.5);
   });
 });

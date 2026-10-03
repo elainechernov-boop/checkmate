@@ -160,8 +160,9 @@ describe("pause and resume", () => {
       [at(25), at(35), "paused"],
     ]);
 
-    const state = await getTimerState(prisma, instance.id, at(40));
+    const state = await getTimerState(prisma, instance.id, at(40), TODAY);
     expect(state.closedMs).toBe(20 * 60_000);
+    expect(state.closedTodayMs).toBe(20 * 60_000);
     expect(state.openStartedAtMs).toBeNull();
     expect(state.firstStartedAtMs).toBe(at(0).getTime());
 
@@ -169,6 +170,33 @@ describe("pause and resume", () => {
     const summary = summarizeDay(runs, at(40));
     expect(summary.pausedMs).toBe(15 * 60_000);
     expect(summary.workingMs).toBe(20 * 60_000);
+  });
+
+  it("tells today's time from a rolled task's earlier days, and quotes only today's first start", async () => {
+    const student = await makeStudent(prisma);
+    const instance = await makeInstance(student.id, null);
+    // Yesterday: 8 minutes on this task (as if it had rolled in).
+    await prisma.timeEntry.create({
+      data: {
+        studentId: student.id,
+        instanceId: instance.id,
+        title: "Long division",
+        date: parseISODate("2026-09-07"),
+        startedAt: new Date(Date.UTC(2026, 8, 7, 16, 0, 0)),
+        endedAt: new Date(Date.UTC(2026, 8, 7, 16, 8, 0)),
+        lastPingAt: new Date(Date.UTC(2026, 8, 7, 16, 8, 0)),
+        endReason: "paused",
+      },
+    });
+    await startTimer(prisma, instance.id, at(30), TODAY);
+    await keepAlive(instance.id, 30, 36);
+    await pauseTimer(prisma, instance.id, at(36));
+
+    const state = await getTimerState(prisma, instance.id, at(40), TODAY);
+
+    expect(state.closedMs).toBe((8 + 6) * 60_000);
+    expect(state.closedTodayMs).toBe(6 * 60_000);
+    expect(state.firstStartedAtMs).toBe(at(30).getTime());
   });
 
   it("reports an open run so the client can keep counting from the server's clock", async () => {
@@ -360,6 +388,21 @@ describe("lapse sweeping (§15: 5 minutes without a ping)", () => {
 
     expect(runs).toHaveLength(1);
     expect(runs[0].endedAt).toEqual(at(6));
+  });
+
+  it("is safe when two requests sweep the same lapsed run at once", async () => {
+    const student = await makeStudent(prisma);
+    const instance = await makeInstance(student.id, null);
+    await startTimer(prisma, instance.id, at(0), TODAY);
+    await keepAlive(instance.id, 0, 8);
+
+    // e.g. the student page and the dashboard both loading at the same moment.
+    await Promise.all([sweepLapsedRuns(prisma, student.id, at(90)), sweepLapsedRuns(prisma, student.id, at(90))]);
+
+    const runs = await prisma.timeEntry.findMany({ where: { instanceId: instance.id } });
+    expect(runs).toHaveLength(1);
+    expect(runs[0].endReason).toBe("lapsed");
+    expect(runs[0].endedAt).toEqual(at(8));
   });
 
   it("a late ping from a suspended tab doesn't resurrect time nobody was watching", async () => {

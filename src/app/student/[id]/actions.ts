@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { getToday, toISODate } from "@/lib/dates";
-import { prisma as baseClient, getScopedPrisma } from "@/lib/prisma";
+import { prisma as baseClient, getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { recomputeProjectStatus } from "@/lib/projects";
 import { approveReview } from "@/lib/reviewActions";
 import {
@@ -15,6 +15,7 @@ import {
   secretsMatch,
 } from "@/lib/session";
 import { nextAccentColor } from "@/lib/theme";
+import { finishTimer, getTimerState, pauseTimer, pingTimer, startTimer, type TimerState } from "@/lib/timeTracking";
 
 /**
  * The student's only two verbs (§2): check and uncheck. §6's undo rule and
@@ -114,4 +115,74 @@ export async function cycleAccentColorAction(studentId: string): Promise<{ accen
   revalidatePath(`/student/${studentId}`);
   revalidatePath("/parent");
   return { accentColor };
+}
+
+// ---- §15: the per-task timer ----
+//
+// Every action below is a thin wrapper over lib/timeTracking.ts, which owns
+// the rules (one open run per student, the sub-10-second discard, lapse
+// sweeping). Timestamps are the server's — see §15 "Recording rules."
+
+async function requireTimeTracking(): Promise<void> {
+  const family = await getCurrentFamily();
+  if (!family.timeTrackingEnabled) {
+    throw new Error("Time tracking is turned off for this family.");
+  }
+}
+
+/** Start (or resume) the clock on a task and return its timer state. Only
+ * today's open items can be timed — enforced in startTimer itself. */
+export async function startTimerAction(instanceId: string): Promise<TimerState> {
+  await requireTimeTracking();
+  const prisma = await getScopedPrisma();
+  await startTimer(prisma, instanceId);
+  const state = await getTimerState(prisma, instanceId);
+  revalidatePath("/student/[id]", "page");
+  return state;
+}
+
+/** Pause closes the current run; the returned state reflects it. */
+export async function pauseTimerAction(instanceId: string): Promise<TimerState> {
+  await requireTimeTracking();
+  const prisma = await getScopedPrisma();
+  await pauseTimer(prisma, instanceId);
+  const state = await getTimerState(prisma, instanceId);
+  revalidatePath("/student/[id]", "page");
+  return state;
+}
+
+/** The open timer screen's 30-second heartbeat. No revalidation — nothing
+ * on the page changes. */
+export async function pingTimerAction(instanceId: string): Promise<{ running: boolean }> {
+  await requireTimeTracking();
+  const prisma = await getScopedPrisma();
+  return pingTimer(prisma, instanceId);
+}
+
+export async function getTimerStateAction(instanceId: string): Promise<TimerState> {
+  await requireTimeTracking();
+  const prisma = await getScopedPrisma();
+  return getTimerState(prisma, instanceId);
+}
+
+/**
+ * Finish: stops the clock and completes the item in one transaction, exactly
+ * the transition a title tap used to make (pendingReview for "Show me" work,
+ * otherwise done). The client plays §6's completion moment on the week view
+ * once the timer screen has dismissed.
+ */
+export async function finishTimerAction(instanceId: string): Promise<{ status: InstanceStatus }> {
+  await requireTimeTracking();
+  const prisma = await getScopedPrisma();
+  const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
+  const { status } = await finishTimer(prisma, instanceId);
+  if (instance.projectId) await recomputeProjectStatus(prisma, instance.projectId);
+  // Deliberately no revalidatePath here. The clock stops and the item is
+  // completed server-side the instant Finish is pressed, but the week view is
+  // still drawing the strike (~280ms). A revalidation would hand the client
+  // "everything's done" before the student's own animation ends, and the day
+  // column would treat the day's completion as something that happened to them
+  // — a quiet "Finish the day" prompt instead of the full-screen celebration.
+  // The client refreshes itself once the sequence has played.
+  return { status };
 }

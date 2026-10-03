@@ -57,3 +57,39 @@ export function dayBarFill(tasks: DayBarTask[]): number | null {
   if (totalMs <= 0) return 0;
   return Math.min(DAY_BAR_HELD_SHORT, workedMs / totalMs);
 }
+
+/** The minimum an instance needs to feed the bar — every StudentInstance
+ * satisfies it (its estimate lives on the instance or, failing that, its
+ * series, the same fallback estimatedMinutes.ts uses everywhere). */
+export interface DayBarInstance {
+  id: string;
+  status: InstanceStatus;
+  estimatedMinutes: number | null;
+  series?: { estimatedMinutes: number | null } | null;
+}
+
+/** `{ [instanceId]: { [yyyy-mm-dd]: ms } }` — see timeTracking.ts's
+ * timeLoggedByInstance. Declared here too so client code can import the
+ * shape without pulling in the server-only module. */
+export type TimeLog = Record<string, Record<string, number>>;
+
+/** One day's bar inputs from its instances and the time log: time logged on
+ * `dayISO` itself, and everything logged on earlier days (a rolled task
+ * carries some of its work in already). */
+export function dayBarTasksFor(instances: DayBarInstance[], timeLog: TimeLog, dayISO: string): DayBarTask[] {
+  return instances.map((instance) => {
+    const byDate = timeLog[instance.id] ?? {};
+    let loggedTodayMs = 0;
+    let loggedEarlierMs = 0;
+    for (const [date, ms] of Object.entries(byDate)) {
+      if (date === dayISO) loggedTodayMs += ms;
+      else if (date < dayISO) loggedEarlierMs += ms;
+    }
+    return {
+      status: instance.status,
+      estimatedMinutes: instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null,
+      loggedTodayMs,
+      loggedEarlierMs,
+    };
+  });
+}

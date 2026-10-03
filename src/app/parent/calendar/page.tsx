@@ -6,7 +6,13 @@ import { COLORS } from "@/lib/theme";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav, PageHeading } from "@/components/ParentNav";
 import { SettingsCard } from "@/components/SettingsCard";
-import { applyDayTypeRange, createLearningPeriod, toggleComplianceModuleAction, undismissCalendarEventAction } from "./actions";
+import {
+  applyDayTypeRange,
+  createLearningPeriod,
+  saveTimeTrackingSettingsAction,
+  toggleComplianceModuleAction,
+  undismissCalendarEventAction,
+} from "./actions";
 import { FamilyCalendarCard } from "./FamilyCalendarCard";
 import { LearningPeriodRow } from "./LearningPeriodRow";
 
@@ -140,6 +146,48 @@ export default async function CalendarPage() {
             Enable attendance &amp; HST reporting
           </label>
           <button type="submit" className="hr-text-action ml-2 font-medium" style={{ color: COLORS.text }}>
+            Save
+          </button>
+        </form>
+      </SettingsCard>
+
+      <SettingsCard className="mt-6">
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>Time tracking</h2>
+        <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
+          Turn this on to give each task a timer: a kid taps the play triangle on a task, works against the clock, and
+          presses Finish. Parent Mode then shows how long every task took, plus a Time page that separates working
+          time from the gaps between tasks. Leave it off and the week works exactly as it always has.
+        </p>
+        <form action={saveTimeTrackingSettingsAction} className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3 text-sm">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="timeTrackingEnabled"
+              name="enabled"
+              value="on"
+              defaultChecked={family.timeTrackingEnabled}
+            />
+            <label htmlFor="timeTrackingEnabled" style={{ color: COLORS.text }}>
+              Enable task timers &amp; the Time page
+            </label>
+          </div>
+          <div>
+            <label
+              htmlFor="schoolDayStartTime"
+              className="block font-medium uppercase"
+              style={{ color: COLORS.muted, fontSize: 11, letterSpacing: "0.04em" }}
+            >
+              School day starts (optional)
+            </label>
+            <input
+              type="time"
+              id="schoolDayStartTime"
+              name="schoolDayStartTime"
+              defaultValue={family.schoolDayStartTime ?? ""}
+              className="hr-flat-input"
+            />
+          </div>
+          <button type="submit" className="hr-text-action font-medium" style={{ color: COLORS.text }}>
             Save
           </button>
         </form>

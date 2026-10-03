@@ -17,11 +17,15 @@ export class TimeTrackingError extends Error {}
  * away from the Mac (§15: "runs under 10 seconds are discarded"). */
 async function closeRun(db: TimeDb, run: TimeEntry, endedAt: Date, reason: TimeEntryEndReason): Promise<{ discarded: boolean }> {
   const end = endedAt.getTime() < run.startedAt.getTime() ? run.startedAt : endedAt;
+  // deleteMany/updateMany rather than delete/update: two requests can sweep
+  // the same lapsed run at once (the student page and the dashboard), and the
+  // loser should find it already handled, not throw. Closing only ever touches
+  // a run that's still open.
   if (end.getTime() - run.startedAt.getTime() < MIN_RUN_MS) {
-    await db.timeEntry.delete({ where: { id: run.id } });
+    await db.timeEntry.deleteMany({ where: { id: run.id, endedAt: null } });
     return { discarded: true };
   }
-  await db.timeEntry.update({ where: { id: run.id }, data: { endedAt: end, endReason: reason } });
+  await db.timeEntry.updateMany({ where: { id: run.id, endedAt: null }, data: { endedAt: end, endReason: reason } });
   return { discarded: false };
 }
 
@@ -175,23 +179,40 @@ export async function finishTimer(
  * clock can't skew the record. */
 export interface TimerState {
   closedMs: number;
+  /** The part of `closedMs` logged on today's date — the rest is earlier
+   * days' work on a task that rolled in. Lets the timer screen's top-edge day
+   * bar tell "worked today" from "worked before." */
+  closedTodayMs: number;
   openStartedAtMs: number | null;
+  /** When the task was first started *today* — the screen's "Started 9:42 AM,"
+   * which shouldn't quote a rolled task's start from yesterday. */
   firstStartedAtMs: number | null;
   serverNowMs: number;
 }
 
-export async function getTimerState(prisma: TimeDb, instanceId: string, now: Date = new Date()): Promise<TimerState> {
+export async function getTimerState(
+  prisma: TimeDb,
+  instanceId: string,
+  now: Date = new Date(),
+  today: Date = getToday()
+): Promise<TimerState> {
   const instance = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
   await sweepLapsedRuns(prisma, instance.studentId, now);
 
   const runs = await prisma.timeEntry.findMany({ where: { instanceId }, orderBy: { startedAt: "asc" } });
   const open = runs.find((run) => !run.endedAt) ?? null;
-  const closedMs = runs.filter((run) => run.endedAt).reduce((sum, run) => sum + runDurationMs(run, now), 0);
+  const closedRuns = runs.filter((run) => run.endedAt);
+  const closedMs = closedRuns.reduce((sum, run) => sum + runDurationMs(run, now), 0);
+  const todayISO = toISODate(today);
+  const closedTodayMs = closedRuns
+    .filter((run) => toISODate(run.date) === todayISO)
+    .reduce((sum, run) => sum + runDurationMs(run, now), 0);
 
   return {
     closedMs,
+    closedTodayMs,
     openStartedAtMs: open ? open.startedAt.getTime() : null,
-    firstStartedAtMs: runs.length > 0 ? runs[0].startedAt.getTime() : null,
+    firstStartedAtMs: runs.find((run) => toISODate(run.date) === todayISO)?.startedAt.getTime() ?? null,
     serverNowMs: now.getTime(),
   };
 }

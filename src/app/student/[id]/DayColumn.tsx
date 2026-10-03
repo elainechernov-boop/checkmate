@@ -2,13 +2,14 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { formatDayWeekdayShort, formatMonthDayLine } from "@/lib/dates";
+import { formatDayWeekdayShort, formatMonthDayLine, toISODate } from "@/lib/dates";
+import { dayBarFill, dayBarTasksFor, type TimeLog } from "@/lib/dayBar";
 import { splitBySeparators } from "@/lib/daySeparators";
 import { formatTotalMinutes, minutesProgress, sumEstimatedMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { COLORS } from "@/lib/theme";
 import { bucketDayInstances } from "@/lib/instanceGrouping";
-import { AssignmentRow } from "./AssignmentRow";
+import { AssignmentRow, type RowTimeTracking } from "./AssignmentRow";
 import { DayCompleteTakeover } from "./DayCompleteTakeover";
 import type { DaySeparator, StudentInstance } from "./types";
 
@@ -73,6 +74,7 @@ export function DayColumn({
   prefersReducedMotion,
   celebrated,
   now,
+  timeTracking,
   onCelebrate,
   onToggle,
   onApproveViaPasscode,
@@ -95,6 +97,15 @@ export function DayColumn({
   // Wall-clock time, refreshed every ~20s by StudentWeekView — drives the
   // live/soon/later/past time badges (see AssignmentRow).
   now: Date;
+  // §15 — present only when the family has time tracking on. `timeLog` feeds
+  // both the day bar (time worked, not just boxes checked) and each row's
+  // "In progress" mark; `finish` is the week view telling one row that Finish
+  // was just pressed on its timer.
+  timeTracking?: {
+    timeLog: TimeLog;
+    onStart: (instance: StudentInstance) => void;
+    finish: { instanceId: string; token: number } | null;
+  };
   onCelebrate: () => void;
   onToggle: (instance: StudentInstance, origin: { x: number; y: number }) => void;
   onApproveViaPasscode: (instance: StudentInstance, passcode: string, origin: { x: number; y: number }) => Promise<void>;
@@ -146,6 +157,13 @@ export function DayColumn({
   const totalMinutes = sumEstimatedMinutes(instances);
   const { done: doneMinutes, total: progressTotalMinutes } = minutesProgress(instances);
   const progressPercent = progressTotalMinutes > 0 ? Math.min(100, Math.round((doneMinutes / progressTotalMinutes) * 100)) : 0;
+  // §15: with tracking on, the bar fills by time actually worked (dayBar.ts)
+  // instead of by estimated minutes checked off — null hides it, same
+  // "never invent minutes" rule as above.
+  const trackedFill = timeTracking
+    ? dayBarFill(dayBarTasksFor(instances, timeTracking.timeLog, toISODate(day)))
+    : null;
+  const barPercent = timeTracking ? (trackedFill === null ? null : Math.round(trackedFill * 1000) / 10) : progressTotalMinutes > 0 ? progressPercent : null;
   // The column's true top-to-bottom order (segments [rolled, time-sensitive
   // and open, interleaved by separator placement] -> pendingReview ->
   // completed, §6/§12) regardless of which bucket a row is rendered from —
@@ -211,6 +229,16 @@ export function DayColumn({
     };
   }
 
+  function rowTimeTracking(instance: StudentInstance): RowTimeTracking | undefined {
+    if (!timeTracking) return undefined;
+    const loggedMs = Object.values(timeTracking.timeLog[instance.id] ?? {}).reduce((sum, ms) => sum + ms, 0);
+    return {
+      onStart: () => timeTracking.onStart(instance),
+      inProgress: instance.status === InstanceStatus.open && loggedMs > 0,
+      finishToken: timeTracking.finish?.instanceId === instance.id ? timeTracking.finish.token : null,
+    };
+  }
+
   function plainRow(instance: StudentInstance) {
     const rowInteractive = interactive && instance.status !== InstanceStatus.excused;
     return (
@@ -222,6 +250,7 @@ export function DayColumn({
         isLast={instance.id === lastRowId}
         accentColor={accentColor}
         now={now}
+        timeTracking={rowTimeTracking(instance)}
         onToggle={toggleFromRow(instance)}
         // Available even on a non-today column — a pendingReview item holds
         // its original day rather than rolling (§5), but parent approval
@@ -278,9 +307,16 @@ export function DayColumn({
             not an assignment-count bar, in the student's own accent color.
             Hidden entirely when nothing on the day carries a real estimate
             (§5.4: never show a bar built from invented minutes). */}
-        {progressTotalMinutes > 0 && (
+        {barPercent !== null && (
           <span aria-hidden className="block h-[3px]" style={{ background: COLORS.hairline, margin: "5px 0 6px" }}>
-            <span className="block h-full" style={{ width: `${progressPercent}%`, background: accentColor }} />
+            <span
+              className="block h-full"
+              style={{
+                width: `${barPercent}%`,
+                background: accentColor,
+                transition: timeTracking && !prefersReducedMotion ? "width 0.4s ease-out" : undefined,
+              }}
+            />
           </span>
         )}
 
