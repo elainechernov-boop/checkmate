@@ -18,7 +18,7 @@ Design north star: **TeuxDeux, not Trello.** Days as columns, tasks as plain tex
 
 ## 2. Users & modes
 
-**Student Mode (default on launch).** A picker shows the two students. Selecting one opens that student's week view. Students can: view their week, check items off (or into "Show Mom" for review-flagged items), uncheck (same day only), open the "Coming Up" panel showing the next 14 days of due dates, and — inside their own Projects only (§7) — create, edit, schedule, move, and delete their own tasks. Parent-assigned work is untouchable: no adding, editing, moving, deleting, or rescheduling.
+**Student Mode (default on launch).** A picker shows the two students. Selecting one opens that student's week view. Students can: view their week, check items off (or into "Show Mom" for review-flagged items — with time tracking on, "checking off" means timing the task and pressing Finish, §15), uncheck (same day only), open the "Coming Up" panel showing the next 14 days of due dates, and — inside their own Projects only (§7) — create, edit, schedule, move, and delete their own tasks. Parent-assigned work is untouchable: no adding, editing, moving, deleting, or rescheduling.
 
 **Parent Mode (passcode).** Everything: create/edit assignments and series, move and delete items, approve or return "Show Mom" work, manage the school calendar and learning periods, mark attendance, flag work samples, run reports, reschedule.
 
@@ -100,7 +100,7 @@ New Assignment sheet, one screen:
 
 ## 6. Student experience — the TeuxDeux view
 
-**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line, flush with the day label above it — no checkbox, no color dot: **the title itself is the completion control.** Clicking it completes or undoes the item; a small subject name + estimated time sits in muted text underneath (more legible to a kid than a color they'd have to memorize), and a small arrow after the title opens a read-only details popup (subject, notes, estimated time, due date, status) — parent-assigned work stays uneditable by students (§2). Row order within a day is parent-set and locked (§14) — the student's whole week, every day, is display-only; there is no drag handle anywhere in Student Mode.
+**Layout.** Six columns, Monday–Saturday of the current week, today's column highlighted with a hairline border and slightly larger day label. Saturday is usually empty but is where unfinished work sometimes gets moved. Horizontal swipe/arrow to page between weeks (past weeks read-only). Each item is a single line, flush with the day label above it — no checkbox, no color dot: **the title itself is the completion control.** Clicking it completes or undoes the item (with time tracking on, §15, the first tap on an open item opens its timer instead, and the timer's Finish button completes it; undo is unchanged); a small subject name + estimated time sits in muted text underneath (more legible to a kid than a color they'd have to memorize), and a small arrow after the title opens a read-only details popup (subject, notes, estimated time, due date, status) — parent-assigned work stays uneditable by students (§2). Row order within a day is parent-set and locked (§14) — the student's whole week, every day, is display-only; there is no drag handle anywhere in Student Mode.
 
 **The completion moment (the signature — build this with care):**
 1. Clicking the title draws a strikethrough line left-to-right across it over ~280ms with an ease-out curve
@@ -152,9 +152,9 @@ Features:
 
 ## 10. Out of scope for v1
 
-Grades/scoring, file attachments, curriculum links, time tracking, mobile/tablet layout, notifications, real-time live updates (the 60-second refresh is enough), multi-family accounts, charter fund/order tracking, review requirements on student-created tasks.
+Grades/scoring, file attachments, curriculum links, mobile/tablet layout, notifications, real-time live updates (the 60-second refresh is enough), multi-family accounts, charter fund/order tracking, review requirements on student-created tasks.
 
-(§12, added post-v1, covers one narrow slice of "notifications" — an in-app reminder popup for assignments with a fixed clock time. True OS-level push notifications, delivered when Checkmate isn't open, remain out of scope.)
+(§12, added post-v1, covers one narrow slice of "notifications" — an in-app reminder popup for assignments with a fixed clock time. True OS-level push notifications, delivered when Checkmate isn't open, remain out of scope. §15, also post-v1, brings "time tracking" in: a per-task timer for students and a time dashboard for the parent.)
 
 ---
 
@@ -252,3 +252,68 @@ Row order within a day used to be split: the parent could drag to reorder her ow
 **Repeating items reorder forward.** Dragging one occurrence of a repeating series to a new position within its day doesn't just move that one day — it re-applies the same position to that series' other future occurrences too (skipping anything already completed or individually detached via "this assignment only," the same carve-outs §4/§5 already respect), and remembers the position on the series itself so instances materialized later land there from the start instead of always at the bottom of their day. Moving a one-off (non-series) item, or moving an item that's been detached from its series, only ever affects that single day, same as today.
 
 **Data model additions (§3).** `AssignmentSeries` gains `sortOrder` (Int, nullable — the row index its instances should land at within their day; null means no preference yet, i.e. keep appending new instances at the bottom, unchanged from today).
+
+## 15. Task timer & time dashboard (post-v1)
+
+Checkmate knows what was due and what got checked off, but not how long anything took or where the school day's hours went. This section adds a per-task stopwatch on the student side and a Parent Mode dashboard that pulls apart three things a checkmark hides: time spent *working*, time *paused* mid-task, and the gaps *between* tasks. The question it exists to answer: when a school day drags on, is it the work, or the breaks between the work?
+
+It is a measuring tool, not a motivator — no scores, streaks, or comparisons on the student side (§9). Off by default; a family turns it on in settings (`Family.timeTrackingEnabled`), and for a family that doesn't, §5 and §6 behave exactly as before.
+
+**Student: starting a task.** In today's column, a hover-capable pointer anywhere over an open item highlights the whole row — a faint ink wash spanning the column's full width, like the live/soon band (§12). A play triangle — no label, ~10px inside a ~28px tap target — sits at the row's right edge, vertically centered on the row, in a gutter of about 24px reserved on the right of open rows, so a long title wraps short of it and nothing reflows when it appears. It follows the app's existing hover-action rule (`globals.css`): hidden until the row is hovered or focused on desktop, always visible on touch. To return §6's "flush with the day label" look, the 3px identity bar left of each Student Mode row is dropped while tracking is on; its jobs are already carried elsewhere — finished rows are muted and struck, and project tasks name their project in the student's accent on the subject line. Parent Mode keeps its bars. The line beneath the title — subject and estimate, always on its own line — is a tap target across the row's width: tapping it opens the read-only details popup (§6) with the subject, estimated time, notes, due date, and status. A row with notes or a due date but no subject or estimate shows a quiet "Details" there instead; a bare row has no line beneath it and nothing to open. Tapping the triangle (or the title, which does the same) no longer completes an open item: it opens the timer screen and **starts the clock immediately**, because forgetting to press Start is how time trackers lose their data. Only today's open items can be timed (the same rule as check/uncheck, §6). Done and pendingReview items keep their one-tap undo/withdraw and never open a timer.
+
+**Student: the timer screen.** A full-screen white takeover — no modal chrome, nothing else on the page — all type, centered, top to bottom:
+1. The **task title**, large (Inter 600, ~28–44px fluid), with a muted "Subject" or project-name line beneath.
+2. **Elapsed time**, enormous (Inter 300, tabular numerals, ~96–168px fluid): `12:34`, becoming `1:02:34` past an hour. It is the task's running total across every run, so pausing and resuming picks up where it stopped, and a task that rolled in from yesterday continues from yesterday's total.
+3. **Required time**, muted, beneath it: "of 20 min," from the task's `estimatedMinutes` (omitted if it has none). A 2px hairline rule under it fills left-to-right in the student's accent as elapsed approaches the estimate. Past the estimate nothing alarms — the rule stays full and the label becomes a muted "+4 min." No red, no shake: running over is information for the parent, not a failing for the kid.
+4. Two controls: a round, hairline-outlined **Pause/Play** button that converts with the clock's state (❚❚ while running, ▶ while paused — SVG glyphs, not emoji), and **Finish**, the screen's only solid element (ink fill, white text). Running shows a 6px accent dot that pulses (still, under `prefers-reduced-motion`); paused dims the digits to muted gray and shows a quiet "Paused."
+5. A muted footer: "Started 9:42 AM."
+
+A **← Back** link at top-left pauses the clock and returns to the week, so a running clock never sits behind another screen. **Finish** closes the run and applies §6's completion transition exactly as a title tap does today — pendingReview for "Show me" work (the clock stops at Finish, not at parent approval), otherwise done, with the strike, critter, and day-complete takeover playing on the week view once the timer screen dismisses. A Finish pressed within seconds of opening records no time at all (runs under 10 seconds are discarded as accidental taps) — which is also how a student checks off work they did away from the Mac; the dashboard counts those as *untimed* rather than guessing. Unchecking a done item today keeps its recorded time; timing it again continues the total. Afterward, an open item with any time logged carries a small accent dot and a muted "In progress" in its row; students never see historical times anywhere — only the running clock (and the day bar's fill, below, which is a shape, never a number).
+
+**Student: the day bar.** The 3px bar under each day's header — a hairline track covered left-to-right by the student's accent — fills today by estimated minutes done ÷ estimated minutes total, so it only jumps when something is checked. With tracking on it fills by *time actually worked* instead, and it moves while the clock runs: the timer screen pins the same bar full-width along its top edge, so the student watches the day fill in as they work, and the week view shows it advanced on return. For one day:
+- *Worked* is the time logged that day (by `TimeEntry.date`) on the day's tasks that have estimates, plus, for any such task finished with no time logged, the part of its estimate not already logged on earlier days — work checked off away from the Mac still counts as work done.
+- *Remaining* is, for each still-open task with an estimate, its estimate minus all time logged on it so far, floored at zero.
+- The fill is worked ÷ (worked + remaining). "Finished" means anything not open (done, pendingReview, or excused), matching the bar today.
+
+So the bar reaches full exactly when every estimated task is finished, and never before: a task that runs over fills at its real pace instead of pinning the bar at 100% while work remains, and finishing early lets the leftover snap forward. Tasks without an estimate stay out of the bar, and a day with no estimates shows no bar — the §5.4 rule that never invents minutes. (That also means the bar and the timer's "of 20 min" line both depend on estimates being filled in.)
+
+**Data model additions (§3).**
+- `TimeEntry` — one continuous run: id, familyId, studentId, `instanceId` (nullable, `onDelete: SetNull`), `title` and `subjectId` (snapshots taken at start, so deleting an assignment doesn't rewrite the history the dashboard is built on), `date` (calendar day from `getToday()` at start, so it honors `DEBUG_TODAY`), `startedAt`, `endedAt` (null while running), `lastPingAt`, `endReason` (paused / finished / switched / lapsed; null while running), `editedByParent` (Bool). Indexed on `[familyId, date]`, `[studentId, date]`, `[instanceId]`.
+- `Family` gains `timeTrackingEnabled` (Bool, default false) and `schoolDayStartTime` (nullable `"HH:MM"` wall-clock, like `scheduledTime` in §12).
+- Nothing changes on `AssignmentInstance` or `AssignmentSeries`: a task's time is always the sum of its entries, never a stored total, so edits and deletes can't leave one out of sync. `estimatedMinutes` is the "required time."
+
+**Recording rules (server-enforced).**
+- Start, pause, resume, and finish are server actions stamped with the server's clock. The client clock only drives the on-screen digits (offset against the server time sent at load), so a skewed Mac can't distort the record.
+- Pause closes the current entry; Resume opens a new one. A task's time is the sum of its runs, and the gap between two runs is data too.
+- At most one open entry per student. Starting another closes the first (`switched`) in the same transaction.
+- A reload or crash returns straight to the still-running timer: it reads from the server, not from local state.
+- While the timer screen is open it pings every 30 seconds. An open entry with no ping for 5 minutes (lid shut, tab closed, walked away; long enough to ride out a backgrounded Safari tab's throttled timers) is closed at its last ping with `lapsed`. The sweep runs on any read or write of that student's entries, the dashboard included — so a lapsed run is never counted up to "now" — with no scheduler. A lapsed task is simply left "In progress"; nothing reopens on its own.
+
+**Parent: time on every task.** On the week board, a row's meta line adds actual time beside the estimate once any is logged ("Math · est 30 min · took 42 min"). The row's edit panel gains a "Time" section listing each run (start–end, duration, a quiet "auto-closed" mark for lapsed ones) with hairline inline inputs to correct start or end and a delete ×. Corrected runs are marked on the dashboard. There is no "add time": untimed work stays untimed rather than being invented after the fact.
+
+**Parent: the Time dashboard.** A new "Time" link in Parent Mode's nav (hidden unless tracking is on), at `/parent/time`: a student switcher in the same plain-text style as the nav, and a range — This week (default) / Last week / Last 4 weeks. For one student and one day, order that day's entries by `startedAt`; then:
+- **Working** is the sum of entry durations.
+- **Paused** is any gap between two consecutive entries of the *same* task.
+- **Between tasks** is any other gap between consecutive entries.
+- **Waiting to start** is the first entry's start minus `schoolDayStartTime` (only if that's set and the start was later; otherwise zero).
+- **Day** is those four added up: from the earlier of `schoolDayStartTime` and the first start (just the first start, if unset) to the last entry's end. The four always sum to the day exactly — a property the tests assert. An open run counts up to now, so today shows live.
+- **Untimed** tasks (completed with no entries) are counted, never estimated, and left out of every duration.
+- Time is attributed to the `date` of each entry, so a task worked over two days splits across both.
+
+The page reads top to bottom, hairlines and type only — no cards, no pie charts:
+1. **The answer** — one sentence in large type from the range's averages ("School days ran 4h 10m on average: 2h 05m working, 1h 40m between tasks"), then a single full-width stacked bar of the same four buckets, each segment labeled with its value and share. Grayscale on purpose, distinguished by lightness *and* direct labels: Working ink, Paused mid-gray, Between tasks light gray, Waiting an outlined, unfilled segment. Color stays reserved for the student's accent (§9). A muted line beneath: "3 of 41 tasks untimed."
+2. **Day by day** — one row per school day: the weekday, then a thin strip on a shared clock axis (fit to the range's earliest start and latest end, hour ticks in hairline). Ink blocks are tasks running; empty space is everything else, so a long empty stretch is the answer made visible. Hovering a block names the task and its start–end. At the right: "Work 2h 05m · Day 4h 10m · Done 1:52 PM." Clicking a day opens its ledger — each task in order with start–end, time, estimate, and difference, with the gaps written between the rows ("— 12 min between —," "— 6 min paused —"). The corrections from "time on every task" live here too.
+3. **By subject** — a table of subject, tasks, total time, average per task, average estimate, and over/under, sorted by total time, each row with the same thin accent rule the Reports page uses. Beneath it, the ten tasks that most overran their estimate (task, subject, estimate, actual, overage, and days taken if it rolled). Overage counts only finished tasks that have both an estimate and logged time.
+4. **Longest gaps** — the eight longest between-task gaps in the range: duration, day, and the pair ("Math → Latin"), so it's clear which transitions cost the most.
+
+With nothing tracked yet, the page is one muted line saying so.
+
+A running clock can't tell *working* from *sitting there* — paper work happens off-screen — so this is a pattern-finder over many days, not a minute-accurate record, and the parent's corrections exist for the glaring cases.
+
+**Out of scope:** history or any time stats on the student side, goals/targets/alerts, comparison to prior periods, export, idle detection, "add time," and a mobile layout for the dashboard (desktop-only, §1).
+
+**Build plan.** Four phases, each ending in a commit (CLAUDE.md), none started until asked:
+- **A — Data & logic.** `TimeEntry` and the two `Family` fields (both the sqlite and postgresql migrations), the recording rules, the day-summary functions behind the four buckets, the day-bar fill function, and tests: pause/resume summing, one open entry per student, `switched`, lapse sweeping, the sub-10-second discard, the buckets summing to the day, and the bar reaching 100% only when every estimated task is finished (including an over-running task and an early finish).
+- **B — Student timer.** The `timeTrackingEnabled` setting, hover wash and right-edge play triangle (dropping the Student Mode identity bar), timer screen, Finish into the §6 completion moment, the "In progress" mark, and the day bar fed by time worked (week view, plus pinned atop the timer screen).
+- **C — Parent task time.** Actual time on the week board and the edit panel's Time section with corrections.
+- **D — Dashboard.** `/parent/time` per the four sections above; the strips and the stacked bar stay inside §9's palette (grayscale plus the student's accent).
