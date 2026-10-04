@@ -112,3 +112,24 @@ describe("applyRescheduleHelper", () => {
     await expect(applyRescheduleHelper(prisma, student.id, tuesday, { mode: "nextSchoolDay" })).resolves.toBeUndefined();
   });
 });
+
+describe("applyRescheduleHelper keeps the order the parent left (§14)", () => {
+  it("moves a day's tasks in their on-screen order, so they arrive in that order", async () => {
+    const student = await makeStudent(prisma);
+    const off = parseISODate("2026-08-11");
+    // Created in the opposite order to how they're arranged on the day.
+    for (const [title, sortOrder] of [["Third", 2], ["First", 0], ["Second", 1]] as const) {
+      await prisma.assignmentInstance.create({
+        data: { title, studentId: student.id, createdBy: "parent", dueDate: off, originalDueDate: off, sortOrder },
+      });
+    }
+
+    await applyRescheduleHelper(prisma, student.id, off, { mode: "chosenDate", date: parseISODate("2026-08-13") });
+
+    const arrived = await prisma.assignmentInstance.findMany({
+      where: { studentId: student.id, dueDate: parseISODate("2026-08-13") },
+      orderBy: { sortOrder: "asc" },
+    });
+    expect(arrived.map((row) => row.title)).toEqual(["First", "Second", "Third"]);
+  });
+});

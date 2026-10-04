@@ -9,7 +9,7 @@ export type RescheduleStrategy =
   | { mode: "chosenDate"; date: Date }
   | { mode: "distribute" };
 
-type ReschedulablePrisma = Pick<PrismaClient, "assignmentInstance" | "schoolDay">;
+type ReschedulablePrisma = Pick<PrismaClient, "assignmentInstance" | "schoolDay" | "daySeparator">;
 
 /**
  * §5 "triggers the Reschedule Helper for anything already scheduled that
@@ -23,6 +23,10 @@ export async function findReschedulableInstances(prisma: ReschedulablePrisma, st
   return prisma.assignmentInstance.findMany({
     where: { studentId, dueDate: date, status: InstanceStatus.open },
     include: { student: { select: { id: true, name: true } } },
+    // In the order the parent left them: each one lands at the bottom of its
+    // new day as it's moved, so the order they're moved in is the order they
+    // arrive in (§14).
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 }
 

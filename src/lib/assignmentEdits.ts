@@ -1,6 +1,6 @@
 import type { AssignmentInstance, PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, InstanceStatus, type Frequency } from "@/generated/prisma/enums";
-import { addDays, getToday, startOfUTCDay } from "./dates";
+import { addDays, getToday, startOfUTCDay, toISODate } from "./dates";
 import { materializeSeries } from "./materialize";
 
 // Deleting never touches a resolved instance (done/excused) even when the
@@ -62,27 +62,70 @@ export interface PromoteToSeriesFields {
 
 type EditablePrisma = Pick<PrismaClient, "assignmentInstance" | "assignmentSeries" | "recurrenceRule" | "schoolDay" | "$transaction">;
 
+type DayRowsPrisma = Pick<PrismaClient, "assignmentInstance" | "daySeparator">;
+
+/** The sortOrder that lands a row at the bottom of one student's day. Rows and
+ * dividers share one numbering space per day (reorderInstances.ts), so both
+ * are counted. */
+async function bottomOfDaySortOrder(prisma: DayRowsPrisma, studentId: string, date: Date): Promise<number> {
+  const [instances, separators] = await Promise.all([
+    prisma.assignmentInstance.findMany({ where: { studentId, dueDate: date }, select: { sortOrder: true } }),
+    prisma.daySeparator.findMany({ where: { studentId, date }, select: { sortOrder: true } }),
+  ]);
+  return Math.max(-1, ...instances.map((i) => i.sortOrder), ...separators.map((s) => s.sortOrder)) + 1;
+}
+
 /** §4 "This assignment only" — edits one occurrence and detaches it from its
- * series so future regeneration never touches it again. */
+ * series so future regeneration never touches it again.
+ *
+ * Editing never repositions a task (§14). The one exception is an edit that
+ * genuinely moves it to a different day: it lands at the bottom of that day,
+ * like any newly-arrived row — it can't keep its slot from the day it left,
+ * which means nothing in a day it was never part of. */
 export async function editInstanceOnly(
-  prisma: Pick<PrismaClient, "assignmentInstance">,
+  prisma: DayRowsPrisma,
   instanceId: string,
   changes: InstanceEditableFields
 ): Promise<void> {
   const { dueDate, ...rest } = changes;
+
+  // The edit panel submits its date field every time, changed or not. Only a
+  // date that actually differs is a reschedule — rewriting an unchanged one
+  // would reset a rolled-forward task's originalDueDate (the day it was first
+  // due, which its roll history and its series occurrence both hang on).
+  let move: { dueDate: Date; originalDueDate: Date; sortOrder: number } | null = null;
+  if (dueDate) {
+    const current = await prisma.assignmentInstance.findUnique({
+      where: { id: instanceId },
+      select: { dueDate: true, studentId: true },
+    });
+    if (current && (!current.dueDate || toISODate(current.dueDate) !== toISODate(dueDate))) {
+      move = {
+        dueDate,
+        originalDueDate: dueDate,
+        sortOrder: await bottomOfDaySortOrder(prisma, current.studentId, dueDate),
+      };
+    }
+  }
+
   await prisma.assignmentInstance.update({
     where: { id: instanceId },
-    data: {
-      ...rest,
-      ...(dueDate ? { dueDate, originalDueDate: dueDate } : {}),
-      isOverride: true,
-    },
+    data: { ...rest, ...(move ?? {}), isOverride: true },
   });
 }
 
 /** §4 "This and following" — splits the series at this occurrence: the old
  * series ends the day before, a new series (carrying the edit) picks up
- * from here on, inheriting whatever's left of the original end condition. */
+ * from here on, inheriting whatever's left of the original end condition.
+ *
+ * The occurrences from the split on are *moved* to the new series, not
+ * deleted and regenerated (§14). A regenerated row is a brand-new row: it
+ * lands at the bottom of its day wherever the parent had placed the old one,
+ * and it orphans everything pointing at the old row — its done/pending status,
+ * its roll marks, the time logged against it. Moving keeps each row exactly
+ * where it is, and materializeSeries then brings their fields in line with the
+ * edit in place. The new series also inherits the old one's remembered
+ * position, so days that generate later land in the same slot. */
 export async function editSeriesThisAndFollowing(
   prisma: EditablePrisma,
   instanceId: string,
@@ -113,36 +156,37 @@ export async function editSeriesThisAndFollowing(
       data: { endCondition: EndCondition.onDate, endDate: addDays(splitDate, -1) },
     });
 
-    // The occurrence being edited is superseded by the new series below.
-    await tx.assignmentInstance.delete({ where: { id: instance.id } });
-
     const { endCondition, endDate } = series;
     let endCount = series.endCount;
     if (series.endCondition === EndCondition.afterNCount && series.endCount != null) {
       endCount = Math.max(series.endCount - priorCount, 0);
     }
 
+    // What the edit says each occurrence should now look like — used for the
+    // new series and for the one row the parent actually edited.
+    const fields = {
+      title: changes.title ?? series.title,
+      details: changes.details !== undefined ? changes.details : series.details,
+      subjectId: changes.subjectId !== undefined ? changes.subjectId : series.subjectId,
+      estimatedMinutes: changes.estimatedMinutes !== undefined ? changes.estimatedMinutes : series.estimatedMinutes,
+      requiresReview: changes.requiresReview !== undefined ? changes.requiresReview : series.requiresReview,
+      isTimeSensitive: changes.isTimeSensitive !== undefined ? changes.isTimeSensitive : series.isTimeSensitive,
+      scheduledTime: changes.scheduledTime !== undefined ? changes.scheduledTime : series.scheduledTime,
+      reminderMinutesBefore:
+        changes.reminderMinutesBefore !== undefined ? changes.reminderMinutesBefore : series.reminderMinutesBefore,
+    };
+
     const newSeries = await tx.assignmentSeries.create({
       data: {
-        title: changes.title ?? series.title,
-        details: changes.details !== undefined ? changes.details : series.details,
+        ...fields,
         studentId: series.studentId,
-        subjectId: changes.subjectId !== undefined ? changes.subjectId : series.subjectId,
         projectId: series.projectId,
         createdBy: series.createdBy,
         startDate: splitDate,
         endCondition,
         endDate,
         endCount,
-        estimatedMinutes: changes.estimatedMinutes !== undefined ? changes.estimatedMinutes : series.estimatedMinutes,
-        requiresReview: changes.requiresReview !== undefined ? changes.requiresReview : series.requiresReview,
-        isTimeSensitive:
-          changes.isTimeSensitive !== undefined ? changes.isTimeSensitive : series.isTimeSensitive,
-        scheduledTime: changes.scheduledTime !== undefined ? changes.scheduledTime : series.scheduledTime,
-        reminderMinutesBefore:
-          changes.reminderMinutesBefore !== undefined
-            ? changes.reminderMinutesBefore
-            : series.reminderMinutesBefore,
+        sortOrder: series.sortOrder,
         recurrence: series.recurrence
           ? {
               create: {
@@ -156,6 +200,24 @@ export async function editSeriesThisAndFollowing(
             }
           : undefined,
       },
+    });
+
+    // Move every occurrence from the split on — individually edited and
+    // already-done ones included, so the new series sees them as "already
+    // there" and never generates a second copy beside them — plus the row the
+    // parent edited (which, if it had rolled forward, is dated before its own
+    // original day).
+    await tx.assignmentInstance.updateMany({
+      where: { seriesId: series.id, OR: [{ originalDueDate: { gte: splitDate } }, { id: instance.id }] },
+      data: { seriesId: newSeries.id },
+    });
+
+    // The edited row now simply follows the new series: apply the edit to it
+    // directly and drop any earlier "this one only" detachment, so the series
+    // pass below treats it like its neighbours.
+    await tx.assignmentInstance.update({
+      where: { id: instance.id },
+      data: { ...fields, isOverride: false },
     });
 
     await materializeSeries(tx, series.id, splitDate);
@@ -193,7 +255,13 @@ export async function editAllInSeries(
  * Adding repetition to a previously one-off instance (§4's "add repetition,
  * etc." when editing a quick-added item). Since a standalone instance has
  * no series to extend, this creates a fresh one rooted at the instance's
- * due date, materializes it, and removes the now-superseded standalone row.
+ * due date and materializes it.
+ *
+ * The standalone row becomes the series' first occurrence rather than being
+ * deleted and regenerated (§14): a regenerated row lands at the bottom of its
+ * day however the parent had it placed, and loses its status and any time
+ * logged against it. (A backlog item with no date has no row to keep in place
+ * — it's still replaced by the series' first dated occurrence.)
  */
 export async function promoteInstanceToSeries(
   prisma: EditablePrisma,
@@ -228,7 +296,26 @@ export async function promoteInstanceToSeries(
       },
     });
 
-    await tx.assignmentInstance.delete({ where: { id: instanceId } });
+    if (instance.dueDate) {
+      await tx.assignmentInstance.update({
+        where: { id: instanceId },
+        data: {
+          seriesId: series.id,
+          title: fields.title,
+          details: fields.details,
+          subjectId: fields.subjectId,
+          requiresReview: fields.requiresReview,
+          estimatedMinutes: fields.estimatedMinutes,
+          isTimeSensitive: fields.isTimeSensitive,
+          scheduledTime: fields.scheduledTime,
+          reminderMinutesBefore: fields.reminderMinutesBefore,
+          originalDueDate: startDate,
+          isOverride: false,
+        },
+      });
+    } else {
+      await tx.assignmentInstance.delete({ where: { id: instanceId } });
+    }
     await materializeSeries(tx, series.id, startDate);
 
     return { seriesId: series.id };
@@ -242,7 +329,7 @@ export async function promoteInstanceToSeries(
  * without messing up the rest of the repeated assignments."
  */
 export async function rescheduleInstance(
-  prisma: Pick<PrismaClient, "assignmentInstance">,
+  prisma: DayRowsPrisma,
   instanceId: string,
   newDueDate: Date
 ): Promise<void> {
@@ -250,10 +337,16 @@ export async function rescheduleInstance(
 
   if (instance.seriesId) {
     await editInstanceOnly(prisma, instanceId, { dueDate: newDueDate });
-  } else {
+  } else if (!instance.dueDate || toISODate(instance.dueDate) !== toISODate(newDueDate)) {
+    // Lands at the bottom of its new day, not in the stale slot it held on the
+    // day it left (see editInstanceOnly).
     await prisma.assignmentInstance.update({
       where: { id: instanceId },
-      data: { dueDate: newDueDate, originalDueDate: newDueDate },
+      data: {
+        dueDate: newDueDate,
+        originalDueDate: newDueDate,
+        sortOrder: await bottomOfDaySortOrder(prisma, instance.studentId, newDueDate),
+      },
     });
   }
 }
@@ -370,11 +463,7 @@ export async function quickCreateInstance(
   const trimmed = title.trim();
   if (!trimmed || !studentId) return null;
 
-  const [instances, separators] = await Promise.all([
-    prisma.assignmentInstance.findMany({ where: { studentId, dueDate }, select: { sortOrder: true } }),
-    prisma.daySeparator.findMany({ where: { studentId, date: dueDate }, select: { sortOrder: true } }),
-  ]);
-  const maxSortOrder = Math.max(-1, ...instances.map((i) => i.sortOrder), ...separators.map((s) => s.sortOrder));
+  const sortOrder = await bottomOfDaySortOrder(prisma, studentId, dueDate);
 
   const created = await prisma.assignmentInstance.create({
     data: {
@@ -384,7 +473,7 @@ export async function quickCreateInstance(
       dueDate,
       originalDueDate: dueDate,
       status: "open",
-      sortOrder: maxSortOrder + 1,
+      sortOrder,
     },
   });
   return { ...created, subject: null, project: null, series: null };

@@ -14,6 +14,7 @@ import {
 } from "./assignmentEdits";
 import { parseISODate, toISODate } from "./dates";
 import { materializeSeries } from "./materialize";
+import { tenantScopeExtension } from "./tenantScope";
 import { makeStudent, makeSubject } from "./test/fixtures";
 import { createTestClient, resetDb } from "./test/testDb";
 
@@ -279,7 +280,7 @@ describe("rescheduleInstance (Parent Mode drag-to-reschedule)", () => {
 });
 
 describe("promoteInstanceToSeries (adding repetition to a one-off item)", () => {
-  it("creates a series starting at the instance's due date and removes the standalone row", async () => {
+  it("creates a series starting at the instance's due date, with the standalone row as its first occurrence", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma);
     const instance = await prisma.assignmentInstance.create({
@@ -308,8 +309,9 @@ describe("promoteInstanceToSeries (adding repetition to a one-off item)", () => 
       endCount: null,
     });
 
-    const oldInstance = await prisma.assignmentInstance.findUnique({ where: { id: instance.id } });
-    expect(oldInstance).toBeNull();
+    // The standalone row isn't deleted and regenerated (that would drop it to the bottom of its day) — it joins the series.
+    const adopted = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: instance.id } });
+    expect(adopted.seriesId).toBe(seriesId);
 
     const series = await prisma.assignmentSeries.findUniqueOrThrow({
       where: { id: seriesId },
@@ -456,5 +458,366 @@ describe("deleteAllInSeries", () => {
 
     const remaining = await prisma.assignmentInstance.findMany({ where: { seriesId: series.id } });
     expect(remaining.map((i) => i.id)).toEqual([monday.id]);
+  });
+});
+
+// §14: order within a day is the parent's call, and it stays put. Editing a
+// task is never a reason for it to move — these pin down every edit path that
+// used to delete a row and regenerate it (a regenerated row lands at the
+// bottom of its day, and orphans whatever pointed at the old one).
+describe("editing a task leaves it where the parent put it (§14)", () => {
+  async function addOneOff(studentId: string, title: string, dateISO: string, sortOrder: number) {
+    return prisma.assignmentInstance.create({
+      data: {
+        title,
+        studentId,
+        createdBy: "parent",
+        dueDate: parseISODate(dateISO),
+        originalDueDate: parseISODate(dateISO),
+        sortOrder,
+      },
+    });
+  }
+
+  /** The day's titles in the order the board shows them. */
+  async function dayTitles(studentId: string, dateISO: string) {
+    const rows = await prisma.assignmentInstance.findMany({
+      where: { studentId, dueDate: parseISODate(dateISO) },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+    return rows.map((row) => row.title);
+  }
+
+  const WEEK = ["2026-08-05", "2026-08-06", "2026-08-07"];
+
+  /** A weekdays series whose Wed-Fri occurrences sit in the MIDDLE of their day. */
+  async function seriesInTheMiddle() {
+    const made = await makeWeekdaysSeries(prisma);
+    for (const date of WEEK) {
+      await prisma.assignmentInstance.updateMany({
+        where: { seriesId: made.series.id, dueDate: parseISODate(date) },
+        data: { sortOrder: 1 },
+      });
+      await addOneOff(made.student.id, "First", date, 0);
+      await addOneOff(made.student.id, "Last", date, 2);
+    }
+    return made;
+  }
+
+  describe("'this and following'", () => {
+    it("keeps every affected occurrence in the slot the parent left it, on every day", async () => {
+      const { series, student } = await seriesInTheMiddle();
+      const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+      });
+
+      await editSeriesThisAndFollowing(prisma, wednesday.id, { title: "Math packet v2" });
+
+      for (const date of WEEK) {
+        expect(await dayTitles(student.id, date)).toEqual(["First", "Math packet v2", "Last"]);
+      }
+    });
+
+    it("keeps the edited row itself — same id, status, and linked time — instead of replacing it", async () => {
+      const { series, student } = await seriesInTheMiddle();
+      const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+      });
+      const run = await prisma.timeEntry.create({
+        data: {
+          studentId: student.id,
+          instanceId: wednesday.id,
+          title: wednesday.title,
+          date: parseISODate("2026-08-05"),
+          startedAt: new Date("2026-08-05T16:00:00Z"),
+          endedAt: new Date("2026-08-05T16:20:00Z"),
+          lastPingAt: new Date("2026-08-05T16:20:00Z"),
+          endReason: "paused",
+        },
+      });
+
+      const result = await editSeriesThisAndFollowing(prisma, wednesday.id, { title: "Math packet v2" });
+      const newSeriesId = (result as { newSeriesId: string }).newSeriesId;
+
+      const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: wednesday.id } });
+      expect(after.seriesId).toBe(newSeriesId);
+      expect(after.title).toBe("Math packet v2");
+      expect(after.isOverride).toBe(false);
+      expect((await prisma.timeEntry.findUniqueOrThrow({ where: { id: run.id } })).instanceId).toBe(wednesday.id);
+    });
+
+    it("leaves a task that's already done as done", async () => {
+      const { series } = await seriesInTheMiddle();
+      const thursday = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-06") },
+      });
+      await prisma.assignmentInstance.update({
+        where: { id: thursday.id },
+        data: { status: "done", completedAt: new Date("2026-08-06T20:00:00Z") },
+      });
+
+      await editSeriesThisAndFollowing(
+        prisma,
+        (await prisma.assignmentInstance.findFirstOrThrow({ where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") } })).id,
+        { title: "Math packet v2" }
+      );
+
+      const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: thursday.id } });
+      expect(after.status).toBe("done");
+      expect(after.completedAt).not.toBeNull();
+    });
+
+    it("doesn't duplicate an occurrence that was individually edited, or one that's already done", async () => {
+      const { series, student } = await seriesInTheMiddle();
+      await prisma.assignmentInstance.updateMany({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-07") },
+        data: { title: "Quiz", isOverride: true },
+      });
+      const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+      });
+
+      await editSeriesThisAndFollowing(prisma, wednesday.id, { title: "Math packet v2" });
+
+      expect(await dayTitles(student.id, "2026-08-07")).toEqual(["First", "Quiz", "Last"]);
+    });
+
+    it("keeps a rolled-forward task and its roll mark, alongside the day's own occurrence", async () => {
+      const { series, student } = await makeWeekdaysSeries(prisma);
+      // Monday's task rolled onto Wednesday (rolled twice); Wednesday also has its own.
+      const rolled = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-03") },
+      });
+      await prisma.assignmentInstance.update({
+        where: { id: rolled.id },
+        data: { dueDate: parseISODate("2026-08-05"), rolledCount: 2, sortOrder: 0 },
+      });
+      await prisma.assignmentInstance.updateMany({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-05"), id: { not: rolled.id } },
+        data: { sortOrder: 1 },
+      });
+
+      await editSeriesThisAndFollowing(prisma, rolled.id, { title: "Math packet v2" });
+
+      const wednesdayRows = await prisma.assignmentInstance.findMany({
+        where: { studentId: student.id, dueDate: parseISODate("2026-08-05") },
+        orderBy: { sortOrder: "asc" },
+      });
+      expect(wednesdayRows).toHaveLength(2);
+      expect(wednesdayRows[0].id).toBe(rolled.id);
+      expect(wednesdayRows[0].rolledCount).toBe(2);
+      expect(wednesdayRows.map((r) => r.title)).toEqual(["Math packet v2", "Math packet v2"]);
+    });
+
+    it("passes the series' remembered position on, so days that generate later land there too", async () => {
+      const { series } = await makeWeekdaysSeries(prisma);
+      await prisma.assignmentSeries.update({ where: { id: series.id }, data: { sortOrder: 2 } });
+      const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+      });
+
+      const result = await editSeriesThisAndFollowing(prisma, wednesday.id, { title: "Math packet v2" });
+
+      const newSeries = await prisma.assignmentSeries.findUniqueOrThrow({
+        where: { id: (result as { newSeriesId: string }).newSeriesId },
+      });
+      expect(newSeries.sortOrder).toBe(2);
+    });
+  });
+
+  describe("adding a repeat to a one-off", () => {
+    const fields = {
+      title: "Reading log",
+      details: null,
+      subjectId: null,
+      requiresReview: false,
+      estimatedMinutes: 20,
+      isTimeSensitive: false,
+      scheduledTime: null,
+      reminderMinutesBefore: null,
+      recurrence: { frequency: Frequency.weekdays, daysOfWeek: null, interval: 1 },
+      endCondition: EndCondition.never,
+      endDate: null,
+      endCount: null,
+    };
+
+    it("keeps the task where it was on its day, as the series' first occurrence", async () => {
+      const student = await makeStudent(prisma);
+      await addOneOff(student.id, "First", "2026-08-10", 0);
+      const middle = await addOneOff(student.id, "Reading log", "2026-08-10", 1);
+      await addOneOff(student.id, "Last", "2026-08-10", 2);
+
+      const { seriesId } = await promoteInstanceToSeries(prisma, middle.id, fields);
+
+      expect(await dayTitles(student.id, "2026-08-10")).toEqual(["First", "Reading log", "Last"]);
+      const adopted = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: middle.id } });
+      expect(adopted.seriesId).toBe(seriesId);
+      expect(adopted.estimatedMinutes).toBe(20);
+      // ...and the repeat didn't double it up on its own day.
+      expect(await prisma.assignmentInstance.count({ where: { seriesId, dueDate: parseISODate("2026-08-10") } })).toBe(1);
+    });
+
+    it("keeps the task's status and linked time", async () => {
+      const student = await makeStudent(prisma);
+      const task = await addOneOff(student.id, "Reading log", "2026-08-10", 0);
+      await prisma.assignmentInstance.update({ where: { id: task.id }, data: { status: "done", completedAt: new Date("2026-08-10T20:00:00Z") } });
+      const run = await prisma.timeEntry.create({
+        data: {
+          studentId: student.id,
+          instanceId: task.id,
+          title: "Reading log",
+          date: parseISODate("2026-08-10"),
+          startedAt: new Date("2026-08-10T16:00:00Z"),
+          endedAt: new Date("2026-08-10T16:20:00Z"),
+          lastPingAt: new Date("2026-08-10T16:20:00Z"),
+          endReason: "finished",
+        },
+      });
+
+      await promoteInstanceToSeries(prisma, task.id, fields);
+
+      expect((await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: task.id } })).status).toBe("done");
+      expect((await prisma.timeEntry.findUniqueOrThrow({ where: { id: run.id } })).instanceId).toBe(task.id);
+    });
+  });
+
+  describe("through the tenant-scoped client the app actually uses", () => {
+    it("'this and following' and adding a repeat both still keep their place", async () => {
+      // Same code path as production: every query is scoped to the family.
+      const scoped = prisma.$extends(tenantScopeExtension("seed-family")) as unknown as PrismaClient;
+      const { series, student } = await seriesInTheMiddle();
+      const wednesday = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+      });
+
+      await editSeriesThisAndFollowing(scoped, wednesday.id, { title: "Math packet v2" });
+
+      for (const date of WEEK) {
+        expect(await dayTitles(student.id, date)).toEqual(["First", "Math packet v2", "Last"]);
+      }
+
+      // A Monday well past the edited series' 60-day horizon, so nothing else lands on it.
+      await addOneOff(student.id, "Mon first", "2026-11-02", 0);
+      const middle = await addOneOff(student.id, "Reading log", "2026-11-02", 1);
+      await addOneOff(student.id, "Mon last", "2026-11-02", 2);
+      await promoteInstanceToSeries(scoped, middle.id, {
+        title: "Reading log",
+        details: null,
+        subjectId: null,
+        requiresReview: false,
+        estimatedMinutes: null,
+        isTimeSensitive: false,
+        scheduledTime: null,
+        reminderMinutesBefore: null,
+        recurrence: { frequency: Frequency.weekdays, daysOfWeek: null, interval: 1 },
+        endCondition: EndCondition.never,
+        endDate: null,
+        endCount: null,
+      });
+      expect(await dayTitles(student.id, "2026-11-02")).toEqual(["Mon first", "Reading log", "Mon last"]);
+    });
+  });
+
+  describe("moving a task to another day", () => {
+    /** Tuesday already has two rows the parent arranged; Monday's task was first on its own day. */
+    async function monAndTue() {
+      const student = await makeStudent(prisma);
+      const moving = await addOneOff(student.id, "Moving", "2026-08-10", 0);
+      await addOneOff(student.id, "Tue first", "2026-08-11", 0);
+      await addOneOff(student.id, "Tue second", "2026-08-11", 1);
+      return { student, moving };
+    }
+
+    it("a dragged one-off lands at the bottom of its new day, not in its old slot", async () => {
+      const { student, moving } = await monAndTue();
+
+      await rescheduleInstance(prisma, moving.id, parseISODate("2026-08-11"));
+
+      expect(await dayTitles(student.id, "2026-08-11")).toEqual(["Tue first", "Tue second", "Moving"]);
+    });
+
+    it("a dragged occurrence of a series does too, and the rest of the series stays put", async () => {
+      const { series, student } = await makeWeekdaysSeries(prisma);
+      // Tuesday already has its own occurrence (slot 0) plus a one-off the parent put after it (slot 1).
+      await addOneOff(student.id, "Tue one-off", "2026-08-04", 1);
+      const tuesdayOwn = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-04") },
+      });
+      const monday = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-03") },
+      });
+      const wednesdayBefore = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-05") },
+      });
+
+      await rescheduleInstance(prisma, monday.id, parseISODate("2026-08-04"));
+
+      const moved = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: monday.id } });
+      expect(moved.sortOrder).toBe(2); // after the occurrence (0) and the one-off (1)
+      expect((await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: tuesdayOwn.id } })).sortOrder).toBe(0);
+      expect((await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: wednesdayBefore.id } })).sortOrder).toBe(
+        wednesdayBefore.sortOrder
+      );
+    });
+
+    it("changing the date in the edit panel behaves the same way", async () => {
+      const { student, moving } = await monAndTue();
+
+      await editInstanceOnly(prisma, moving.id, { title: "Moving (edited)", dueDate: parseISODate("2026-08-11") });
+
+      expect(await dayTitles(student.id, "2026-08-11")).toEqual(["Tue first", "Tue second", "Moving (edited)"]);
+    });
+
+    it("leaves the day it lands on exactly as the parent arranged it", async () => {
+      const { student, moving } = await monAndTue();
+      const before = await prisma.assignmentInstance.findMany({ where: { studentId: student.id, dueDate: parseISODate("2026-08-11") } });
+
+      await rescheduleInstance(prisma, moving.id, parseISODate("2026-08-11"));
+
+      for (const row of before) {
+        const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: row.id } });
+        expect(after.sortOrder).toBe(row.sortOrder);
+      }
+    });
+
+    it("counts a divider when finding the bottom of the day", async () => {
+      const { student, moving } = await monAndTue();
+      await prisma.daySeparator.create({ data: { studentId: student.id, date: parseISODate("2026-08-11"), label: "Afternoon", sortOrder: 7 } });
+
+      await rescheduleInstance(prisma, moving.id, parseISODate("2026-08-11"));
+
+      expect((await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: moving.id } })).sortOrder).toBe(8);
+    });
+
+    it("'move to the same day' is a no-op that doesn't shuffle anything", async () => {
+      const { student, moving } = await monAndTue();
+      await addOneOff(student.id, "Mon second", "2026-08-10", 1);
+
+      await rescheduleInstance(prisma, moving.id, parseISODate("2026-08-10"));
+
+      expect(await dayTitles(student.id, "2026-08-10")).toEqual(["Moving", "Mon second"]);
+    });
+  });
+
+  describe("'this assignment only'", () => {
+    it("saving without changing the date leaves a rolled task's roll history alone", async () => {
+      const { series } = await makeWeekdaysSeries(prisma);
+      const rolled = await prisma.assignmentInstance.findFirstOrThrow({
+        where: { seriesId: series.id, dueDate: parseISODate("2026-08-03") },
+      });
+      await prisma.assignmentInstance.update({
+        where: { id: rolled.id },
+        data: { dueDate: parseISODate("2026-08-05"), rolledCount: 2, sortOrder: 4 },
+      });
+
+      // The edit panel submits the date field every time, changed or not.
+      await editInstanceOnly(prisma, rolled.id, { title: "Math worksheet (redo)", dueDate: parseISODate("2026-08-05") });
+
+      const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: rolled.id } });
+      expect(after.title).toBe("Math worksheet (redo)");
+      expect(toISODate(after.originalDueDate!)).toBe("2026-08-03"); // still the day it was first due
+      expect(after.rolledCount).toBe(2);
+      expect(after.sortOrder).toBe(4);
+    });
   });
 });
