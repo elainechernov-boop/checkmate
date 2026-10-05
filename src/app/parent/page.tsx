@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav } from "@/components/ParentNav";
-import { addDays, defaultWeekStart, getToday, parseISODate } from "@/lib/dates";
+import { addDays, defaultWeekStart, getToday, parseISODate, toISODate } from "@/lib/dates";
 import { extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
@@ -110,7 +110,7 @@ export default async function ParentPage({
   // each row and the Time section in its edit panel. Only a family with time
   // tracking on reads any of it. Lapsed runs are swept first, per student, so
   // nothing quiet is counted up to "now."
-  let timeRuns: { byInstance: Record<string, TimeRunView[]>; nowMs: number } | null = null;
+  let timeRuns: { byInstance: Record<string, TimeRunView[]>; nowMs: number; todayISO: string } | null = null;
   if (family.timeTrackingEnabled) {
     const now = new Date();
     for (const student of students) await sweepLapsedRuns(prisma, student.id, now);
@@ -122,7 +122,7 @@ export default async function ParentPage({
     for (const run of runs) {
       if (run.instanceId) (byInstance[run.instanceId] ??= []).push(toRunView(run));
     }
-    timeRuns = { byInstance, nowMs: now.getTime() };
+    timeRuns = { byInstance, nowMs: now.getTime(), todayISO: toISODate(today) };
   }
 
   // The family's imported Google Calendar (§ Parent Mode "on top of the

@@ -5,6 +5,7 @@ import { parseISODate, toISODate } from "./dates";
 import { tenantScopeExtension } from "./tenantScope";
 import { AWAY_AFTER_MS, LAPSE_AFTER_MS, MIN_RUN_MS, summarizeDay } from "./timeSummary";
 import {
+  addRun,
   deleteRun,
   editRunClockTimes,
   findOpenRun,
@@ -889,6 +890,122 @@ describe("parent corrections", () => {
       await expect(editRunClockTimes(prisma, run.id, { end: "9:20" }, at(200))).rejects.toThrow(/isn't a time/);
       await expect(editRunClockTimes(prisma, run.id, { end: "08:30" }, at(200))).rejects.toThrow(/end after it starts/);
       await expect(editRunClockTimes(prisma, run.id, { end: "10:15" }, at(200))).rejects.toThrow(/overlaps/);
+    });
+  });
+
+  describe("stopping a timer someone forgot to stop", () => {
+    it("gives a running run an end time and stops it there, marked as hand-edited", async () => {
+      const student = await makeStudent(prisma);
+      const instance = await makeInstance(student.id, null);
+      const running = await startTimer(prisma, instance.id, at(0), TODAY);
+      for (let m = 2; m <= 60; m += 2) await pingTimer(prisma, instance.id, at(m)); // left running for an hour
+
+      await editRunClockTimes(prisma, running.id, { end: "09:35" }, at(65)); // at(0) is 9:00 AM PDT
+
+      const after = await prisma.timeEntry.findUniqueOrThrow({ where: { id: running.id } });
+      expect(after.endedAt).toEqual(at(35));
+      expect(after.endReason).toBe("paused");
+      expect(after.editedByParent).toBe(true);
+      // The kid's screen finds out on its next heartbeat: nothing is running any more.
+      expect(await pingTimer(prisma, instance.id, at(66))).toEqual({ running: false, awaySinceMs: null });
+    });
+
+    it("needs an end time, a real one, in the past, after the start", async () => {
+      const student = await makeStudent(prisma);
+      const instance = await makeInstance(student.id, null);
+      const running = await startTimer(prisma, instance.id, at(10), TODAY);
+
+      await expect(editRunClockTimes(prisma, running.id, {}, at(30))).rejects.toThrow(/end time/);
+      await expect(editRunClockTimes(prisma, running.id, { end: "9:20" }, at(30))).rejects.toThrow(/isn't a time/);
+      await expect(editRunClockTimes(prisma, running.id, { end: "09:05" }, at(30))).rejects.toThrow(/end after it starts/);
+      await expect(editRunClockTimes(prisma, running.id, { end: "11:00" }, at(30))).rejects.toThrow(/hasn't|future/);
+      expect((await prisma.timeEntry.findUniqueOrThrow({ where: { id: running.id } })).endedAt).toBeNull();
+    });
+
+    it("won't stop it on top of another of the student's runs, and names the one in the way", async () => {
+      const student = await makeStudent(prisma);
+      const a = await makeInstance(student.id, null, { title: "Math" });
+      const b = await makeInstance(student.id, null, { title: "Latin cards" });
+      const running = await startTimer(prisma, a.id, at(0), TODAY);
+      // A later run on another task, 9:40-9:50.
+      await prisma.timeEntry.create({
+        data: { studentId: student.id, instanceId: b.id, title: "Latin cards", date: TODAY, startedAt: at(40), endedAt: at(50), lastPingAt: at(50), endReason: "paused" },
+      });
+
+      await expect(editRunClockTimes(prisma, running.id, { end: "09:45" }, at(60))).rejects.toThrow(/Latin cards.*9:40 AM – 9:50 AM/);
+    });
+  });
+
+  describe("adding time a kid forgot to record", () => {
+    it("adds an ordinary, hand-entered run on the day it happened, snapshotting the task", async () => {
+      const student = await makeStudent(prisma);
+      const subject = await makeSubject(prisma);
+      const task = await makeInstance(student.id, subject.id, { title: "Long division" });
+
+      const run = await addRun(prisma, task.id, { dateISO: "2026-09-08", start: "09:10", end: "09:40" }, at(120));
+
+      expect(run).toMatchObject({ studentId: student.id, instanceId: task.id, title: "Long division", subjectId: subject.id, editedByParent: true, endReason: "paused" });
+      expect(run.startedAt).toEqual(at(10));
+      expect(run.endedAt).toEqual(at(40));
+      expect(run.date).toEqual(parseISODate("2026-09-08"));
+      // It counts toward the task's time like any other.
+      expect((await getTimerState(prisma, task.id, at(130), TODAY)).closedMs).toBe(30 * 60_000);
+    });
+
+    it("lands on the day given, not the task's due date — a make-up session or a head start", async () => {
+      const student = await makeStudent(prisma);
+      const task = await makeInstance(student.id, null, { dueDate: parseISODate("2026-09-10") });
+
+      const run = await addRun(prisma, task.id, { dateISO: "2026-09-06", start: "15:00", end: "15:20" }, at(60 * 24 * 5));
+
+      expect(run.date).toEqual(parseISODate("2026-09-06"));
+    });
+
+    it("rejects a bad day, a malformed time, an end before the start, and time that hasn't happened yet", async () => {
+      const student = await makeStudent(prisma);
+      const task = await makeInstance(student.id, null);
+      const now = at(60);
+
+      await expect(addRun(prisma, task.id, { dateISO: "", start: "09:00", end: "09:30" }, now)).rejects.toThrow(/Pick a day/);
+      await expect(addRun(prisma, task.id, { dateISO: "2026-09-08", start: "9:00", end: "09:30" }, now)).rejects.toThrow(/isn't a time/);
+      await expect(addRun(prisma, task.id, { dateISO: "2026-09-08", start: "09:30", end: "09:30" }, now)).rejects.toThrow(/end after it starts/);
+      await expect(addRun(prisma, task.id, { dateISO: "2026-09-08", start: "09:30", end: "09:10" }, now)).rejects.toThrow(/end after it starts/);
+      await expect(addRun(prisma, task.id, { dateISO: "2026-09-08", start: "09:30", end: "11:00" }, now)).rejects.toThrow(/hasn't happened/);
+      expect(await prisma.timeEntry.count()).toBe(0);
+    });
+
+    it("can't overlap another run of the same student — and says which", async () => {
+      const student = await makeStudent(prisma);
+      const math = await makeInstance(student.id, null, { title: "Math" });
+      const latin = await makeInstance(student.id, null, { title: "Latin cards" });
+      await addRun(prisma, math.id, { dateISO: "2026-09-08", start: "09:00", end: "09:30" }, at(120));
+
+      await expect(addRun(prisma, latin.id, { dateISO: "2026-09-08", start: "09:20", end: "09:50" }, at(120))).rejects.toThrow(/Math.*9:00 AM – 9:30 AM/);
+      // Butting right up against it is fine.
+      await addRun(prisma, latin.id, { dateISO: "2026-09-08", start: "09:30", end: "09:50" }, at(120));
+    });
+
+    it("can't be added on top of a timer that's running right now", async () => {
+      const student = await makeStudent(prisma);
+      const math = await makeInstance(student.id, null, { title: "Math" });
+      const latin = await makeInstance(student.id, null, { title: "Latin" });
+      await startTimer(prisma, math.id, at(0), TODAY);
+      await pingTimer(prisma, math.id, at(2));
+
+      await expect(addRun(prisma, latin.id, { dateISO: "2026-09-08", start: "09:01", end: "09:03" }, at(4))).rejects.toThrow(/Math.*now/);
+    });
+
+    it("works through the tenant-scoped client the app uses", async () => {
+      const family = await prisma.family.create({ data: { name: "Scoped", slug: `scoped-${randomUUID()}` } });
+      const scoped = prisma.$extends(tenantScopeExtension(family.id)) as unknown as PrismaClient;
+      const student = await scoped.student.create({ data: { name: "Miles", gradeLevel: "7th", accentColor: "#000" } });
+      const task = await scoped.assignmentInstance.create({
+        data: { title: "Math", studentId: student.id, createdBy: "parent", dueDate: TODAY, originalDueDate: TODAY },
+      });
+
+      const run = await addRun(scoped, task.id, { dateISO: "2026-09-08", start: "09:00", end: "09:25" }, at(120));
+
+      expect(run.familyId).toBe(family.id);
     });
   });
 

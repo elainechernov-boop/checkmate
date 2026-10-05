@@ -4,10 +4,11 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getScopedPrisma } from "@/lib/prisma";
 import { PARENT_COOKIE, verifyParentSession } from "@/lib/session";
-import { deleteRun, editRunClockTimes, TimeTrackingError } from "@/lib/timeTracking";
+import { addRun, deleteRun, editRunClockTimes, TimeTrackingError, type AddedRun } from "@/lib/timeTracking";
 
-// §15's parent corrections: nudge a run's start or end, or delete a run. There
-// is deliberately no "add time" — untimed work stays untimed.
+// §15's parent corrections: nudge a run's start or end, stop a timer that was
+// forgotten, add time that was never recorded, or delete a run. Anything
+// entered here is marked as hand-edited, so the dashboard can say so.
 
 /** Parent Mode's proxy already gates /parent, but a server action can be
  * posted to any route, and these rewrite what a kid's day is recorded as —
@@ -40,6 +41,20 @@ export async function updateRunTimesAction(
   } catch (error) {
     // A rule the editor can explain ("That overlaps another run.") comes back
     // as text for the inline message; anything else is a real failure.
+    if (error instanceof TimeTrackingError) return { ok: false, error: error.message };
+    throw error;
+  }
+  revalidateTimeViews();
+  return { ok: true };
+}
+
+/** Time a kid forgot to record: a day, and when they started and stopped. */
+export async function addRunAction(instanceId: string, input: AddedRun): Promise<RunEditResult> {
+  await requireParent();
+  const prisma = await getScopedPrisma();
+  try {
+    await addRun(prisma, instanceId, input);
+  } catch (error) {
     if (error instanceof TimeTrackingError) return { ok: false, error: error.message };
     throw error;
   }

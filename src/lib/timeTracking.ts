@@ -1,7 +1,7 @@
 import type { PrismaClient, TimeEntry } from "@/generated/prisma/client";
 import { InstanceStatus, TimeEntryEndReason } from "@/generated/prisma/enums";
-import { formatClockInput, wallClockInstant, zonedDateISO } from "./clockTime";
-import { getToday, toISODate } from "./dates";
+import { formatClockInput, formatClockTime, wallClockInstant, zonedDateISO } from "./clockTime";
+import { getToday, parseISODate, toISODate } from "./dates";
 import { splitLoggedTime } from "./dayBar";
 import { AWAY_AFTER_MS, LAPSE_AFTER_MS, MIN_RUN_MS, runDurationMs } from "./timeSummary";
 import { canWorkOn } from "./workAhead";
@@ -323,6 +323,30 @@ export async function loadRunsInRange(
   });
 }
 
+const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** The one-clock rule the timer itself keeps: a student can't be on two things
+ * at once, so no run may overlap another of theirs (a run still going counts
+ * as lasting until `now`). Says *which* run it collides with, so a parent
+ * fixing a day can see what to move. */
+async function assertNoOverlap(
+  db: TimeDb,
+  studentId: string,
+  ignoreRunId: string | null,
+  start: Date,
+  end: Date,
+  now: Date
+): Promise<void> {
+  const others = await db.timeEntry.findMany({
+    where: { studentId, ...(ignoreRunId ? { id: { not: ignoreRunId } } : {}) },
+  });
+  const clash = others.find((other) => other.startedAt.getTime() < end.getTime() && (other.endedAt ?? now).getTime() > start.getTime());
+  if (clash) {
+    const span = `${formatClockTime(clash.startedAt)} – ${clash.endedAt ? formatClockTime(clash.endedAt) : "now"}`;
+    throw new TimeTrackingError(`That overlaps "${clash.title}" (${span}).`);
+  }
+}
+
 /**
  * Parent correction (§15): move a closed run's start/end. The new span must
  * be a real one (end after start, not in the future) and must not overlap
@@ -343,12 +367,7 @@ export async function updateRunTimes(
     if (endedAt.getTime() <= startedAt.getTime()) throw new TimeTrackingError("A run has to end after it starts.");
     if (endedAt.getTime() > now.getTime()) throw new TimeTrackingError("A run can't end in the future.");
 
-    const others = await tx.timeEntry.findMany({ where: { studentId: run.studentId, id: { not: runId } } });
-    const overlaps = others.some((other) => {
-      const otherEnd = (other.endedAt ?? now).getTime();
-      return other.startedAt.getTime() < endedAt.getTime() && otherEnd > startedAt.getTime();
-    });
-    if (overlaps) throw new TimeTrackingError("That overlaps another run.");
+    await assertNoOverlap(tx, run.studentId, runId, startedAt, endedAt, now);
 
     await tx.timeEntry.update({ where: { id: runId }, data: { startedAt, endedAt, editedByParent: true } });
   });
@@ -360,6 +379,9 @@ export async function updateRunTimes(
  * and hands them to updateRunTimes (which owns the validation). A field left
  * out — or left equal to what's already shown — keeps its exact stored value,
  * seconds and all, so nudging only the end never perturbs the start.
+ *
+ * A timer someone forgot to stop can be fixed here too: give a running run an
+ * end time and it stops there (its screen finds out on its next heartbeat).
  */
 export async function editRunClockTimes(
   prisma: TimePrisma,
@@ -368,16 +390,85 @@ export async function editRunClockTimes(
   now: Date = new Date()
 ): Promise<void> {
   const run = await prisma.timeEntry.findUniqueOrThrow({ where: { id: runId } });
-  if (!run.endedAt) throw new TimeTrackingError("A running timer can't be edited.");
 
   const dateISO = zonedDateISO(run.startedAt);
   const resolve = (value: string | null | undefined, current: Date): Date => {
     if (!value || value === formatClockInput(current)) return current;
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) throw new TimeTrackingError("That isn't a time.");
+    if (!CLOCK_TIME.test(value)) throw new TimeTrackingError("That isn't a time.");
     return wallClockInstant(dateISO, value);
   };
 
-  await updateRunTimes(prisma, runId, resolve(edit.start, run.startedAt), resolve(edit.end, run.endedAt), now);
+  if (run.endedAt) {
+    await updateRunTimes(prisma, runId, resolve(edit.start, run.startedAt), resolve(edit.end, run.endedAt), now);
+    return;
+  }
+
+  // Still running: stopping it needs an end time.
+  if (!edit.end) throw new TimeTrackingError("Set an end time to stop it.");
+  const startedAt = resolve(edit.start, run.startedAt);
+  if (!CLOCK_TIME.test(edit.end)) throw new TimeTrackingError("That isn't a time.");
+  const endedAt = wallClockInstant(dateISO, edit.end);
+  await prisma.$transaction(async (tx) => {
+    if (endedAt.getTime() <= startedAt.getTime()) throw new TimeTrackingError("A run has to end after it starts.");
+    if (endedAt.getTime() > now.getTime()) throw new TimeTrackingError("A run can't end in the future.");
+    await assertNoOverlap(tx, run.studentId, runId, startedAt, endedAt, now);
+    // Closed only if it's still open — the kid's own pause may have beaten us to it.
+    await tx.timeEntry.updateMany({
+      where: { id: runId, endedAt: null },
+      data: { startedAt, endedAt, endReason: TimeEntryEndReason.paused, editedByParent: true },
+    });
+  });
+}
+
+export interface AddedRun {
+  /** The calendar day the work happened on, `yyyy-mm-dd`. */
+  dateISO: string;
+  /** Wall-clock `HH:MM`, in the app's timezone. */
+  start: string;
+  end: string;
+}
+
+/**
+ * Parent correction (§15): add time a kid forgot to record — a timer never
+ * started, or a session that got lost. It's an ordinary run on the day the
+ * work happened, marked `editedByParent` so the dashboard says it was entered
+ * by hand, and held to the same rules as a timed one: it has to be a real span
+ * that's already happened, and it can't overlap another of the student's runs.
+ * Attributed to the day given, not the task's due date, so a head start or a
+ * make-up session lands on the day it was actually done.
+ */
+export async function addRun(
+  prisma: TimePrisma,
+  instanceId: string,
+  input: AddedRun,
+  now: Date = new Date()
+): Promise<TimeEntry> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dateISO)) throw new TimeTrackingError("Pick a day.");
+  if (!CLOCK_TIME.test(input.start) || !CLOCK_TIME.test(input.end)) throw new TimeTrackingError("That isn't a time.");
+  const startedAt = wallClockInstant(input.dateISO, input.start);
+  const endedAt = wallClockInstant(input.dateISO, input.end);
+  if (endedAt.getTime() <= startedAt.getTime()) throw new TimeTrackingError("A run has to end after it starts.");
+  if (endedAt.getTime() > now.getTime()) throw new TimeTrackingError("That time hasn't happened yet.");
+
+  return prisma.$transaction(async (tx) => {
+    const instance = await tx.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
+    await sweepLapsedRuns(tx, instance.studentId, now);
+    await assertNoOverlap(tx, instance.studentId, null, startedAt, endedAt, now);
+    return tx.timeEntry.create({
+      data: {
+        studentId: instance.studentId,
+        instanceId,
+        title: instance.title,
+        subjectId: instance.subjectId,
+        date: parseISODate(input.dateISO),
+        startedAt,
+        endedAt,
+        lastPingAt: endedAt,
+        endReason: TimeEntryEndReason.paused,
+        editedByParent: true,
+      },
+    });
+  });
 }
 
 export async function deleteRun(prisma: TimeDb, runId: string): Promise<void> {

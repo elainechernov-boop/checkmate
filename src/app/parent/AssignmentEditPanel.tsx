@@ -7,7 +7,7 @@ import { toISODate, WEEKDAYS } from "@/lib/dates";
 import { COLORS } from "@/lib/theme";
 import { deleteAssignment, updateAssignment } from "./planner-actions";
 import { useInstanceTime } from "./TimeRunsContext";
-import { TimeRunsEditor } from "./TimeRunsEditor";
+import { AddTimeForm, TimeRunsEditor } from "./TimeRunsEditor";
 
 export type EditableInstance = AssignmentInstance & {
   subject: { id: string; name: string } | null;
@@ -408,15 +408,24 @@ export function EditPanel({
       </div>
     </form>
 
-    {time && time.runs.length > 0 && (
+    {time && (
       <div className="mt-3 border-t pt-2" style={{ borderColor: COLORS.hairline }} onClick={(event) => event.stopPropagation()}>
         <div className="flex items-baseline justify-between">
           <span className={fieldLabel} style={{ color: COLORS.muted }}>
             Time
           </span>
-          <span style={{ color: COLORS.muted, fontSize: 11 }}>took {formatDurationMs(time.tookMs)}</span>
+          {time.runs.length > 0 && <span style={{ color: COLORS.muted, fontSize: 11 }}>took {formatDurationMs(time.tookMs)}</span>}
         </div>
-        <TimeRunsEditor runs={time.runs} />
+        {time.runs.length > 0 ? (
+          <TimeRunsEditor runs={time.runs} />
+        ) : (
+          <p style={{ color: COLORS.mutedFaint, fontSize: 12, padding: "3px 0" }}>No time logged yet.</p>
+        )}
+        {/* Added time defaults to the task's own day — or today, for a task that's still ahead of us. */}
+        <AddTimeForm
+          instanceId={instance.id}
+          defaultDateISO={instance.dueDate && toISODate(instance.dueDate) < time.todayISO ? toISODate(instance.dueDate) : time.todayISO}
+        />
       </div>
     )}
     </>

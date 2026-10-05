@@ -12,6 +12,8 @@ export interface TimeRunsData {
   byInstance: Record<string, TimeRunView[]>;
   /** The server's clock when the page loaded — what an open run counts up to. */
   nowMs: number;
+  /** Today in the app's own terms (honors DEBUG_TODAY) — where "Add time" defaults to. */
+  todayISO: string;
 }
 
 const TimeRunsContext = createContext<TimeRunsData | null>(null);
@@ -22,9 +24,9 @@ export function TimeRunsProvider({ data, children }: { data: TimeRunsData | null
 
 /** This task's runs and lifetime total — null when time tracking is off, and
  * an empty `runs` (took 0) for a task nobody has timed. */
-export function useInstanceTime(instanceId: string): { runs: TimeRunView[]; tookMs: number } | null {
+export function useInstanceTime(instanceId: string): { runs: TimeRunView[]; tookMs: number; todayISO: string } | null {
   const data = useContext(TimeRunsContext);
   if (!data) return null;
   const runs = data.byInstance[instanceId] ?? [];
-  return { runs, tookMs: tookMs(runs, data.nowMs) };
+  return { runs, tookMs: tookMs(runs, data.nowMs), todayISO: data.todayISO };
 }
