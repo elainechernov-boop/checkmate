@@ -5,10 +5,10 @@ import { createPortal } from "react-dom";
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { formatClockTime, formatElapsed } from "@/lib/clockTime";
 import { dayBarFill, type DayBarTask } from "@/lib/dayBar";
-import { PING_INTERVAL_MS } from "@/lib/timeSummary";
+import { AWAY_AFTER_MS, PING_INTERVAL_MS } from "@/lib/timeSummary";
 import type { TimerState } from "@/lib/timeTracking";
 import { COLORS } from "@/lib/theme";
-import { getTimerStateAction, pauseTimerAction, pingTimerAction, startTimerAction } from "./actions";
+import { getTimerStateAction, pauseTimerAction, pingTimerAction, startTimerAction, trimTimerAction } from "./actions";
 import type { StudentInstance } from "./types";
 
 // The control ring is a touch darker than the hairline so a 1px circle still
@@ -53,6 +53,15 @@ export function TimerScreen({
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [pending, setPending] = useState<{ kind: "pause" | "resume"; atTotalMs: number } | null>(null);
   const [finishing, setFinishing] = useState(false);
+  // "Welcome back — keep that time?" Set when the window turns up after a long
+  // silence (the timer kept running; the kid may well have been working on
+  // paper with this window in the background): the moment it was last heard
+  // from. A screen reloaded onto a running timer starts with it already set.
+  const [awaySinceMs, setAwaySinceMs] = useState<number | null>(() =>
+    state && state.lastPingAtMs !== null && state.openStartedAtMs !== null && state.serverNowMs - state.lastPingAtMs > AWAY_AFTER_MS
+      ? state.lastPingAtMs
+      : null
+  );
 
   const running = state !== null && state.openStartedAtMs !== null;
 
@@ -78,7 +87,12 @@ export function TimerScreen({
     async function ping() {
       try {
         const result = await pingTimerAction(instance.id);
-        if (!result.running) onStateRef.current(await getTimerStateAction(instance.id));
+        if (!result.running) {
+          onStateRef.current(await getTimerStateAction(instance.id));
+        } else if (result.awaySinceMs !== null) {
+          // Keep the earliest "away since" if one is already showing.
+          setAwaySinceMs((current) => current ?? result.awaySinceMs);
+        }
       } catch {
         // A dropped connection just skips a beat; the lapse rule covers a long one.
       }
@@ -122,8 +136,21 @@ export function TimerScreen({
   const displayRunning = pending ? pending.kind === "resume" : state === null ? true : running;
   const displayTotalMs = pending?.kind === "pause" ? pending.atTotalMs : totalMs;
 
+  async function handleStopWhereItWentQuiet() {
+    if (awaySinceMs === null) return;
+    const stopAt = awaySinceMs;
+    setAwaySinceMs(null);
+    try {
+      onState(await trimTimerAction(instance.id, stopAt));
+    } catch {
+      // The server refused (e.g. already stopped) — the screen will catch up on the next heartbeat.
+    }
+  }
+
   async function handleToggle() {
     if (pending || finishing || state === null) return;
+    // Pausing or resuming settles the question on its own.
+    setAwaySinceMs(null);
     setPending({ kind: running ? "pause" : "resume", atTotalMs: totalMs });
     try {
       onState(running ? await pauseTimerAction(instance.id) : await startTimerAction(instance.id));
@@ -136,6 +163,7 @@ export function TimerScreen({
 
   function handleFinish() {
     if (finishing) return;
+    setAwaySinceMs(null);
     setFinishing(true);
     onFinish();
   }
@@ -308,6 +336,23 @@ export function TimerScreen({
         <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 34, minHeight: 14 }}>
           {state?.firstStartedAtMs ? `Started ${formatClockTime(new Date(state.firstStartedAtMs))}` : ""}
         </div>
+
+        {awaySinceMs !== null && running && (
+          <div
+            role="status"
+            style={{ margin: "22px auto 0", maxWidth: 360, borderTop: `1px solid ${COLORS.hairline}`, paddingTop: 14, fontSize: 13 }}
+          >
+            <div style={{ color: COLORS.text }}>Welcome back. The timer kept running while this window was in the background.</div>
+            <div className="flex justify-center gap-5" style={{ marginTop: 10, fontSize: 13 }}>
+              <button type="button" onClick={() => setAwaySinceMs(null)} className="hr-text-action" style={{ color: COLORS.text, fontWeight: 600 }}>
+                Keep the time
+              </button>
+              <button type="button" onClick={handleStopWhereItWentQuiet} className="hr-text-action" style={{ color: COLORS.muted }}>
+                Stop at {formatClockTime(new Date(awaySinceMs))}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body

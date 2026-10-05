@@ -6,10 +6,21 @@
  * also how a student checks off work done away from the Mac (§15). */
 export const MIN_RUN_MS = 10_000;
 
-/** An open run with no heartbeat for this long is treated as ended at its
- * last ping (lid shut, tab closed, walked away). Long enough to ride out a
- * backgrounded Safari tab's throttled timers. */
-export const LAPSE_AFTER_MS = 5 * 60_000;
+/** An open run with no heartbeat for this long is treated as abandoned and
+ * ended at its last ping (lid shut overnight, tab closed and forgotten).
+ *
+ * Deliberately long. A browser stops sending heartbeats from a background
+ * window, so silence alone can't tell "walked away" from "working on paper with
+ * the timer window behind something else" — and throwing away real work is the
+ * worse mistake (a kid loses trust in the timer; a forgotten one is a long run
+ * the parent can trim). Anything shorter than this is kept and the kid is
+ * asked, see AWAY_AFTER_MS. */
+export const LAPSE_AFTER_MS = 2 * 60 * 60_000;
+
+/** Silence this long on a run that's still open is worth a question when the
+ * window comes back ("Welcome back — keep that time?"), and means the run
+ * can't be trusted to have been going when the kid moves on to another task. */
+export const AWAY_AFTER_MS = 5 * 60_000;
 
 /** How often the open timer screen pings the server. */
 export const PING_INTERVAL_MS = 30_000;
@@ -23,8 +34,10 @@ export interface RunLike {
 }
 
 /** Where a run effectively ends as of `now`: its real end if closed; else
- * `now` while it's still pinging, or its last ping if it has gone quiet (so
- * a lapsed-but-not-yet-swept run is never counted up to "now"). */
+ * `now` while it's open, or its last ping once it has been silent long enough
+ * to count as abandoned (LAPSE_AFTER_MS — so an abandoned-but-not-yet-swept run
+ * is never counted up to "now"). A run that's merely quiet for a while is still
+ * running: see LAPSE_AFTER_MS for why. */
 export function runEnd(run: RunLike, now: Date): Date {
   if (run.endedAt) return run.endedAt;
   const quietMs = now.getTime() - run.lastPingAt.getTime();

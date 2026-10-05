@@ -3,7 +3,7 @@ import { InstanceStatus, TimeEntryEndReason } from "@/generated/prisma/enums";
 import { formatClockInput, wallClockInstant, zonedDateISO } from "./clockTime";
 import { getToday, toISODate } from "./dates";
 import { splitLoggedTime } from "./dayBar";
-import { LAPSE_AFTER_MS, MIN_RUN_MS, runDurationMs } from "./timeSummary";
+import { AWAY_AFTER_MS, LAPSE_AFTER_MS, MIN_RUN_MS, runDurationMs } from "./timeSummary";
 import { canWorkOn } from "./workAhead";
 
 // §15's recording rules, all of them server-enforced. Every function takes
@@ -33,10 +33,11 @@ async function closeRun(db: TimeDb, run: TimeEntry, endedAt: Date, reason: TimeE
 }
 
 /**
- * An open run with no ping for LAPSE_AFTER_MS is closed at its last ping with
- * `lapsed`. Swept lazily — on any read or write of a student's runs, the
- * dashboard included — so there's no scheduler, and a lapsed run is never
- * counted up to "now."
+ * An open run with no ping for LAPSE_AFTER_MS — long enough that it's been
+ * abandoned, not just a window sitting in the background — is closed at its
+ * last ping with `lapsed`. Swept lazily — on any read or write of a student's
+ * runs, the dashboard included — so there's no scheduler, and an abandoned run
+ * is never counted up to "now."
  */
 export async function sweepLapsedRuns(db: TimeDb, studentId: string, now: Date = new Date()): Promise<void> {
   const cutoff = new Date(now.getTime() - LAPSE_AFTER_MS);
@@ -84,7 +85,11 @@ export async function startTimer(
     }
 
     for (const run of openRuns) {
-      await closeRun(tx, run, now, TimeEntryEndReason.switched);
+      // Starting another task says the kid has moved on — but not when. If the
+      // old run has been silent a while, its last ping is the last time we know
+      // he was on it; counting up to now would credit the gap to the wrong task.
+      const silentMs = now.getTime() - run.lastPingAt.getTime();
+      await closeRun(tx, run, silentMs > AWAY_AFTER_MS ? run.lastPingAt : now, TimeEntryEndReason.switched);
     }
 
     return tx.timeEntry.create({
@@ -116,26 +121,57 @@ export async function pauseTimer(
   });
 }
 
+export interface PingResult {
+  running: boolean;
+  /** When the window was last heard from before this ping — set only when the
+   * silence was long enough (AWAY_AFTER_MS) that the screen should ask the kid
+   * whether to keep the time, and where "stop" would end the run. */
+  awaySinceMs: number | null;
+}
+
 /**
- * The timer screen's heartbeat. Refreshes the open run's ping; if the run has
- * already gone quiet past LAPSE_AFTER_MS (a suspended tab waking up), it is
- * closed at its last ping instead and the screen is told it isn't running —
- * a late ping never resurrects time nobody was watching.
+ * The timer screen's heartbeat. Refreshes the open run's ping.
+ *
+ * A browser stops sending heartbeats from a background window, so a ping that
+ * arrives after a long silence is *the window coming back*, not proof the kid
+ * stopped — he may have been working on paper the whole time. Such a run is
+ * kept running (the time counts) and the ping reports how long it was away so
+ * the screen can ask "keep that time?" (see trimTimer for "no"). Only silence
+ * past LAPSE_AFTER_MS is treated as abandonment: the run is closed at its last
+ * ping and the screen is told it isn't running.
  */
-export async function pingTimer(
-  prisma: TimePrisma,
-  instanceId: string,
-  now: Date = new Date()
-): Promise<{ running: boolean }> {
+export async function pingTimer(prisma: TimePrisma, instanceId: string, now: Date = new Date()): Promise<PingResult> {
   return prisma.$transaction(async (tx) => {
     const open = await tx.timeEntry.findFirst({ where: { instanceId, endedAt: null } });
-    if (!open) return { running: false };
-    if (now.getTime() - open.lastPingAt.getTime() > LAPSE_AFTER_MS) {
+    if (!open) return { running: false, awaySinceMs: null };
+    const silentMs = now.getTime() - open.lastPingAt.getTime();
+    if (silentMs > LAPSE_AFTER_MS) {
       await closeRun(tx, open, open.lastPingAt, TimeEntryEndReason.lapsed);
-      return { running: false };
+      return { running: false, awaySinceMs: null };
     }
     await tx.timeEntry.update({ where: { id: open.id }, data: { lastPingAt: now } });
-    return { running: true };
+    return { running: true, awaySinceMs: silentMs > AWAY_AFTER_MS ? open.lastPingAt.getTime() : null };
+  });
+}
+
+/**
+ * "Welcome back — keep that time?" answered *no*: end the running run where it
+ * stood before the silence (`endAtMs`, the moment the window was last heard
+ * from) instead of now. The end is kept inside the run's own life — never
+ * before it began, never in the future — and a run trimmed to nothing is
+ * discarded like any other accidental one.
+ */
+export async function trimTimer(
+  prisma: TimePrisma,
+  instanceId: string,
+  endAtMs: number,
+  now: Date = new Date()
+): Promise<{ discarded: boolean }> {
+  return prisma.$transaction(async (tx) => {
+    const open = await tx.timeEntry.findFirst({ where: { instanceId, endedAt: null } });
+    if (!open) return { discarded: false };
+    const endAt = new Date(Math.min(Math.max(endAtMs, open.startedAt.getTime()), now.getTime()));
+    return closeRun(tx, open, endAt, TimeEntryEndReason.paused);
   });
 }
 
@@ -183,6 +219,10 @@ export async function finishTimer(
  * `(its own clock + serverOffset) - openStartedAt` for the live part, so its
  * clock can't skew the record. */
 export interface TimerState {
+  /** When the open run was last heard from (null if none is open) — lets a
+   * freshly reloaded screen tell it was away, and ask, before its own first
+   * ping erases that. */
+  lastPingAtMs: number | null;
   closedMs: number;
   /** The part of `closedMs` logged on today's date — the rest is earlier
    * days' work on a task that rolled in. Lets the timer screen's top-edge day
@@ -225,6 +265,7 @@ export async function getTimerState(
   );
 
   return {
+    lastPingAtMs: open ? open.lastPingAt.getTime() : null,
     closedMs,
     closedTodayMs,
     openStartedAtMs: open ? open.startedAt.getTime() : null,

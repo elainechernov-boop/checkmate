@@ -15,7 +15,16 @@ import {
   secretsMatch,
 } from "@/lib/session";
 import { nextAccentColor } from "@/lib/theme";
-import { finishTimer, getTimerState, pauseTimer, pingTimer, startTimer, type TimerState } from "@/lib/timeTracking";
+import {
+  finishTimer,
+  getTimerState,
+  pauseTimer,
+  pingTimer,
+  startTimer,
+  trimTimer,
+  type PingResult,
+  type TimerState,
+} from "@/lib/timeTracking";
 import { canWorkOn } from "@/lib/workAhead";
 
 /**
@@ -159,10 +168,22 @@ export async function pauseTimerAction(instanceId: string): Promise<TimerState> 
 
 /** The open timer screen's 30-second heartbeat. No revalidation — nothing
  * on the page changes. */
-export async function pingTimerAction(instanceId: string): Promise<{ running: boolean }> {
+export async function pingTimerAction(instanceId: string): Promise<PingResult> {
   await requireTimeTracking();
   const prisma = await getScopedPrisma();
   return pingTimer(prisma, instanceId);
+}
+
+/** "Welcome back — keep that time?" answered no: end the run where it stood
+ * before the window went quiet. */
+export async function trimTimerAction(instanceId: string, endAtMs: number): Promise<TimerState> {
+  await requireTimeTracking();
+  if (!Number.isFinite(endAtMs)) throw new Error("A time is required.");
+  const prisma = await getScopedPrisma();
+  await trimTimer(prisma, instanceId, endAtMs);
+  const state = await getTimerState(prisma, instanceId);
+  revalidatePath("/student/[id]", "page");
+  return state;
 }
 
 export async function getTimerStateAction(instanceId: string): Promise<TimerState> {

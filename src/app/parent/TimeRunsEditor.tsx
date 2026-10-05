@@ -111,7 +111,7 @@ export function TimeRunRow({
         )}
 
         {run.endReason === "lapsed" && (
-          <span style={{ color: COLORS.mutedFaint, fontSize: 10.5 }} title="The timer went quiet, so it was closed at its last heartbeat.">
+          <span style={{ color: COLORS.mutedFaint, fontSize: 10.5 }} title="The timer was left running and went silent for hours, so it was closed at its last heartbeat.">
             auto-closed
           </span>
         )}

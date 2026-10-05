@@ -110,12 +110,20 @@ describe("summarizeDay (§15's four buckets)", () => {
     expect(summary.lastEnd).toEqual(now);
   });
 
-  it("never counts a lapsed-but-unswept open run up to now — it ends at its last ping", () => {
-    const now = at(60 + 30);
-    const lapsed: RunLike = { instanceId: "a", title: "A", startedAt: at(60), endedAt: null, lastPingAt: at(65) };
-    expect(now.getTime() - lapsed.lastPingAt.getTime()).toBeGreaterThan(LAPSE_AFTER_MS);
-    expect(runEnd(lapsed, now)).toEqual(at(65));
-    expect(runDurationMs(lapsed, now)).toBe(5 * 60_000);
-    expect(summarizeDay([lapsed], now).workingMs).toBe(5 * 60_000);
+  it("never counts an abandoned-but-unswept open run up to now — it ends at its last ping", () => {
+    const now = at(65 + 3 * 60); // three hours of silence
+    const abandoned: RunLike = { instanceId: "a", title: "A", startedAt: at(60), endedAt: null, lastPingAt: at(65) };
+    expect(now.getTime() - abandoned.lastPingAt.getTime()).toBeGreaterThan(LAPSE_AFTER_MS);
+    expect(runEnd(abandoned, now)).toEqual(at(65));
+    expect(runDurationMs(abandoned, now)).toBe(5 * 60_000);
+    expect(summarizeDay([abandoned], now).workingMs).toBe(5 * 60_000);
+  });
+
+  it("does count a run that's merely been quiet — a background window is still working (the reported bug)", () => {
+    const now = at(60 + 40); // 35 minutes since the last ping
+    const quiet: RunLike = { instanceId: "a", title: "A", startedAt: at(60), endedAt: null, lastPingAt: at(65) };
+    expect(now.getTime() - quiet.lastPingAt.getTime()).toBeLessThan(LAPSE_AFTER_MS);
+    expect(runEnd(quiet, now)).toEqual(now);
+    expect(runDurationMs(quiet, now)).toBe(40 * 60_000);
   });
 });

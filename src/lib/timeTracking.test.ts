@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { parseISODate, toISODate } from "./dates";
 import { tenantScopeExtension } from "./tenantScope";
-import { LAPSE_AFTER_MS, MIN_RUN_MS, summarizeDay } from "./timeSummary";
+import { AWAY_AFTER_MS, LAPSE_AFTER_MS, MIN_RUN_MS, summarizeDay } from "./timeSummary";
 import {
   deleteRun,
   editRunClockTimes,
@@ -17,6 +17,7 @@ import {
   sweepLapsedRuns,
   TimeTrackingError,
   timeLoggedByInstance,
+  trimTimer,
   updateRunTimes,
 } from "./timeTracking";
 import { makeStudent, makeSubject } from "./test/fixtures";
@@ -426,15 +427,21 @@ describe("finishTimer", () => {
   });
 });
 
-describe("lapse sweeping (§15: 5 minutes without a ping)", () => {
-  it("closes a quiet run at its last ping, on the next read — never counting it up to now", async () => {
+// A timer is abandoned only after a long silence (LAPSE_AFTER_MS, two hours) —
+// a browser stops sending the heartbeat from a background window, so anything
+// shorter is a kid still working with the window behind something else. Those
+// runs are kept (and the kid is asked on return — see the next describe).
+const ABANDONED = 3 * 60; // minutes: comfortably past the two-hour threshold
+
+describe("abandoned timers (§15: two hours without a ping)", () => {
+  it("closes an abandoned run at its last ping, on the next read — never counting it up to now", async () => {
     const student = await makeStudent(prisma);
     const instance = await makeInstance(student.id, null);
     await startTimer(prisma, instance.id, at(0), TODAY);
     await keepAlive(instance.id, 0, 8);
 
-    // The lid closes after the 8-minute ping; an hour later, someone looks.
-    const state = await getTimerState(prisma, instance.id, at(68));
+    // The lid closes after the 8-minute ping; three hours later, someone looks.
+    const state = await getTimerState(prisma, instance.id, at(8 + ABANDONED));
 
     expect(state.openStartedAtMs).toBeNull();
     expect(state.closedMs).toBe(8 * 60_000);
@@ -473,20 +480,21 @@ describe("lapse sweeping (§15: 5 minutes without a ping)", () => {
     await startTimer(prisma, instance.id, at(0), TODAY);
     await keepAlive(instance.id, 0, 6);
 
-    const runs = await loadRunsInRange(prisma, student.id, TODAY, TODAY, at(120));
+    const runs = await loadRunsInRange(prisma, student.id, TODAY, TODAY, at(6 + ABANDONED));
 
     expect(runs).toHaveLength(1);
     expect(runs[0].endedAt).toEqual(at(6));
   });
 
-  it("is safe when two requests sweep the same lapsed run at once", async () => {
+  it("is safe when two requests sweep the same abandoned run at once", async () => {
     const student = await makeStudent(prisma);
     const instance = await makeInstance(student.id, null);
     await startTimer(prisma, instance.id, at(0), TODAY);
     await keepAlive(instance.id, 0, 8);
 
     // e.g. the student page and the dashboard both loading at the same moment.
-    await Promise.all([sweepLapsedRuns(prisma, student.id, at(90)), sweepLapsedRuns(prisma, student.id, at(90))]);
+    const later = at(8 + ABANDONED);
+    await Promise.all([sweepLapsedRuns(prisma, student.id, later), sweepLapsedRuns(prisma, student.id, later)]);
 
     const runs = await prisma.timeEntry.findMany({ where: { instanceId: instance.id } });
     expect(runs).toHaveLength(1);
@@ -494,42 +502,169 @@ describe("lapse sweeping (§15: 5 minutes without a ping)", () => {
     expect(runs[0].endedAt).toEqual(at(8));
   });
 
-  it("a late ping from a suspended tab doesn't resurrect time nobody was watching", async () => {
+  it("a ping after a very long silence closes the run at its last ping — it was abandoned", async () => {
     const student = await makeStudent(prisma);
     const instance = await makeInstance(student.id, null);
     await startTimer(prisma, instance.id, at(0), TODAY);
     await keepAlive(instance.id, 0, 6);
 
-    const result = await pingTimer(prisma, instance.id, at(40));
+    const result = await pingTimer(prisma, instance.id, at(6 + ABANDONED));
 
-    expect(result.running).toBe(false);
+    expect(result).toEqual({ running: false, awaySinceMs: null });
     const run = await prisma.timeEntry.findFirstOrThrow({ where: { instanceId: instance.id } });
     expect(run.endedAt).toEqual(at(6));
     expect(run.endReason).toBe("lapsed");
   });
 
-  it("discards a lapsed run that never lasted the minimum", async () => {
+  it("discards an abandoned run that never lasted the minimum", async () => {
     const student = await makeStudent(prisma);
     const instance = await makeInstance(student.id, null);
     await startTimer(prisma, instance.id, at(0), TODAY); // never pinged again
 
-    await sweepLapsedRuns(prisma, student.id, at(30));
+    await sweepLapsedRuns(prisma, student.id, at(ABANDONED));
 
     expect(await prisma.timeEntry.count()).toBe(0);
   });
 
-  it("starting a new task after a lapse leaves the old run closed as lapsed, not 'switched'", async () => {
+  it("starting a new task after an abandoned run closes the old one as lapsed, at its last ping", async () => {
     const student = await makeStudent(prisma);
     const math = await makeInstance(student.id, null, { title: "Math" });
     const latin = await makeInstance(student.id, null, { title: "Latin" });
     await startTimer(prisma, math.id, at(0), TODAY);
     await pingTimer(prisma, math.id, at(3));
 
-    await startTimer(prisma, latin.id, at(45), TODAY);
+    await startTimer(prisma, latin.id, at(3 + ABANDONED), TODAY);
 
     const mathRun = await prisma.timeEntry.findFirstOrThrow({ where: { instanceId: math.id } });
     expect(mathRun.endReason).toBe("lapsed");
     expect(mathRun.endedAt).toEqual(at(3));
+  });
+});
+
+// The failure that prompted this: a kid works on paper with the timer window in
+// the background. Browsers stop sending the "still here" ping from a background
+// window, so the timer looked abandoned — and when he came back, his real work
+// was thrown away. Silence is not abandonment: only a long silence is, and a
+// window that comes back is asked, not overruled.
+describe("a window that goes to the background while the kid keeps working", () => {
+  /** Math: a 15-minute session, paused; restarted at :20 and pinged once at :22 — then silence. */
+  async function mathWithAQuietSecondSession() {
+    const student = await makeStudent(prisma);
+    const math = await makeInstance(student.id, null, { title: "Math" });
+    await startTimer(prisma, math.id, at(0), TODAY);
+    await keepAlive(math.id, 0, 15);
+    await pauseTimer(prisma, math.id, at(15));
+    await startTimer(prisma, math.id, at(20), TODAY);
+    await pingTimer(prisma, math.id, at(22));
+    return { student, math };
+  }
+
+  it("keeps the second session when the window comes back 25 minutes later (the reported bug)", async () => {
+    const { math } = await mathWithAQuietSecondSession();
+
+    // He works on paper while the window sits in the background; no pings for 25 minutes.
+    const back = await pingTimer(prisma, math.id, at(47));
+
+    expect(back.running).toBe(true);
+    const state = await getTimerState(prisma, math.id, at(47), TODAY);
+    expect(state.openStartedAtMs).toBe(at(20).getTime());
+    expect(state.closedMs + (at(47).getTime() - state.openStartedAtMs!)).toBe((15 + 27) * 60_000);
+    expect((await prisma.timeEntry.findMany({ where: { instanceId: math.id } })).map((r) => r.endReason)).toEqual(["paused", null]);
+  });
+
+  it("tells the window how long it was away, so it can ask 'keep that time?'", async () => {
+    const { math } = await mathWithAQuietSecondSession();
+
+    const back = await pingTimer(prisma, math.id, at(47));
+
+    expect(back).toEqual({ running: true, awaySinceMs: at(22).getTime() });
+  });
+
+  it("doesn't bother the kid over an ordinary gap", async () => {
+    const student = await makeStudent(prisma);
+    const instance = await makeInstance(student.id, null);
+    await startTimer(prisma, instance.id, at(0), TODAY);
+    await pingTimer(prisma, instance.id, at(2));
+
+    expect(await pingTimer(prisma, instance.id, at(2, 40))).toEqual({ running: true, awaySinceMs: null });
+    // Even a gap just under the question threshold: no prompt.
+    expect((await pingTimer(prisma, instance.id, at(7, 30))).awaySinceMs).toBeNull();
+  });
+
+  it("'stop where it went quiet' ends the run at the last ping, not now — keeping the first session too", async () => {
+    const { math } = await mathWithAQuietSecondSession();
+    const back = await pingTimer(prisma, math.id, at(47));
+
+    await trimTimer(prisma, math.id, back.awaySinceMs!, at(47));
+
+    const runs = await prisma.timeEntry.findMany({ where: { instanceId: math.id }, orderBy: { startedAt: "asc" } });
+    expect(runs.map((r) => [r.endedAt, r.endReason])).toEqual([[at(15), "paused"], [at(22), "paused"]]);
+    expect((await getTimerState(prisma, math.id, at(50), TODAY)).closedMs).toBe((15 + 2) * 60_000);
+  });
+
+  it("trimming can't end a run before it began or after now, and a run trimmed to nothing is discarded", async () => {
+    const student = await makeStudent(prisma);
+    const a = await makeInstance(student.id, null, { title: "A" });
+    await startTimer(prisma, a.id, at(10), TODAY);
+    await pingTimer(prisma, a.id, at(12));
+    // Asked to end it before it even started, or tomorrow: clamped to its own life.
+    expect((await trimTimer(prisma, a.id, at(0).getTime(), at(30))).discarded).toBe(true); // clamps to its start: zero length
+    expect(await prisma.timeEntry.count()).toBe(0);
+
+    const b = await makeInstance(student.id, null, { title: "B" });
+    await startTimer(prisma, b.id, at(40), TODAY);
+    await pingTimer(prisma, b.id, at(42));
+    await trimTimer(prisma, b.id, at(500).getTime(), at(60));
+    expect((await prisma.timeEntry.findFirstOrThrow({ where: { instanceId: b.id } })).endedAt).toEqual(at(60));
+  });
+
+  it("trimming with nothing running does nothing", async () => {
+    const student = await makeStudent(prisma);
+    const instance = await makeInstance(student.id, null);
+    expect(await trimTimer(prisma, instance.id, at(5).getTime(), at(10))).toEqual({ discarded: false });
+  });
+
+  it("switching tasks after a long silence ends the old run at its last ping, not now", async () => {
+    const student = await makeStudent(prisma);
+    const math = await makeInstance(student.id, null, { title: "Math" });
+    const latin = await makeInstance(student.id, null, { title: "Latin" });
+    await startTimer(prisma, math.id, at(0), TODAY);
+    await keepAlive(math.id, 0, 20);
+
+    // Window quiet from :20; he picks up Latin at :55 without ever pausing Math.
+    await startTimer(prisma, latin.id, at(55), TODAY);
+
+    const mathRun = await prisma.timeEntry.findFirstOrThrow({ where: { instanceId: math.id } });
+    expect(mathRun.endReason).toBe("switched");
+    expect(mathRun.endedAt).toEqual(at(20)); // the last time we know he was on it — not :55
+  });
+
+  it("switching tasks right away still ends the old run at now", async () => {
+    const student = await makeStudent(prisma);
+    const math = await makeInstance(student.id, null, { title: "Math" });
+    const latin = await makeInstance(student.id, null, { title: "Latin" });
+    await startTimer(prisma, math.id, at(0), TODAY);
+    await keepAlive(math.id, 0, 20);
+
+    await startTimer(prisma, latin.id, at(21), TODAY);
+
+    expect((await prisma.timeEntry.findFirstOrThrow({ where: { instanceId: math.id } })).endedAt).toEqual(at(21));
+  });
+
+  it("lets a reloaded screen see it was away: the timer state carries the last ping", async () => {
+    const { math } = await mathWithAQuietSecondSession();
+
+    const state = await getTimerState(prisma, math.id, at(47), TODAY);
+
+    expect(state.lastPingAtMs).toBe(at(22).getTime());
+    expect(state.openStartedAtMs).toBe(at(20).getTime());
+    expect(state.serverNowMs - state.lastPingAtMs!).toBeGreaterThan(AWAY_AFTER_MS);
+  });
+
+  it("has no last ping when nothing is running", async () => {
+    const student = await makeStudent(prisma);
+    const instance = await makeInstance(student.id, null);
+    expect((await getTimerState(prisma, instance.id, at(0), TODAY)).lastPingAtMs).toBeNull();
   });
 });
 
@@ -539,14 +674,14 @@ describe("pingTimer and findOpenRun", () => {
     const instance = await makeInstance(student.id, null);
     await startTimer(prisma, instance.id, at(0), TODAY);
 
-    expect(await pingTimer(prisma, instance.id, at(0, 30))).toEqual({ running: true });
+    expect(await pingTimer(prisma, instance.id, at(0, 30))).toEqual({ running: true, awaySinceMs: null });
     expect((await prisma.timeEntry.findFirstOrThrow({ where: { instanceId: instance.id } })).lastPingAt).toEqual(at(0, 30));
   });
 
   it("says not running when nothing is open", async () => {
     const student = await makeStudent(prisma);
     const instance = await makeInstance(student.id, null);
-    expect(await pingTimer(prisma, instance.id, at(0))).toEqual({ running: false });
+    expect(await pingTimer(prisma, instance.id, at(0))).toEqual({ running: false, awaySinceMs: null });
   });
 
   it("finds the student's still-running timer so a reload lands back on it", async () => {
@@ -559,13 +694,22 @@ describe("pingTimer and findOpenRun", () => {
     expect(open?.instanceId).toBe(instance.id);
   });
 
-  it("doesn't offer a lapsed run as 'still running'", async () => {
+  it("still offers a quiet-but-not-abandoned run as running — the window may come back", async () => {
     const student = await makeStudent(prisma);
     const instance = await makeInstance(student.id, null);
     await startTimer(prisma, instance.id, at(0), TODAY);
     await pingTimer(prisma, instance.id, at(2));
 
-    expect(await findOpenRun(prisma, student.id, at(90))).toBeNull();
+    expect((await findOpenRun(prisma, student.id, at(90)))?.instanceId).toBe(instance.id);
+  });
+
+  it("doesn't offer an abandoned run as 'still running'", async () => {
+    const student = await makeStudent(prisma);
+    const instance = await makeInstance(student.id, null);
+    await startTimer(prisma, instance.id, at(0), TODAY);
+    await pingTimer(prisma, instance.id, at(2));
+
+    expect(await findOpenRun(prisma, student.id, at(2 + ABANDONED))).toBeNull();
   });
 });
 
