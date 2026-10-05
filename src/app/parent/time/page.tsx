@@ -198,22 +198,31 @@ export default async function TimePage({
           </div>
         </div>
 
-        {!answer || !axis ? (
+        {!axis ? (
           <p className="mt-10" style={{ color: COLORS.muted, fontSize: 13 }}>
             No time tracked yet. When {student.name} taps ▶ on a task, it shows up here.
           </p>
         ) : (
           <>
-            {/* 1 — the answer */}
-            <p className="mt-6" style={{ fontSize: 21, fontWeight: 500, lineHeight: 1.3, maxWidth: 600, letterSpacing: "-0.01em" }}>
-              {answer.sentence}
-            </p>
-            <div className="mt-4">
-              <AnswerBar answer={answer} />
-            </div>
-            {answer.untimedLabel && (
-              <p className="mt-2.5" style={{ color: COLORS.muted, fontSize: 11.5 }}>
-                {answer.untimedLabel}
+            {/* 1 — the answer (school days only: a Sunday head start has no
+                school day to average into) */}
+            {answer ? (
+              <>
+                <p className="mt-6" style={{ fontSize: 21, fontWeight: 500, lineHeight: 1.3, maxWidth: 600, letterSpacing: "-0.01em" }}>
+                  {answer.sentence}
+                </p>
+                <div className="mt-4">
+                  <AnswerBar answer={answer} />
+                </div>
+                {answer.untimedLabel && (
+                  <p className="mt-2.5" style={{ color: COLORS.muted, fontSize: 11.5 }}>
+                    {answer.untimedLabel}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-6" style={{ color: COLORS.muted, fontSize: 13 }}>
+                Only a Sunday head start so far — the school-day summary fills in once a school day has been timed.
               </p>
             )}
 

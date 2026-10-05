@@ -271,6 +271,10 @@ export function StudentWeekView({
   // currently being browsed) instead of leaving a silent grid that reads
   // as broken.
   const todayIsSunday = today.getUTCDay() === 0;
+  // §15: on a Sunday with time tracking on, tomorrow's (Monday's) column is
+  // live for a head start — timeable, finishable, and undoable — even though
+  // it isn't "today." The time is recorded as Sunday's work.
+  const workAheadISO = timeTracking && todayIsSunday ? toISODate(addDays(today, 1)) : null;
 
   function handleCelebrate() {
     if (skipCelebratedGuard) return; // stay re-testable while pinned to a fixed debug date
@@ -413,14 +417,19 @@ export function StudentWeekView({
     ? { timeLog: timeTracking.timeLog, onStart: handleStartTimer, finish: finishSignal }
     : undefined;
 
-  // The rest of today's tasks, for the timer screen's top-edge day bar — the
-  // timed task is added live by the screen itself.
+  // The rest of the timed task's own day, for the timer screen's top-edge day
+  // bar — today, or Monday for a Sunday head start — with the timed task added
+  // live by the screen itself.
+  const timerDayISO = timer?.instance.dueDate ? toISODate(timer.instance.dueDate) : todayISO;
   const otherTodayTasks =
     timeTracking && timer
       ? dayBarTasksFor(
-          todayInstances.filter((candidate) => candidate.id !== timer.instance.id),
+          localInstances.filter(
+            (candidate) =>
+              candidate.id !== timer.instance.id && candidate.dueDate && toISODate(candidate.dueDate) === timerDayISO
+          ),
           timeTracking.timeLog,
-          todayISO
+          timerDayISO
         )
       : [];
 
@@ -494,7 +503,9 @@ export function StudentWeekView({
 
       {todayIsSunday && (
         <p className="mt-3 text-sm" style={{ color: COLORS.mutedFaint }}>
-          No school today — nothing here is checkable until Monday.
+          {workAheadISO
+            ? "No school today — but you can get a head start on tomorrow’s work. Tap ▶ on anything in Monday."
+            : "No school today — nothing here is checkable until Monday."}
         </p>
       )}
 
@@ -515,7 +526,7 @@ export function StudentWeekView({
                   key={dayISO}
                   day={day}
                   isToday={isToday}
-                  interactive={isToday}
+                  interactive={isToday || dayISO === workAheadISO}
                   instances={dayInstances}
                   separators={daySeparatorsForDay}
                   calendarEvents={dayCalendarEvents}
@@ -561,7 +572,7 @@ export function StudentWeekView({
                     <DayColumn
                       day={day}
                       isToday={isToday}
-                      interactive={isToday}
+                      interactive={isToday || dayISO === workAheadISO}
                       instances={dayInstances}
                       separators={daySeparatorsForDay}
                       calendarEvents={dayCalendarEvents}

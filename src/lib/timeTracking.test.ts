@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { parseISODate } from "./dates";
+import { parseISODate, toISODate } from "./dates";
 import { tenantScopeExtension } from "./tenantScope";
 import { LAPSE_AFTER_MS, MIN_RUN_MS, summarizeDay } from "./timeSummary";
 import {
@@ -143,6 +143,92 @@ describe("startTimer", () => {
   });
 });
 
+describe("getting a head start on tomorrow (§15, Sundays)", () => {
+  const SUNDAY = parseISODate("2026-10-04");
+  const MONDAY = parseISODate("2026-10-05");
+  const sundayAt = (minutes: number) => new Date(Date.UTC(2026, 9, 4, 22, 0, 0) + minutes * 60_000); // 3:00 PM PDT
+
+  async function mondayTask(studentId: string, overrides: { requiresReview?: boolean } = {}) {
+    return prisma.assignmentInstance.create({
+      data: {
+        title: "Monday math",
+        studentId,
+        createdBy: "parent",
+        dueDate: MONDAY,
+        originalDueDate: MONDAY,
+        requiresReview: overrides.requiresReview ?? false,
+      },
+    });
+  }
+
+  it("lets a Sunday timer run on Monday's task, recorded as Sunday's work", async () => {
+    const student = await makeStudent(prisma);
+    const task = await mondayTask(student.id);
+
+    const run = await startTimer(prisma, task.id, sundayAt(0), SUNDAY);
+
+    expect(run.date).toEqual(SUNDAY); // dated the day it actually happened...
+    expect((await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: task.id } })).dueDate).toEqual(MONDAY); // ...while the task stays due Monday
+  });
+
+  it("lets Finish complete it on Sunday, and keeps the time on Sunday", async () => {
+    const student = await makeStudent(prisma);
+    const task = await mondayTask(student.id);
+    await startTimer(prisma, task.id, sundayAt(0), SUNDAY);
+    for (let m = 2; m <= 20; m += 2) await pingTimer(prisma, task.id, sundayAt(m));
+
+    const result = await finishTimer(prisma, task.id, sundayAt(20), SUNDAY);
+
+    expect(result.status).toBe("done");
+    const after = await prisma.assignmentInstance.findUniqueOrThrow({ where: { id: task.id } });
+    expect(after.completedAt).toEqual(sundayAt(20));
+    expect(toISODate(after.dueDate!)).toBe("2026-10-05");
+    const runs = await prisma.timeEntry.findMany({ where: { instanceId: task.id } });
+    expect(runs).toHaveLength(1);
+    expect(runs[0].date).toEqual(SUNDAY);
+  });
+
+  it("sends 'Show me' work to pending review, same as any day", async () => {
+    const student = await makeStudent(prisma);
+    const task = await mondayTask(student.id, { requiresReview: true });
+    await startTimer(prisma, task.id, sundayAt(0), SUNDAY);
+    for (let m = 2; m <= 12; m += 2) await pingTimer(prisma, task.id, sundayAt(m));
+
+    expect((await finishTimer(prisma, task.id, sundayAt(12), SUNDAY)).status).toBe("pendingReview");
+  });
+
+  it("opens only the very next day — not Tuesday's tasks", async () => {
+    const student = await makeStudent(prisma);
+    const tuesday = await prisma.assignmentInstance.create({
+      data: { title: "Tuesday", studentId: student.id, createdBy: "parent", dueDate: parseISODate("2026-10-06"), originalDueDate: parseISODate("2026-10-06") },
+    });
+    await expect(startTimer(prisma, tuesday.id, sundayAt(0), SUNDAY)).rejects.toThrow(TimeTrackingError);
+  });
+
+  it("never opens tomorrow's tasks on a weekday", async () => {
+    const student = await makeStudent(prisma);
+    const saturdayTask = await prisma.assignmentInstance.create({
+      data: { title: "Saturday", studentId: student.id, createdBy: "parent", dueDate: parseISODate("2026-10-03"), originalDueDate: parseISODate("2026-10-03") },
+    });
+    await expect(startTimer(prisma, saturdayTask.id, at(0), parseISODate("2026-10-02"))).rejects.toThrow(TimeTrackingError);
+  });
+
+  it("counts Sunday's work toward Monday's own total for the bar, and tells it from earlier work", async () => {
+    const student = await makeStudent(prisma);
+    const task = await mondayTask(student.id);
+    await startTimer(prisma, task.id, sundayAt(0), SUNDAY);
+    for (let m = 2; m <= 14; m += 2) await pingTimer(prisma, task.id, sundayAt(m));
+    await pauseTimer(prisma, task.id, sundayAt(14));
+
+    // Looked at from Sunday itself, and again on Monday morning.
+    for (const today of [SUNDAY, MONDAY]) {
+      const state = await getTimerState(prisma, task.id, sundayAt(60), today);
+      expect(state.closedMs).toBe(14 * 60_000);
+      expect(state.closedTodayMs).toBe(14 * 60_000); // a head start is part of its day's work, not "earlier" work
+    }
+  });
+});
+
 describe("pause and resume", () => {
   it("pause closes the run as 'paused'; resume opens a new one, and the task's time is the sum of its runs", async () => {
     const student = await makeStudent(prisma);
@@ -176,6 +262,8 @@ describe("pause and resume", () => {
   it("tells today's time from a rolled task's earlier days, and quotes only today's first start", async () => {
     const student = await makeStudent(prisma);
     const instance = await makeInstance(student.id, null);
+    // It really rolled: first due yesterday (when the earlier work happened), carried to today.
+    await prisma.assignmentInstance.update({ where: { id: instance.id }, data: { originalDueDate: parseISODate("2026-09-07") } });
     // Yesterday: 8 minutes on this task (as if it had rolled in).
     await prisma.timeEntry.create({
       data: {

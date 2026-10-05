@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InstanceStatus } from "@/generated/prisma/enums";
-import { dayBarFill, dayBarTasksFor, DAY_BAR_HELD_SHORT, type DayBarTask } from "./dayBar";
+import { dayBarFill, dayBarTasksFor, DAY_BAR_HELD_SHORT, splitLoggedTime, type DayBarTask } from "./dayBar";
 
 const MIN = 60_000;
 
@@ -128,3 +128,45 @@ describe("dayBarTasksFor", () => {
     expect(dayBarFill(tasks)).toBeCloseTo(0.5);
   });
 });
+
+describe("splitLoggedTime (head starts versus rolled-forward work)", () => {
+  const log = { "2026-10-02": 10 * MIN, "2026-10-03": 20 * MIN, "2026-10-04": 5 * MIN, "2026-10-06": 99 * MIN };
+
+  it("counts work done before the task was ever due as a head start on its day", () => {
+    // Due Monday 10/5, not rolled; Sunday's 5 minutes and the earlier 10 + 20 are all head start.
+    expect(splitLoggedTime(log, "2026-10-05", "2026-10-05")).toEqual({ loggedTodayMs: 35 * MIN, loggedEarlierMs: 0 });
+  });
+
+  it("still treats a rolled-forward task's work since it was first due as earlier work", () => {
+    // First due Fri 10/2, rolled to Mon 10/5: Fri-Sun is earlier work, nothing predates it.
+    expect(splitLoggedTime(log, "2026-10-05", "2026-10-02")).toEqual({ loggedTodayMs: 0, loggedEarlierMs: 35 * MIN });
+    // First due Sat 10/3: Friday's 10 is a head start, Sat-Sun is earlier work.
+    expect(splitLoggedTime(log, "2026-10-05", "2026-10-03")).toEqual({ loggedTodayMs: 10 * MIN, loggedEarlierMs: 25 * MIN });
+  });
+
+  it("counts the day's own time as the day's, and ignores later days", () => {
+    expect(splitLoggedTime({ "2026-10-05": 7 * MIN, "2026-10-06": 50 * MIN }, "2026-10-05", "2026-10-05")).toEqual({
+      loggedTodayMs: 7 * MIN,
+      loggedEarlierMs: 0,
+    });
+  });
+
+  it("with no known original due date, every earlier day is earlier work (as before)", () => {
+    expect(splitLoggedTime(log, "2026-10-05", null)).toEqual({ loggedTodayMs: 0, loggedEarlierMs: 35 * MIN });
+  });
+
+  it("lets a task finished on Sunday read as fully worked on its own Monday", () => {
+    const [done] = dayBarTasksFor(
+      [{ id: "t", status: done_(), estimatedMinutes: 30, originalDueDate: new Date("2026-10-05T00:00:00Z") }],
+      { t: { "2026-10-04": 28 * MIN } },
+      "2026-10-05"
+    );
+    expect(done).toMatchObject({ loggedTodayMs: 28 * MIN, loggedEarlierMs: 0 });
+    // ...so Monday's bar is full, not near-empty.
+    expect(dayBarFill([done])).toBe(1);
+  });
+});
+
+function done_() {
+  return InstanceStatus.done;
+}

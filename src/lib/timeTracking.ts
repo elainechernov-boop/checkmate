@@ -2,7 +2,9 @@ import type { PrismaClient, TimeEntry } from "@/generated/prisma/client";
 import { InstanceStatus, TimeEntryEndReason } from "@/generated/prisma/enums";
 import { formatClockInput, wallClockInstant, zonedDateISO } from "./clockTime";
 import { getToday, toISODate } from "./dates";
+import { splitLoggedTime } from "./dayBar";
 import { LAPSE_AFTER_MS, MIN_RUN_MS, runDurationMs } from "./timeSummary";
+import { canWorkOn } from "./workAhead";
 
 // §15's recording rules, all of them server-enforced. Every function takes
 // the server's `now` as a parameter (defaulting to the real clock) so a test
@@ -44,15 +46,17 @@ export async function sweepLapsedRuns(db: TimeDb, studentId: string, now: Date =
   }
 }
 
-function assertToday(dueDate: Date | null, today: Date): void {
-  if (!dueDate || toISODate(dueDate) !== toISODate(today)) {
-    throw new TimeTrackingError("Only today's items can be timed.");
+function assertWorkable(dueDate: Date | null, today: Date): void {
+  if (!canWorkOn(dueDate, today)) {
+    throw new TimeTrackingError("Only today's items can be timed — or, on a Sunday, tomorrow's.");
   }
 }
 
 /**
  * Start (or resume — they're the same act) the clock on an item. Only
- * today's open items can be timed, the same rule as check/uncheck (§6). At
+ * today's open items can be timed, the same rule as check/uncheck (§6) — plus,
+ * on a Sunday, tomorrow's (workAhead.ts). The run is dated *today* either way:
+ * a head start is recorded as the day it actually happened. At
  * most one run is ever open per student: starting a different task closes the
  * running one first (`switched`), in the same transaction. Starting the task
  * that's already running is a no-op that just refreshes its ping, so a double
@@ -66,7 +70,7 @@ export async function startTimer(
 ): Promise<TimeEntry> {
   return prisma.$transaction(async (tx) => {
     const instance = await tx.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
-    assertToday(instance.dueDate, today);
+    assertWorkable(instance.dueDate, today);
     if (instance.status !== InstanceStatus.open) {
       throw new TimeTrackingError("Only an open item can be timed.");
     }
@@ -151,7 +155,7 @@ export async function finishTimer(
 ): Promise<{ status: InstanceStatus; discardedRun: boolean }> {
   return prisma.$transaction(async (tx) => {
     const instance = await tx.assignmentInstance.findUniqueOrThrow({ where: { id: instanceId } });
-    assertToday(instance.dueDate, today);
+    assertWorkable(instance.dueDate, today);
     // Finishing something already finished (a double tap) is a no-op.
     if (instance.status !== InstanceStatus.open) {
       return { status: instance.status, discardedRun: false };
@@ -205,9 +209,20 @@ export async function getTimerState(
   const closedRuns = runs.filter((run) => run.endedAt);
   const closedMs = closedRuns.reduce((sum, run) => sum + runDurationMs(run, now), 0);
   const todayISO = toISODate(today);
-  const closedTodayMs = closedRuns
-    .filter((run) => toISODate(run.date) === todayISO)
-    .reduce((sum, run) => sum + runDurationMs(run, now), 0);
+  // "Today's" share, in the bar's sense (dayBar.ts's splitLoggedTime): relative
+  // to the day this task is due — which is tomorrow, not today, for a Sunday
+  // head start — so a head start counts toward the day it was for.
+  const closedByDate: Record<string, number> = {};
+  for (const run of closedRuns) {
+    const key = toISODate(run.date);
+    closedByDate[key] = (closedByDate[key] ?? 0) + runDurationMs(run, now);
+  }
+  const dueISO = toISODate(instance.dueDate ?? today);
+  const { loggedTodayMs: closedTodayMs } = splitLoggedTime(
+    closedByDate,
+    dueISO,
+    instance.originalDueDate ? toISODate(instance.originalDueDate) : null
+  );
 
   return {
     closedMs,

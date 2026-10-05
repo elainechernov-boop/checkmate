@@ -125,6 +125,52 @@ describe("buildDashboard — buckets and averages", () => {
     expect(averages!.waitingMs).toBe(20 * MIN);
   });
 
+  it("never counts a Sunday head start as a late start, even with a school-day start set", () => {
+    // Sunday 2026-09-13, three hours after a 9:00 "school start" — not waiting, just a head start.
+    const sunday = [run("s1", "t-math", "Fractions", "math", "2026-09-13", 180, 215)];
+    const { days } = build({
+      runs: sunday,
+      tasks,
+      schoolDayStartTime: "09:00",
+      from: parseISODate("2026-09-07"),
+      to: parseISODate("2026-09-13"),
+    });
+    expect(days.map((d) => d.dateISO)).toEqual(["2026-09-13"]);
+    expect(days[0].summary.waitingMs).toBe(0);
+    expect(days[0].summary.dayMs).toBe(35 * MIN);
+  });
+
+  it("keeps a Sunday head start out of the school-day averages, but still lists it as a day", () => {
+    const tuesday = [run("w1", "t-math", "Fractions", "math", "2026-09-08", 0, 60)]; // a 60-minute school day
+    const sunday = [run("s1", "t-math", "Fractions", "math", "2026-09-13", 0, 20)]; // a 20-minute head start
+    const { days, averages } = build({
+      runs: [...tuesday, ...sunday],
+      tasks,
+      from: parseISODate("2026-09-07"),
+      to: parseISODate("2026-09-13"),
+    });
+    expect(days.map((d) => d.dateISO)).toEqual(["2026-09-08", "2026-09-13"]);
+    expect(averages!.days).toBe(1);
+    expect(averages!.dayMs).toBe(60 * MIN); // not (60 + 20) / 2
+    expect(averages!.workingMs).toBe(60 * MIN);
+  });
+
+  it("has no school-day averages when only a Sunday was tracked — but the day is still there", () => {
+    const { days, averages } = build({
+      runs: [run("s1", "t-math", "Fractions", "math", "2026-09-13", 0, 20)],
+      tasks,
+      from: parseISODate("2026-09-07"),
+      to: parseISODate("2026-09-13"),
+    });
+    expect(averages).toBeNull();
+    expect(days).toHaveLength(1);
+  });
+
+  it("still counts a late start on a school day", () => {
+    const { days } = build({ runs: [run("w1", "t-math", "Fractions", "math", "2026-09-08", 180, 215)], tasks, schoolDayStartTime: "09:00" });
+    expect(days[0].summary.waitingMs).toBe(180 * MIN);
+  });
+
   it("ignores runs attributed to days outside the range", () => {
     const outside = run("rx", "t-math", "Fractions", "math", "2026-09-20", 0, 60);
     const { days } = build({ runs: [...day1, outside], tasks });

@@ -281,7 +281,10 @@ export function DayStrips({ days, axis }: { days: DayView[]; axis: AxisView }) {
                   <span style={{ display: "block" }}>
                     Work {day.workLabel} · Day {day.dayLabel}
                   </span>
-                  <span style={{ display: "block", fontSize: 11, color: COLORS.muted }}>Done {day.doneLabel}</span>
+                  <span style={{ display: "block", fontSize: 11, color: COLORS.muted }}>
+                    Done {day.doneLabel}
+                    {day.headStart ? " · head start" : ""}
+                  </span>
                 </button>
               </div>
 

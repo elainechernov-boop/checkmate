@@ -2,7 +2,7 @@ import { formatAxisHour, formatClockTime, formatDurationMs, formatSignedDuration
 import { formatDayWeekdayShort, formatMonthDayLine, parseISODate } from "./dates";
 import { runDurationMs } from "./timeSummary";
 import { toRunView, type TimeRunView } from "./timeRunView";
-import type { Dashboard, DashboardTask } from "./timeDashboard";
+import { isHeadStartDate, type Dashboard, type DashboardTask } from "./timeDashboard";
 
 // §15's dashboard, as plain strings and positions — everything a client
 // component needs to draw it, formatted here on the server so the browser
@@ -95,6 +95,8 @@ export interface DayView {
   waitingLabel: string;
   dayLabel: string;
   doneLabel: string;
+  /** A Sunday: a head start on Monday, not a school day (§15). */
+  headStart: boolean;
   blocks: BlockView[];
   ledger: LedgerView[];
   /** The ledger's one-line summary, e.g. "Work 3h 15m · between tasks 1h 45m". */
@@ -185,6 +187,7 @@ export function buildDayViews(dashboard: Dashboard, tasks: DashboardTask[], now:
       waitingLabel: formatDurationMs(summary.waitingMs),
       dayLabel: formatDurationMs(summary.dayMs),
       doneLabel: summary.lastEnd ? formatClockTime(summary.lastEnd) : "",
+      headStart: isHeadStartDate(dateISO),
       blocks,
       ledger,
       ledgerSummary: `Work ${formatDurationMs(summary.workingMs)} · between tasks ${formatDurationMs(summary.betweenMs)}`,

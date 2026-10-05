@@ -144,6 +144,16 @@ describe("buildDayViews", () => {
     expect(shortDay.ledger.find((item) => item.kind === "gap")).toEqual({ kind: "gap", label: "10 min between", strong: false });
   });
 
+  it("marks a Sunday as a head start, and a weekday as not", () => {
+    expect(day.headStart).toBe(false);
+    const withSunday = buildDashboard({
+      runs: [run("s1", "a", "Spelling", "2026-09-13", 0, 25)], tasks, timedTaskIds: new Set(["a"]),
+      subjectNames: new Map(), schoolDayStartTime: null,
+      from: parseISODate("2026-09-07"), to: parseISODate("2026-09-13"), now: NOW,
+    });
+    expect(buildDayViews(withSunday, tasks, NOW)[0]).toMatchObject({ weekday: "Sun", headStart: true });
+  });
+
   it("carries each run's real record, so edits and marks work in the ledger", () => {
     const first = day.ledger.find((item) => item.kind === "run");
     expect(first && first.kind === "run" && first.run).toMatchObject({ id: "1", endReason: "paused", editedByParent: false });

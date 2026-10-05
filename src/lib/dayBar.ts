@@ -66,6 +66,9 @@ export interface DayBarInstance {
   status: InstanceStatus;
   estimatedMinutes: number | null;
   series?: { estimatedMinutes: number | null } | null;
+  /** The day it was first due — what tells a rolled-forward task's earlier
+   * work from a head start made before it was due at all. */
+  originalDueDate?: Date | null;
 }
 
 /** `{ [instanceId]: { [yyyy-mm-dd]: ms } }` — see timeTracking.ts's
@@ -73,18 +76,41 @@ export interface DayBarInstance {
  * shape without pulling in the server-only module. */
 export type TimeLog = Record<string, Record<string, number>>;
 
-/** One day's bar inputs from its instances and the time log: time logged on
- * `dayISO` itself, and everything logged on earlier days (a rolled task
- * carries some of its work in already). */
+/**
+ * Splits one task's logged time (`{ yyyy-mm-dd: ms }`) for the day it's due:
+ *   - time logged on the day itself counts as that day's work;
+ *   - time logged on an earlier day counts as *earlier* work if the task was
+ *     already due then (it rolled forward carrying some of its work in);
+ *   - but time logged *before the task was ever due* is a head start — work
+ *     done ahead of time (§15's Sunday for Monday) — and counts toward the day
+ *     it was for, so a task finished the day before doesn't look untouched when
+ *     its own day arrives.
+ * Time on any later day is ignored. With no known original due date (`null`),
+ * every earlier day is treated as earlier work, as before head starts existed.
+ */
+export function splitLoggedTime(
+  byDate: Record<string, number>,
+  dayISO: string,
+  originalDueISO: string | null
+): { loggedTodayMs: number; loggedEarlierMs: number } {
+  let loggedTodayMs = 0;
+  let loggedEarlierMs = 0;
+  for (const [date, ms] of Object.entries(byDate)) {
+    if (date === dayISO) loggedTodayMs += ms;
+    else if (date < dayISO) {
+      if (originalDueISO && date < originalDueISO) loggedTodayMs += ms;
+      else loggedEarlierMs += ms;
+    }
+  }
+  return { loggedTodayMs, loggedEarlierMs };
+}
+
+/** One day's bar inputs from its instances and the time log — see
+ * splitLoggedTime for what counts as that day's work versus earlier work. */
 export function dayBarTasksFor(instances: DayBarInstance[], timeLog: TimeLog, dayISO: string): DayBarTask[] {
   return instances.map((instance) => {
-    const byDate = timeLog[instance.id] ?? {};
-    let loggedTodayMs = 0;
-    let loggedEarlierMs = 0;
-    for (const [date, ms] of Object.entries(byDate)) {
-      if (date === dayISO) loggedTodayMs += ms;
-      else if (date < dayISO) loggedEarlierMs += ms;
-    }
+    const originalDueISO = instance.originalDueDate ? instance.originalDueDate.toISOString().slice(0, 10) : null;
+    const { loggedTodayMs, loggedEarlierMs } = splitLoggedTime(timeLog[instance.id] ?? {}, dayISO, originalDueISO);
     return {
       status: instance.status,
       estimatedMinutes: instance.estimatedMinutes ?? instance.series?.estimatedMinutes ?? null,

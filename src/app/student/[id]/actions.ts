@@ -16,6 +16,7 @@ import {
 } from "@/lib/session";
 import { nextAccentColor } from "@/lib/theme";
 import { finishTimer, getTimerState, pauseTimer, pingTimer, startTimer, type TimerState } from "@/lib/timeTracking";
+import { canWorkOn } from "@/lib/workAhead";
 
 /**
  * The student's only two verbs (§2): check and uncheck. §6's undo rule and
@@ -29,7 +30,12 @@ export async function toggleInstance(instanceId: string): Promise<{ status: Inst
   const today = toISODate(getToday());
   const dueToday = instance.dueDate && toISODate(instance.dueDate) === today;
   if (!dueToday) {
-    throw new Error("Only today's items can be checked or unchecked.");
+    // §15: on a Sunday, with time tracking on, tomorrow's (Monday's) tasks are
+    // open for a head start — so a task finished that way can be unchecked too.
+    const headStart = canWorkOn(instance.dueDate, getToday()) && (await getCurrentFamily()).timeTrackingEnabled;
+    if (!headStart) {
+      throw new Error("Only today's items can be checked or unchecked.");
+    }
   }
 
   let nextStatus: InstanceStatus;

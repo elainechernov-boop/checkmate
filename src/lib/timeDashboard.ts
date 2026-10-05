@@ -1,6 +1,6 @@
 import { InstanceStatus } from "@/generated/prisma/enums";
 import { minuteOfDay, wallClockInstant, zonedDateISO } from "./clockTime";
-import { toISODate } from "./dates";
+import { parseISODate, toISODate } from "./dates";
 import { runDurationMs, summarizeDay, type DayGap, type DaySummary, type RunLike } from "./timeSummary";
 import type { TimeRunRecord } from "./timeRunView";
 
@@ -103,6 +103,9 @@ export interface Dashboard {
   axis: DashboardAxis | null;
 }
 
+/** A Sunday isn't a school day: time on it is a head start on Monday (§15). */
+export const isHeadStartDate = (dateISO: string): boolean => parseISODate(dateISO).getUTCDay() === 0;
+
 /** Whole-number percentages of `values` that sum to exactly 100 (largest
  * remainder), so a stacked bar's labels never add up to 99 or 101. */
 export function shareOfTotal(values: number[]): number[] {
@@ -147,22 +150,28 @@ export function buildDashboard(input: BuildDashboardInput): Dashboard {
   const days: DashboardDay[] = [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([dateISO, dayRuns]) => {
-      const schoolStart = schoolDayStartTime ? wallClockInstant(dateISO, schoolDayStartTime) : null;
+      // No school-day start to have been late for on a head-start Sunday.
+      const schoolStart =
+        schoolDayStartTime && !isHeadStartDate(dateISO) ? wallClockInstant(dateISO, schoolDayStartTime) : null;
       return { dateISO, summary: summarizeDay(dayRuns, now, schoolStart) };
     })
     .filter((day) => day.summary.runs.length > 0);
 
+  // "How long does a school day run" — averaged over school days only. A
+  // Sunday head start still shows in the strips, but a short Sunday session
+  // would otherwise pull the average school day down.
+  const schoolDays = days.filter((day) => !isHeadStartDate(day.dateISO));
   let averages: BucketAverages | null = null;
-  if (days.length > 0) {
+  if (schoolDays.length > 0) {
     const avg = (pick: (summary: DaySummary<DashboardRun>) => number) =>
-      days.reduce((sum, day) => sum + pick(day.summary), 0) / days.length;
+      schoolDays.reduce((sum, day) => sum + pick(day.summary), 0) / schoolDays.length;
     const workingMs = avg((s) => s.workingMs);
     const pausedMs = avg((s) => s.pausedMs);
     const betweenMs = avg((s) => s.betweenMs);
     const waitingMs = avg((s) => s.waitingMs);
     const [working, paused, between, waiting] = shareOfTotal([workingMs, pausedMs, betweenMs, waitingMs]);
     averages = {
-      days: days.length,
+      days: schoolDays.length,
       dayMs: avg((s) => s.dayMs),
       workingMs,
       pausedMs,
