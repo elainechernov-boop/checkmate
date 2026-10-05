@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { compareDayRows } from "./dayOrder";
 import { startOfUTCDay } from "./dates";
 
 type DaySeparatorPrisma = Pick<PrismaClient, "daySeparator" | "assignmentInstance">;
@@ -44,14 +45,23 @@ export async function deleteDaySeparator(prisma: Pick<PrismaClient, "daySeparato
  * blocking a cross-segment drag before it ever reaches the server) compute
  * the exact same grouping from the exact same sortOrder values.
  */
-export function splitBySeparators<TInstance extends { id: string; sortOrder: number }, TSeparator extends { id: string; sortOrder: number }>(
+export function splitBySeparators<
+  TInstance extends { id: string; sortOrder: number; createdAt?: Date | null },
+  TSeparator extends { id: string; sortOrder: number }
+>(
   instances: TInstance[],
   separators: TSeparator[]
 ): { segments: TInstance[][]; separatorsInOrder: TSeparator[] } {
   const rows: ({ kind: "instance"; row: TInstance } | { kind: "separator"; row: TSeparator })[] = [
     ...instances.map((row) => ({ kind: "instance" as const, row })),
     ...separators.map((row) => ({ kind: "separator" as const, row })),
-  ].sort((a, b) => a.row.sortOrder - b.row.sortOrder);
+  ].sort((a, b) =>
+    // The same tie-break Parent Mode's board uses (dayOrder.ts), so the two can't disagree about tied rows.
+    compareDayRows(
+      { id: a.row.id, sortOrder: a.row.sortOrder, kind: a.kind, createdAt: a.kind === "instance" ? (a.row as TInstance).createdAt : null },
+      { id: b.row.id, sortOrder: b.row.sortOrder, kind: b.kind, createdAt: b.kind === "instance" ? (b.row as TInstance).createdAt : null }
+    )
+  );
 
   const segments: TInstance[][] = [[]];
   const separatorsInOrder: TSeparator[] = [];

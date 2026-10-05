@@ -1,4 +1,5 @@
 import { InstanceStatus } from "@/generated/prisma/enums";
+import { compareDayRows } from "./dayOrder";
 
 export interface DisplayInstance {
   id: string;
@@ -25,7 +26,9 @@ export interface DisplayInstance {
  * starting position — once the parent moves one, her order wins here too.
  */
 export function bucketDayInstances<T extends DisplayInstance>(instances: T[]) {
-  const byParentOrder = (a: T, b: T) => a.sortOrder - b.sortOrder || a.createdAt.getTime() - b.createdAt.getTime();
+  // dayOrder.ts's tie-break — the same one Parent Mode's board uses, so a day's
+  // order can't differ between the two just because two rows share a number.
+  const byParentOrder = (a: T, b: T) => compareDayRows({ ...a, kind: "instance" }, { ...b, kind: "instance" });
 
   const timeSensitive = instances
     .filter((i) => i.status === InstanceStatus.open && i.isTimeSensitive)
@@ -43,10 +46,10 @@ export function bucketDayInstances<T extends DisplayInstance>(instances: T[]) {
   // however either side last reordered it.
   const pendingReview = instances
     .filter((i) => i.status === InstanceStatus.pendingReview)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+    .sort(byParentOrder);
   const completed = instances
     .filter((i) => i.status === InstanceStatus.done || i.status === InstanceStatus.excused)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+    .sort(byParentOrder);
 
   return { timeSensitive, open, pendingReview, completed };
 }

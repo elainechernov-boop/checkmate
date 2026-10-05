@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { EndCondition, Frequency, InstanceStatus } from "@/generated/prisma/enums";
+import { compareDayRows, healTiedDayOrder, tieRepairWindow } from "./dayOrder";
 import { addDays, getToday, startOfUTCDay, toISODate, WEEKDAYS, type WeekdayCode } from "./dates";
 import { isBlockedDay, loadSchoolDayMap, type SchoolDayMap } from "./schoolCalendar";
 
@@ -232,20 +233,20 @@ export async function materializeSeries(
   const [horizonInstances, horizonSeparators] = await Promise.all([
     prisma.assignmentInstance.findMany({
       where: { studentId: series.studentId, dueDate: { gte: asOf, lte: horizonEnd } },
-      select: { id: true, dueDate: true, sortOrder: true },
+      select: { id: true, dueDate: true, sortOrder: true, createdAt: true },
     }),
     prisma.daySeparator.findMany({
       where: { studentId: series.studentId, date: { gte: asOf, lte: horizonEnd } },
       select: { id: true, date: true, sortOrder: true },
     }),
   ]);
-  type Row = { id: string; kind: "instance" | "separator"; sortOrder: number };
+  type Row = { id: string; kind: "instance" | "separator"; sortOrder: number; createdAt?: Date | null };
   const rowsByDate = new Map<string, Row[]>();
   for (const instance of horizonInstances) {
     if (!instance.dueDate) continue;
     const key = toISODate(instance.dueDate);
     const rows = rowsByDate.get(key) ?? [];
-    rows.push({ id: instance.id, kind: "instance", sortOrder: instance.sortOrder });
+    rows.push({ id: instance.id, kind: "instance", sortOrder: instance.sortOrder, createdAt: instance.createdAt });
     rowsByDate.set(key, rows);
   }
   for (const separator of horizonSeparators) {
@@ -254,7 +255,8 @@ export async function materializeSeries(
     rows.push({ id: separator.id, kind: "separator", sortOrder: separator.sortOrder });
     rowsByDate.set(key, rows);
   }
-  for (const rows of rowsByDate.values()) rows.sort((a, b) => a.sortOrder - b.sortOrder);
+  // dayOrder.ts's tie-break, so tied rows keep the order the boards show them in.
+  for (const rows of rowsByDate.values()) rows.sort(compareDayRows);
 
   const staleIds = existingFutureInstances
     .filter(
@@ -389,4 +391,12 @@ export async function extendAllMaterializationHorizons(
   for (const series of seriesList) {
     await materializeSeries(prisma, series.id, asOf);
   }
+
+  // §14: keep every day's order unambiguous. Two rows sharing a position
+  // number is how Parent Mode and the student's view can end up disagreeing
+  // about a day (see dayOrder.ts); renumbering only the days that have a tie —
+  // in the order the board already shows them — makes the numbers themselves
+  // say what the order is. A no-op, one cheap query, when nothing is tied.
+  const { from, to } = tieRepairWindow(asOf);
+  await healTiedDayOrder(prisma, from, to);
 }

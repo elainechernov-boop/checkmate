@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
+import { compareDayRows } from "./dayOrder";
 import { toISODate } from "./dates";
 
 type ReorderablePrisma = Pick<PrismaClient, "assignmentInstance" | "$transaction">;
@@ -42,12 +43,12 @@ async function propagateSeriesOrder(
       prisma.daySeparator.findMany({ where: { studentId: target.studentId, date: target.dueDate } }),
     ]);
     const otherRows = [
-      ...otherInstances.map((i) => ({ id: i.id, kind: "instance" as const, sortOrder: i.sortOrder })),
-      ...separators.map((s) => ({ id: s.id, kind: "separator" as const, sortOrder: s.sortOrder })),
-    ].sort((a, b) => a.sortOrder - b.sortOrder);
+      ...otherInstances.map((i) => ({ id: i.id, kind: "instance" as const, sortOrder: i.sortOrder, createdAt: i.createdAt })),
+      ...separators.map((s) => ({ id: s.id, kind: "separator" as const, sortOrder: s.sortOrder, createdAt: null })),
+    ].sort(compareDayRows);
 
     const insertAt = Math.min(targetIndex, otherRows.length);
-    otherRows.splice(insertAt, 0, { id: target.id, kind: "instance", sortOrder: insertAt });
+    otherRows.splice(insertAt, 0, { id: target.id, kind: "instance", sortOrder: insertAt, createdAt: target.createdAt });
 
     otherRows.forEach((row, index) => {
       updates.push(

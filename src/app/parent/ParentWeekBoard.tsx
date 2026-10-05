@@ -28,6 +28,7 @@ import {
   toISODate,
 } from "@/lib/dates";
 import { formatDurationMs } from "@/lib/clockTime";
+import { compareDayRows, type OrderableRow } from "@/lib/dayOrder";
 import { formatTotalMinutes } from "@/lib/estimatedMinutes";
 import type { FamilyCalendarEvent } from "@/lib/familyCalendar";
 import { formatRollMark } from "@/lib/instanceGrouping";
@@ -587,8 +588,13 @@ function StudentBoard({
     const key = toISODate(separator.date);
     byDay.get(key)?.push({ kind: "separator", separator });
   }
-  const sortOrderOf = (row: DayRow) => (row.kind === "instance" ? row.instance.sortOrder : row.separator.sortOrder);
-  for (const list of byDay.values()) list.sort((a, b) => sortOrderOf(a) - sortOrderOf(b));
+  // dayOrder.ts's tie-break — shared with the student's view, so two rows that
+  // happen to share a position number appear in the same order on both.
+  const orderableOf = (row: DayRow): OrderableRow =>
+    row.kind === "instance"
+      ? { id: row.instance.id, sortOrder: row.instance.sortOrder, createdAt: row.instance.createdAt, kind: "instance" }
+      : { id: row.separator.id, sortOrder: row.separator.sortOrder, kind: "separator" };
+  for (const list of byDay.values()) list.sort((a, b) => compareDayRows(orderableOf(a), orderableOf(b)));
 
   function findRow(id: string): { dateISO: string; row: DayRow } | null {
     for (const [dateISO, rows] of byDay) {

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { InstanceStatus } from "@/generated/prisma/enums";
+import { compareDayRows } from "./dayOrder";
 import { addDays, getToday, startOfUTCDay } from "./dates";
 import { isBlockedDay, loadSchoolDayMap } from "./schoolCalendar";
 
@@ -54,15 +55,22 @@ export async function rollOverdueInstances(
   if (overdue.length === 0) return { rolledCount: 0 };
 
   const [existingInstances, separators] = await Promise.all([
-    prisma.assignmentInstance.findMany({ where: { studentId, dueDate: target }, select: { id: true, sortOrder: true } }),
+    prisma.assignmentInstance.findMany({
+      where: { studentId, dueDate: target },
+      select: { id: true, sortOrder: true, createdAt: true },
+    }),
     prisma.daySeparator.findMany({ where: { studentId, date: target }, select: { id: true, sortOrder: true } }),
   ]);
   const existingRows = [
     ...existingInstances.map((i) => ({ ...i, kind: "instance" as const })),
     ...separators.map((s) => ({ ...s, kind: "separator" as const })),
-  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  ].sort(compareDayRows);
+  // Oldest debt first; among tasks from the same day, the order they were
+  // already in (same tie-break as everywhere — dayOrder.ts).
   const rolledInOrder = [...overdue].sort(
-    (a, b) => (a.originalDueDate?.getTime() ?? 0) - (b.originalDueDate?.getTime() ?? 0) || a.sortOrder - b.sortOrder
+    (a, b) =>
+      (a.originalDueDate?.getTime() ?? 0) - (b.originalDueDate?.getTime() ?? 0) ||
+      compareDayRows({ ...a, kind: "instance" }, { ...b, kind: "instance" })
   );
 
   await prisma.$transaction([
