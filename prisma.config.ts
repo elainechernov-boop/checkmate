@@ -13,7 +13,15 @@ import { defineConfig } from "prisma/config";
 // Trimmed defensively — a stray leading/trailing space or tab (an easy
 // mistake when pasting a value into a host's dashboard) would otherwise
 // silently defeat the provider sniff below and fall through to sqlite.
-const databaseUrl = (process.env.DATABASE_URL ?? "file:./prisma/dev.db").trim();
+// DIRECT_URL, when set, is what the CLI connects to instead of DATABASE_URL:
+// Neon's pooled connection (the one DATABASE_URL points at there) goes
+// through a pooler that doesn't reliably support the advisory lock
+// `migrate deploy` takes, so migrations need the direct one. The running app
+// never reads this file — it queries through DATABASE_URL (lib/prisma.ts) —
+// so this only ever affects the CLI. Unset on Railway, where DATABASE_URL is
+// already a direct connection. `||`, not `??`, so an empty value pasted into
+// a host dashboard falls through rather than winning.
+const databaseUrl = (process.env.DIRECT_URL || process.env.DATABASE_URL || "file:./prisma/dev.db").trim();
 const isPostgres = /^postgres(ql)?:\/\//.test(databaseUrl);
 const provider = isPostgres ? "postgresql" : "sqlite";
 

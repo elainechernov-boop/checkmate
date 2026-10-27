@@ -2,9 +2,13 @@
   "name": "homeroom",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate --schema prisma/postgresql && next build",
+    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then prisma migrate deploy; fi && npm run build",
     "start": "prisma migrate deploy && next start -H 0.0.0.0",
     "lint": "eslint",
     "postinstall": "prisma generate",

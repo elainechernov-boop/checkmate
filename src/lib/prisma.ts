@@ -11,7 +11,17 @@ function createClient(): PrismaClient {
   const databaseUrl = (process.env.DATABASE_URL ?? "file:./prisma/dev.db").trim();
   const isPostgres = /^postgres(ql)?:\/\//.test(databaseUrl);
   const adapter = isPostgres
-    ? new PrismaPg(databaseUrl)
+    ? new PrismaPg({
+        connectionString: databaseUrl,
+        // Neon suspends an idle database after 5 minutes, and the first
+        // connection after that waits for it to wake — a generous timeout
+        // so that first page load is slow rather than an error.
+        connectionTimeoutMillis: 15_000,
+        // Every serverless instance opens its own pool, so on Vercel a small
+        // cap keeps the total connections to the database modest. A
+        // long-lived server (Railway, local dev) keeps pg's default.
+        ...(process.env.VERCEL ? { max: 3 } : {}),
+      })
     : new PrismaBetterSqlite3({ url: databaseUrl.replace(/^file:/, "") });
 
   return new PrismaClient({ adapter });
