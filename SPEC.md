@@ -328,7 +328,7 @@ A running clock can't tell *working* from *sitting there* — paper work happens
 
 ## 16. Moving hosting to Vercel + Neon (post-v1)
 
-**Status: planned, not started.** Railway stays production until the cutover in phase C. Nothing in this section changes how the app looks or behaves.
+**Status: in progress (2026-10-27).** Phase A's code is done on the `vercel-neon` branch. A rehearsal copy of production data is restored in Neon (all 18 tables' row counts match Railway), and the Vercel project exists and points at it. Railway stays production until the cutover in phase C. Nothing in this section changes how the app looks or behaves.
 
 **Why.** Railway's Hobby plan is a $5/month floor, and the app has cost more than that: the Sep 25–Oct 25 cycle was $8.43 of usage, $8.29 of it memory. $7.69 was the app service, sitting at about 0.77 GB on average while almost idle (CPU near zero); Postgres was $0.64 (about 64 MB). §1's "~$5/month" was a guess that turned out low, and a Node memory cap and App Sleeping could trim it but not below the $5 floor. The goal here is $0/month, not a smaller bill.
 
