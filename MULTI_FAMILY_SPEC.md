@@ -4,8 +4,8 @@ Companion to [SPEC.md](SPEC.md), which remains the source of truth for how the a
 
 Decisions locked in for this spec (confirmed with the user 2026-08-31):
 
-- **Multi-tenant, single deployment.** One Railway app, one Postgres database, shared by every family. Not "each family deploys their own copy."
-- **You host and pay for everyone.** No family sets up their own Railway account.
+- **Multi-tenant, single deployment.** One Vercel app, one Neon Postgres database, shared by every family. Not "each family deploys their own copy." *(Railway hosted this until 2026-10-27; see SPEC.md §16.)*
+- **You host and pay for everyone.** No family sets up their own hosting account.
 - **Blue Ridge Academy-specific features (attendance, 4-category work samples, learning periods, "HST" report) become an optional, configurable module** — not ripped out, not left hardcoded.
 - **Scale for now: a handful of friend families**, added by you, informally. But the architecture should not have to be redone if this later becomes a paid product for strangers — it should just stay small in scope, not small in ambition.
 
@@ -81,10 +81,10 @@ You're adding a handful of friends by hand, not opening public signup — so bui
 
 ## Phase 5 — Hosting for many families on the one deployment you already pay for
 
-- No infrastructure change needed to *start*: the existing Railway app + Postgres (~$5/mo) comfortably holds a handful of families' worth of data. Note the trigger to revisit (meaningfully more families, or noticeably slower queries) rather than pre-scaling for load that doesn't exist yet.
+- No infrastructure change needed to *start*: the existing Vercel app + Neon Postgres (both free plans, $0/mo) comfortably hold a handful of families' worth of data, within the limits in SPEC.md §16 (Neon's 1 GB and 100 compute-hours, Vercel's CPU and invocations). Hosting other families' use on Vercel's Hobby plan is also a judgment call under its non-commercial terms (§16, "Hosting terms"). Note the trigger to revisit (meaningfully more families, or noticeably slower queries) rather than pre-scaling for load that doesn't exist yet.
 - Environment variables shrink to app-wide concerns only (session signing key, the new admin secret). `FAMILY_PASSWORD`/`PARENT_PASSCODE` env vars are retired once Phase 2 ships — per-family secrets live in the database instead.
 - Everyone shares one URL; which family's data you see is determined by login, the same way Slack uses one client against many workspaces. No subdomains or per-family URLs needed at this scale — Phase 1's `slug` field reserves the option without building it now.
-- Backups: Railway's existing automatic daily backups now protect every family's data, not just yours — no change needed, just worth knowing.
+- Backups: Neon Free keeps only 6 hours of history, so it is not a backup. The nightly dump (SPEC.md §16 phase B) covers every family's data, not just yours, and is kept on your Mac and in your iCloud Drive; it holds every family's data and is not encrypted, so treat it as private.
 - Add a basic per-family data export or delete path (even a simple admin action) — light privacy hygiene once other families' real data lives in your database, independent of whether this ever becomes commercial.
 
 **Exit criteria:** multiple families' data lives safely in the one app you already run, with no new recurring cost.
