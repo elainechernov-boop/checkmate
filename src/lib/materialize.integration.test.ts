@@ -53,6 +53,55 @@ describe("materializeSeries", () => {
     ]);
   });
 
+  it("only scans the student's whole horizon when it has something new to create", async () => {
+    const student = await makeStudent(prisma);
+    const subject = await makeSubject(prisma);
+    const series = await prisma.assignmentSeries.create({
+      data: {
+        title: "Math worksheet",
+        studentId: student.id,
+        subjectId: subject.id,
+        createdBy: "parent",
+        startDate: parseISODate("2026-08-03"),
+        endCondition: EndCondition.onDate,
+        endDate: parseISODate("2026-08-07"),
+        recurrence: { create: { frequency: Frequency.weekdays, interval: 1 } },
+      },
+    });
+
+    // Counts every model.operation call, so the test can tell a steady-state
+    // run (nothing to create) from one that has to slot new rows into a day.
+    const calls: Record<string, number> = {};
+    const counted = new Proxy(prisma, {
+      get(client, model: string) {
+        const delegate = Reflect.get(client, model) as Record<string, unknown>;
+        if (typeof delegate !== "object" || delegate === null) return delegate;
+        return new Proxy(delegate, {
+          get(target, operation: string) {
+            const fn = target[operation];
+            if (typeof fn !== "function") return fn;
+            return (...args: unknown[]) => {
+              calls[`${model}.${operation}`] = (calls[`${model}.${operation}`] ?? 0) + 1;
+              return fn.apply(target, args);
+            };
+          },
+        });
+      },
+    });
+
+    await materializeSeries(counted, series.id, parseISODate("2026-08-03"));
+    expect(calls["daySeparator.findMany"]).toBe(1);
+    expect(calls["assignmentInstance.findMany"]).toBe(2);
+
+    // Everything exists now, so a second run has nothing to create and should
+    // read only this series' own future instances: that run happens on page
+    // loads, and over a hosted database every row it reads is metered.
+    for (const key of Object.keys(calls)) delete calls[key];
+    await materializeSeries(counted, series.id, parseISODate("2026-08-03"));
+    expect(calls["daySeparator.findMany"]).toBeUndefined();
+    expect(calls["assignmentInstance.findMany"]).toBe(1);
+  });
+
   it("lands each materialized occurrence after that day's existing rows, not at sortOrder 0", async () => {
     const student = await makeStudent(prisma);
     const subject = await makeSubject(prisma);
