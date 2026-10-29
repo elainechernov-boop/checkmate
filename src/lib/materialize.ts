@@ -6,6 +6,15 @@ import { isBlockedDay, loadSchoolDayMap, type SchoolDayMap } from "./schoolCalen
 
 export const MATERIALIZATION_HORIZON_DAYS = 60;
 
+// How often one server process re-runs extendAllMaterializationHorizons from a
+// page load. Every real change (an edit, a calendar change, an undo)
+// re-materializes by itself, so this catch-up only has to move the 60-day
+// horizon forward as days pass: a few times a day is plenty. At the old 60
+// seconds it re-read most of the schedule on nearly every student-tab refresh,
+// which cost nothing next to Railway's own database but used about 4 GB of
+// Neon's 5 GB monthly network transfer in two days (SPEC.md §16).
+export const CATCH_UP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
 const WEEKDAY_ORDER: Record<WeekdayCode, number> = Object.fromEntries(
   WEEKDAYS.map((day, index) => [day.code, index])
 ) as Record<WeekdayCode, number>;
@@ -229,34 +238,40 @@ export async function materializeSeries(
   // slot instead, shifting whatever was already there down. Scanned once
   // across the whole horizon, for every one of this student's instances/
   // separators (not just this series'), and kept up to date in-memory as
-  // rows get created or shifted below.
-  const [horizonInstances, horizonSeparators] = await Promise.all([
-    prisma.assignmentInstance.findMany({
-      where: { studentId: series.studentId, dueDate: { gte: asOf, lte: horizonEnd } },
-      select: { id: true, dueDate: true, sortOrder: true, createdAt: true },
-    }),
-    prisma.daySeparator.findMany({
-      where: { studentId: series.studentId, date: { gte: asOf, lte: horizonEnd } },
-      select: { id: true, date: true, sortOrder: true },
-    }),
-  ]);
+  // rows get created or shifted below. Only fetched when something is
+  // actually about to be created: in the steady state (nothing to
+  // materialize) it was a scan of the student's whole horizon for every
+  // series, and over a hosted database those rows are metered transfer.
   type Row = { id: string; kind: "instance" | "separator"; sortOrder: number; createdAt?: Date | null };
   const rowsByDate = new Map<string, Row[]>();
-  for (const instance of horizonInstances) {
-    if (!instance.dueDate) continue;
-    const key = toISODate(instance.dueDate);
-    const rows = rowsByDate.get(key) ?? [];
-    rows.push({ id: instance.id, kind: "instance", sortOrder: instance.sortOrder, createdAt: instance.createdAt });
-    rowsByDate.set(key, rows);
+  const needsNewOccurrence = futureOccurrences.some((date) => !existingByDate.has(toISODate(date)));
+  if (needsNewOccurrence) {
+    const [horizonInstances, horizonSeparators] = await Promise.all([
+      prisma.assignmentInstance.findMany({
+        where: { studentId: series.studentId, dueDate: { gte: asOf, lte: horizonEnd } },
+        select: { id: true, dueDate: true, sortOrder: true, createdAt: true },
+      }),
+      prisma.daySeparator.findMany({
+        where: { studentId: series.studentId, date: { gte: asOf, lte: horizonEnd } },
+        select: { id: true, date: true, sortOrder: true },
+      }),
+    ]);
+    for (const instance of horizonInstances) {
+      if (!instance.dueDate) continue;
+      const key = toISODate(instance.dueDate);
+      const rows = rowsByDate.get(key) ?? [];
+      rows.push({ id: instance.id, kind: "instance", sortOrder: instance.sortOrder, createdAt: instance.createdAt });
+      rowsByDate.set(key, rows);
+    }
+    for (const separator of horizonSeparators) {
+      const key = toISODate(separator.date);
+      const rows = rowsByDate.get(key) ?? [];
+      rows.push({ id: separator.id, kind: "separator", sortOrder: separator.sortOrder });
+      rowsByDate.set(key, rows);
+    }
+    // dayOrder.ts's tie-break, so tied rows keep the order the boards show them in.
+    for (const rows of rowsByDate.values()) rows.sort(compareDayRows);
   }
-  for (const separator of horizonSeparators) {
-    const key = toISODate(separator.date);
-    const rows = rowsByDate.get(key) ?? [];
-    rows.push({ id: separator.id, kind: "separator", sortOrder: separator.sortOrder });
-    rowsByDate.set(key, rows);
-  }
-  // dayOrder.ts's tie-break, so tied rows keep the order the boards show them in.
-  for (const rows of rowsByDate.values()) rows.sort(compareDayRows);
 
   const staleIds = existingFutureInstances
     .filter(

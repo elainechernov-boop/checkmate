@@ -3,7 +3,7 @@ import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { AppShell, BrandHeader } from "@/components/AppShell";
 import { ParentNav } from "@/components/ParentNav";
 import { addDays, defaultWeekStart, getToday, parseISODate, toISODate } from "@/lib/dates";
-import { extendAllMaterializationHorizons } from "@/lib/materialize";
+import { CATCH_UP_INTERVAL_MS, extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstancesForAllStudents } from "@/lib/rollForward";
 import { loadSchoolDayMap } from "@/lib/schoolCalendar";
 import { shouldRunNow } from "@/lib/throttle";
@@ -43,7 +43,7 @@ export default async function ParentPage({
   // generating even on days only Parent Mode gets opened. Throttled
   // (throttle.ts) the same way and for the same reason as the student
   // page — revalidatePath() re-runs this whole function on every mutation.
-  if (shouldRunNow("materialize-all", 60_000)) {
+  if (shouldRunNow("materialize-all", CATCH_UP_INTERVAL_MS)) {
     await extendAllMaterializationHorizons(prisma, today);
   }
   // Keeps Parent Mode's board correct even if the parent looks before either

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { addDays, defaultWeekStart, getToday, isDebugToday, parseISODate } from "@/lib/dates";
 import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
-import { extendAllMaterializationHorizons } from "@/lib/materialize";
+import { CATCH_UP_INTERVAL_MS, extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
 import { computeStreak } from "@/lib/streak";
 import { shouldRunNow } from "@/lib/throttle";
@@ -38,11 +38,11 @@ export default async function StudentPage({
   // Keeps every series' rolling 60-day materialization window actually
   // rolling as real days pass, not just when a series is edited (see
   // materialize.ts) — runs before the roll below so a freshly-materialized
-  // today's instance is never missed by it. Throttled (throttle.ts) to
-  // match §1's own "light 60-second background refresh" cadence — without
-  // it, checking a single item off re-ran this across every series on
-  // every click, since revalidatePath() re-executes this whole function.
-  if (shouldRunNow("materialize-all", 60_000)) {
+  // today's instance is never missed by it. Throttled (throttle.ts) to a few
+  // times a day: every real change re-materializes by itself, and the 60-second
+  // refresh would otherwise re-read most of the schedule every minute, which is
+  // metered transfer on Neon (CATCH_UP_INTERVAL_MS has the numbers).
+  if (shouldRunNow("materialize-all", CATCH_UP_INTERVAL_MS)) {
     await extendAllMaterializationHorizons(prisma, today);
   }
   // §5's daily auto-roll — runs on every load (not just "the first" one) so
