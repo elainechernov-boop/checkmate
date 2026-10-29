@@ -44,8 +44,17 @@ function defaultDayIndex(days: Date[], todayISO: string, isCurrentWeek: boolean)
   return index === -1 ? 0 : index;
 }
 
-const REFRESH_INTERVAL_MS = 60_000;
-// §12: independent of the 60s data refresh above — this only ever reads
+// A slow safety-net refresh of the whole week. It used to be the only way a
+// morning edit reached an open tab, at 60 seconds, until every one of those
+// refreshes started counting against Neon's free 5 GB of monthly network
+// transfer (SPEC.md §16). Edits now arrive through the cheap stamp check
+// below; this only catches what the stamp can't see.
+const REFRESH_INTERVAL_MS = 5 * 60_000;
+// How often an open tab asks whether anything changed (lib/studentStamp.ts).
+// It is a handful of tiny queries, so it can be short: a parent's edit shows
+// up within about this long.
+const STAMP_CHECK_INTERVAL_MS = 15_000;
+// §12: independent of the data refresh above — this only ever reads
 // already-loaded local state against the wall clock, so it can check far
 // more often without hitting the server.
 const REMINDER_CHECK_INTERVAL_MS = 20_000;
@@ -63,6 +72,7 @@ export function StudentWeekView({
   timeTracking,
   skipCelebratedGuard,
   requestedDayIndex,
+  changeStamp,
 }: {
   student: Student;
   monday: Date;
@@ -88,6 +98,10 @@ export function StudentWeekView({
   // Set only when a mobile swipe/arrow carried the student across a week
   // edge (see page.tsx) — otherwise null, and the default below applies.
   requestedDayIndex: number | null;
+  // The fingerprint of this student's data this render was built from
+  // (lib/studentStamp.ts); a different one from the server means a parent
+  // changed something.
+  changeStamp: string;
 }) {
   const router = useRouter();
   const prefersReducedMotion = !!useReducedMotion();
@@ -198,14 +212,56 @@ export function StudentWeekView({
     setCelebratedToday(skipCelebratedGuard ? false : window.localStorage.getItem(celebratedKey) === "1");
   }, [celebratedKey, skipCelebratedGuard]);
 
-  // §1: a light 60-second background refresh, so a morning edit appears
-  // without the student touching anything.
+  // §1: the slow background refresh (see REFRESH_INTERVAL_MS).
   useEffect(() => {
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") router.refresh();
     }, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [router]);
+
+  // §1: a parent's edit appears without the student touching anything. Every
+  // few seconds, ask the server for a tiny fingerprint of this student's data
+  // and re-read the whole week only when it differs from the one this render
+  // was built from. The student's own check-offs refresh through their own
+  // action, and that render brings its own newer stamp, so they don't trigger
+  // a second refresh here.
+  const knownStamp = useRef(changeStamp);
+  useEffect(() => {
+    knownStamp.current = changeStamp;
+  }, [changeStamp]);
+  useEffect(() => {
+    let requestedStamp: string | null = null;
+    let checking = false;
+    async function checkForChanges() {
+      if (document.visibilityState !== "visible" || checking) return;
+      checking = true;
+      try {
+        const response = await fetch(`/student/${student.id}/stamp`, { cache: "no-store" });
+        if (!response.ok) return;
+        const { stamp } = (await response.json()) as { stamp: string };
+        // Not while a refresh for this same stamp is already on its way.
+        if (stamp !== knownStamp.current && stamp !== requestedStamp) {
+          requestedStamp = stamp;
+          router.refresh();
+        }
+      } catch {
+        // A dropped connection just skips a check; the next one catches up.
+      } finally {
+        checking = false;
+      }
+    }
+    const interval = window.setInterval(checkForChanges, STAMP_CHECK_INTERVAL_MS);
+    // A tab that comes back to the front shouldn't wait out the interval.
+    function handleVisibility() {
+      if (document.visibilityState === "visible") void checkForChanges();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [router, student.id]);
 
   // §12: watches today's still-open time-sensitive items against the wall
   // clock and fires the reminder takeover once one enters its window (see

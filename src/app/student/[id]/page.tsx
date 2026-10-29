@@ -4,6 +4,7 @@ import { getCurrentFamily, getScopedPrisma } from "@/lib/prisma";
 import { CATCH_UP_INTERVAL_MS, extendAllMaterializationHorizons } from "@/lib/materialize";
 import { rollOverdueInstances } from "@/lib/rollForward";
 import { computeStreak } from "@/lib/streak";
+import { computeStudentStamp } from "@/lib/studentStamp";
 import { shouldRunNow } from "@/lib/throttle";
 import { findOpenRun, timeLoggedByInstance } from "@/lib/timeTracking";
 import {
@@ -52,6 +53,12 @@ export default async function StudentPage({
   if (shouldRunNow(`roll-${id}`, 60_000)) {
     await rollOverdueInstances(prisma, id, today);
   }
+
+  // The fingerprint this render is based on (studentStamp.ts), taken after the
+  // catch-up above and before the reads below: a change that lands while the
+  // week is loading then reads as "newer than this render", so the open tab
+  // refreshes once more instead of missing it.
+  const changeStamp = await computeStudentStamp(prisma, id);
 
   const monday = week ? parseISODate(week) : defaultWeekStart(today);
   const weekEnd = addDays(monday, 6); // Mon..Sat, six columns per §6
@@ -166,6 +173,7 @@ export default async function StudentPage({
       timeTracking={timeTracking}
       skipCelebratedGuard={isDebugToday()}
       requestedDayIndex={requestedDayIndex}
+      changeStamp={changeStamp}
     />
   );
 }
